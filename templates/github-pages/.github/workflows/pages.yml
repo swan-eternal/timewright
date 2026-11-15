@@ -24,10 +24,9 @@ jobs:
         with:
           node-version: 22
 
-      # The tool itself. From a clone, use:
-      #   npm install -g ./
-      # and point this step at the clone instead.
-      - run: npm install -g timewright
+      # The tool itself, installed from GitHub. npm clones it, builds it
+      # (the prepare script) and puts the command on the path.
+      - run: npm install -g github:swan-eternal/timewright
 
       # The base path is the repository name: GitHub Pages serves a project
       # site from /<repository>/.

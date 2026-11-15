@@ -6,8 +6,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import { runInit } from "../src/cli/commands/init.js";
-import { placeLocation } from "../src/cli/commands/pick.js";
 import { writeSingleFile } from "../src/cli/single-file.js";
+import { moveLocation } from "../src/cli/world-edit.js";
 import { loadWorld } from "../src/cli/load.js";
 import type { ResolvedWorld } from "../src/core/model.js";
 import { validateWorld } from "../src/core/validate.js";
@@ -50,7 +50,7 @@ describe("the picker", () => {
     const target = path.join(dir, "my-world");
     await runInit({ folder: target });
 
-    const result = await placeLocation(target, "The Old Mill", "region", 120, 340);
+    const result = await moveLocation(target, "The Old Mill", "region", 120, 340);
     assert.equal(result.ok, true);
 
     const text = await readFile(path.join(target, "locations", "locations.yaml"), "utf8");

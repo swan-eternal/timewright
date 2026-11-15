@@ -7,15 +7,29 @@ validates it, resolves the names, and builds a site you can step through:
 click a date, follow a person across the map, read their card.
 
 ```bash
-npx timewright init my-world
+npm install -g github:swan-eternal/timewright
+timewright init my-world
 cd my-world
-npx timewright validate
-npx timewright pick          # place the locations on the map
-npx timewright build --out dist
+timewright validate
+timewright pick          # place the locations on the map
+timewright build --out dist
 ```
 
 No database, no server, no build toolchain to learn. The output is a folder of
 static files that any web host can serve.
+
+## Install
+
+```bash
+npm install -g github:swan-eternal/timewright
+```
+
+That installs from GitHub, and npm does the work: it clones the repository,
+builds it, and puts the `timewright` command on your path. There is no account
+to make and nothing to sign up for.
+
+If it reaches npm one day, the install line becomes `npm install -g
+timewright` and nothing else changes — the command is the same either way.
 
 ## What a world looks like
 
@@ -57,6 +71,7 @@ an agent — point your agent at it and let it write the YAML for you.
 | `timewright build` | Build a world into a static site |
 | `timewright dev` | Run the viewer locally, reloading when the world changes |
 | `timewright pick` | Pick coordinates on a map, and place locations |
+| `timewright edit` | Edit the world in the browser |
 | `timewright schema` | Print the JSON Schema for the world format |
 
 Useful flags: `--json` (machine-readable validation, for agents), `--strict`
@@ -69,6 +84,9 @@ Useful flags: `--json` (machine-readable validation, for agents), `--strict`
    [templates/github-pages](templates/github-pages/.github/workflows/pages.yml).
 2. Put the world files at the root of the repository.
 3. Push. The workflow builds the site and publishes it.
+
+The workflow installs the tool from GitHub, so nothing has to be published to
+npm first.
 
 The `--base` flag matters: GitHub Pages serves a project site from
 `/repository-name/`, and the build has to know that. The template workflow
@@ -101,6 +119,22 @@ Agents know names, not pixels, so you do not write coordinates:
 `timewright validate` says "needs placing", and `timewright pick` opens a
 local page where you click the map and the coordinates are written into the
 YAML — comments and all. It binds to 127.0.0.1 and is never deployed.
+
+## Editing a world
+
+`timewright edit` opens the world in the browser: the map with everything on
+it, a list of locations, people and events, and a form for whichever one you
+click.
+
+- Click the map to make a location or an event there.
+- Drag a marker to move it.
+- Edit names, dates, tags and cards in the form.
+- Upload a new map image.
+- Delete a record you no longer want.
+
+Everything is written into the same YAML files, in place, comments and all.
+The files stay the source of truth, so an agent can keep working on a world
+you have been editing by hand.
 
 ## Checking on a phone
 

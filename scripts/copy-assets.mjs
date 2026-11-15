@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const files = [["src/cli/picker.html", "dist/cli/picker.html"]];
+const files = [
+  ["src/cli/picker.html", "dist/cli/picker.html"],
+  ["src/cli/editor.html", "dist/cli/editor.html"],
+];
 
 for (const [from, to] of files) {
   const source = path.join(root, from);

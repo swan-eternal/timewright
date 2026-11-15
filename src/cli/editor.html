@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timewright editor</title>
+    <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <style>
+      :root { --bg: #f7f4ee; --panel: #fffdf8; --ink: #2b2620; --muted: #6b6155; --line: #ddd4c4; --accent: #1f4fa0; --event: #b3541e; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+      header { display: flex; gap: 0.6rem; align-items: center; padding: 0.5rem 0.9rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      header h1 { font-size: 1rem; margin: 0 1rem 0 0; }
+      select, input, button, textarea { font: inherit; }
+      select, header button { padding: 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+      header button.active { border-color: var(--accent); background: #e8eef9; color: var(--accent); }
+      #status { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+      main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; height: calc(100vh - 3.4rem); }
+      #map { min-height: 0; background: #ded7c9; }
+      aside { border-left: 1px solid var(--line); background: var(--panel); display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+      .tabs { display: flex; border-bottom: 1px solid var(--line); }
+      .tabs button { flex: 1; padding: 0.5rem; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; }
+      .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+      .list-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+      .list-head button { margin-left: auto; padding: 0.2rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+      #list { list-style: none; margin: 0; padding: 0.35rem 0.5rem; overflow: auto; max-height: 34vh; }
+      #list li { margin-bottom: 0.2rem; }
+      #list button { width: 100%; text-align: left; padding: 0.4rem 0.6rem; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; }
+      #list button:hover { background: #f3ede0; }
+      #list button.active { border-color: var(--accent); background: #e8eef9; }
+      #list .where { color: var(--muted); font-size: 0.8rem; }
+      #form { padding: 0.75rem 0.9rem 1.5rem; overflow: auto; border-top: 1px solid var(--line); }
+      #form label { display: block; margin-bottom: 0.55rem; font-size: 0.85rem; color: var(--muted); }
+      #form input, #form textarea, #form select { display: block; width: 100%; margin-top: 0.2rem; padding: 0.4rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+      #form textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
+      .row { display: flex; gap: 0.4rem; }
+      .row label { flex: 1; }
+      .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+      .actions button { padding: 0.4rem 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+      .actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .actions button.danger { color: #a3352f; border-color: #d9b4b1; }
+      p.hint { color: var(--muted); font-size: 0.85rem; }
+      @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Timewright editor</h1>
+      <select id="map-select" aria-label="Map"></select>
+      <button id="add-location" type="button">Add a location</button>
+      <button id="add-event" type="button">Add an event</button>
+      <label class="hint">Map image <input id="image-upload" type="file" accept="image/*" style="display:inline-block;width:auto;margin-left:.3rem" /></label>
+      <span id="status"></span>
+    </header>
+    <main>
+      <div id="map"></div>
+      <aside>
+        <nav class="tabs">
+          <button type="button" data-tab="locations" class="active">Locations</button>
+          <button type="button" data-tab="people">People</button>
+          <button type="button" data-tab="events">Events</button>
+        </nav>
+        <div>
+          <div class="list-head"><span id="list-title"></span><button id="new-record" type="button">New</button></div>
+          <ul id="list"></ul>
+        </div>
+        <form id="form" hidden></form>
+      </aside>
+    </main>
+    <script src="/leaflet/leaflet.js"></script>
+    <script>
+      const state = {
+        world: null,
+        mapId: null,
+        tab: "locations",
+        editing: null,
+        mode: null,
+        map: null,
+        overlay: null,
+        markers: [],
+      };
+
+      const status = document.getElementById("status");
+      const list = document.getElementById("list");
+      const form = document.getElementById("form");
+      const mapSelect = document.getElementById("map-select");
+
+      function say(message) {
+        status.textContent = message;
+      }
+
+      function escapeHtml(text) {
+        return String(text ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function currentMap() {
+        return state.world.maps.find((m) => m.id === state.mapId);
+      }
+
+      function records() {
+        return state.world[state.tab] ?? [];
+      }
+
+      // --- the map -------------------------------------------------
+
+      function showMap() {
+        const map = currentMap();
+        if (!map) return;
+        if (state.map) state.map.remove();
+        state.markers = [];
+        state.map = L.map("map", {
+          crs: L.CRS.Simple,
+          minZoom: -4,
+          maxZoom: 4,
+          zoomSnap: 0.25,
+          attributionControl: false,
+        });
+        state.overlay = L.imageOverlay("/api/image/" + encodeURIComponent(map.id), [[0, 0], [map.size[1], map.size[0]]]);
+        state.overlay.on("load", () => {
+          const image = state.overlay.getElement();
+          state.map.fitBounds([[0, 0], [image.naturalHeight, image.naturalWidth]]);
+          state.map.on("click", onMapClick);
+          drawMarkers();
+        });
+        state.overlay.addTo(state.map);
+      }
+
+      function pixelAt(event) {
+        const image = state.overlay && state.overlay.getElement();
+        if (!image) return null;
+        const rect = image.getBoundingClientRect();
+        const containerRect = state.map.getContainer().getBoundingClientRect();
+        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
+        const left = (rect.left - containerRect.left) / scale;
+        const top = (rect.top - containerRect.top) / scale;
+        return {
+          x: Math.round(((event.containerPoint.x - left) / image.clientWidth) * image.naturalWidth),
+          y: Math.round(((event.containerPoint.y - top) / image.clientHeight) * image.naturalHeight),
+        };
+      }
+
+      function drawMarkers() {
+        for (const marker of state.markers) marker.remove();
+        state.markers = [];
+        const image = state.overlay && state.overlay.getElement();
+        if (!image) return;
+
+        for (const location of state.world.locations) {
+          if (location.map !== state.mapId || !location.at) continue;
+          const marker = L.circleMarker(latLngFor(image, location.at[0], location.at[1]), {
+            radius: 7,
+            color: "#1f4fa0",
+            weight: 2,
+            fillColor: "#6f9ad8",
+            fillOpacity: 0.8,
+          });
+          marker.bindTooltip(location.name);
+          marker.on("click", () => editRecord("locations", location.id));
+          marker.on("dragend", async (event) => {
+            const point = latLngForInverse(event.target.getLatLng());
+            const result = await post("/api/move", {
+              id: location.id,
+              mapId: state.mapId,
+              x: point.x,
+              y: point.y,
+            });
+            say(result.message || "moved");
+            await load();
+          });
+          marker.dragging.enable();
+          state.markers.push(marker);
+          marker.addTo(state.map);
+        }
+
+        for (const event of state.world.events) {
+          if (event.map !== state.mapId || !event.at) continue;
+          const marker = L.circleMarker(latLngFor(image, event.at[0], event.at[1]), {
+            radius: 8,
+            color: "#b3541e",
+            weight: 2,
+            fillColor: "#e08b57",
+            fillOpacity: 0.85,
+          });
+          marker.bindTooltip(event.title);
+          marker.on("click", () => editRecord("events", event.id));
+          state.markers.push(marker);
+          marker.addTo(state.map);
+        }
+      }
+
+      function latLngFor(image, x, y) {
+        const rect = image.getBoundingClientRect();
+        const containerRect = state.map.getContainer().getBoundingClientRect();
+        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
+        const left = (rect.left - containerRect.left) / scale;
+        const top = (rect.top - containerRect.top) / scale;
+        return state.map.containerPointToLatLng(
+          L.point(left + (x / image.naturalWidth) * image.clientWidth, top + (y / image.naturalHeight) * image.clientHeight),
+        );
+      }
+
+      function latLngForInverse(latLng) {
+        const image = state.overlay.getElement();
+        const point = state.map.latLngToContainerPoint(latLng);
+        const rect = image.getBoundingClientRect();
+        const containerRect = state.map.getContainer().getBoundingClientRect();
+        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
+        const left = (rect.left - containerRect.left) / scale;
+        const top = (rect.top - containerRect.top) / scale;
+        return {
+          x: Math.round(((point.x - left) / image.clientWidth) * image.naturalWidth),
+          y: Math.round(((point.y - top) / image.clientHeight) * image.naturalHeight),
+        };
+      }
+
+      async function onMapClick(event) {
+        if (!state.mode) return;
+        const point = pixelAt(event);
+        if (!point) return;
+        const kind = state.mode;
+        state.mode = null;
+        document.getElementById("add-location").classList.remove("active");
+        document.getElementById("add-event").classList.remove("active");
+        const record =
+          kind === "location"
+            ? { name: "New place", map: state.mapId, at: [point.x, point.y], tags: [] }
+            : { title: "New event", when: String(state.world.events[0]?.when ?? 1800), tags: [] };
+        const result = await post("/api/create", { kind, record });
+        say(result.message || "created");
+        await load();
+        const created = (state.world[kind === "location" ? "locations" : "events"] ?? []).find((entry) =>
+          kind === "location" ? entry.name === record.name : entry.title === record.title,
+        );
+        if (created) editRecord(kind === "location" ? "locations" : "events", created.id);
+      }
+
+      // --- the list and the form -----------------------------------
+
+      function renderList() {
+        document.querySelectorAll(".tabs button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.tab === state.tab);
+        });
+        document.getElementById("list-title").textContent = state.tab;
+        list.innerHTML = "";
+        for (const record of records()) {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          const label = record.name ?? record.title ?? "";
+          const where = record.map ? `<span class="where">${escapeHtml(record.map)}</span>` : "";
+          button.innerHTML = `${escapeHtml(label)} ${where}`;
+          button.classList.toggle("active", state.editing && state.editing.id === record.id);
+          button.addEventListener("click", () => editRecord(state.tab, record.id));
+          item.appendChild(button);
+          list.appendChild(item);
+        }
+      }
+
+      function editRecord(tab, id) {
+        state.tab = tab;
+        const record = (state.world[tab] ?? []).find((entry) => entry.id === id);
+        if (!record) return;
+        state.editing = record;
+        renderList();
+        form.hidden = false;
+        form.innerHTML = formFor(tab, record);
+        form.querySelector("#save").addEventListener("click", saveRecord);
+        form.querySelector("#cancel").addEventListener("click", () => {
+          state.editing = null;
+          form.hidden = true;
+          renderList();
+        });
+        const remove = form.querySelector("#delete");
+        if (remove) {
+          remove.addEventListener("click", deleteRecord);
+        }
+      }
+
+      function field(label, name, value) {
+        return `<label>${label}<input name="${name}" value="${escapeHtml(value)}" /></label>`;
+      }
+
+      function area(label, name, value) {
+        return `<label>${label}<textarea name="${name}" rows="5">${escapeHtml(value)}</textarea></label>`;
+      }
+
+      function formFor(tab, record) {
+        const actions = `<div class="actions">
+          <button type="button" class="primary" id="save">Save</button>
+          <button type="button" id="cancel">Cancel</button>
+          <button type="button" class="danger" id="delete">Delete</button>
+        </div>`;
+        if (tab === "locations") {
+          const options = state.world.maps
+            .map((map) => `<option value="${escapeHtml(map.id)}"${map.id === record.map ? " selected" : ""}>${escapeHtml(map.name)}</option>`)
+            .join("");
+          return (
+            field("Name", "name", record.name) +
+            field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
+            `<label>Map<select name="map">${options}</select></label>` +
+            field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
+            area("Card (Markdown)", "card", record.card) +
+            actions
+          );
+        }
+        if (tab === "people") {
+          return (
+            field("Name", "name", record.name) +
+            field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
+            `<div class="row">${field("Born", "born", record.born)}${field("Died", "died", record.died)}</div>` +
+            field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
+            area("Bio (Markdown)", "card", record.card) +
+            actions
+          );
+        }
+        const whereOptions = ["", ...state.world.locations.map((location) => location.name)]
+          .map((name) => `<option value="${escapeHtml(name)}"${name === record.where ? " selected" : ""}>${escapeHtml(name || "(nowhere)")}</option>`)
+          .join("");
+        return (
+          field("Title", "title", record.title) +
+          field("When (1815, 1815-06-18, ~1200, 1805..1807)", "when", record.when) +
+          `<label>Where<select name="where">${whereOptions}</select></label>` +
+          field("People (comma separated)", "people", (record.people ?? []).join(", ")) +
+          field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
+          area("Card (Markdown)", "card", record.card) +
+          actions
+        );
+      }
+
+      function readForm() {
+        const data = new FormData(form);
+        const list = (name) =>
+          String(data.get(name) ?? "")
+            .split(",")
+            .map((part) => part.trim())
+            .filter((part) => part !== "");
+        const fields = {};
+        if (state.tab === "events") {
+          fields.title = String(data.get("title") ?? "");
+          fields.when = String(data.get("when") ?? "");
+          const where = String(data.get("where") ?? "");
+          if (where === "") {
+            fields.where = undefined;
+          } else {
+            fields.where = where;
+          }
+          fields.people = list("people");
+          fields.tags = list("tags");
+          fields.card = String(data.get("card") ?? "");
+        } else {
+          fields.name = String(data.get("name") ?? "");
+          fields.aliases = list("aliases");
+          fields.tags = list("tags");
+          fields.card = String(data.get("card") ?? "");
+          if (state.tab === "locations") {
+            fields.map = String(data.get("map") ?? "");
+          } else {
+            fields.bio = String(data.get("card") ?? "");
+            fields.born = String(data.get("born") ?? "");
+            fields.died = String(data.get("died") ?? "");
+          }
+        }
+        return fields;
+      }
+
+      async function saveRecord() {
+        if (!state.editing) return;
+        const result = await post("/api/record", {
+          kind: state.editing.kind,
+          file: state.editing.file,
+          index: state.editing.index,
+          fields: readForm(),
+        });
+        say(result.message || "saved");
+        await load();
+        form.hidden = true;
+        state.editing = null;
+      }
+
+      async function deleteRecord() {
+        if (!state.editing) return;
+        if (!confirm("Delete " + (state.editing.name ?? state.editing.title) + "?")) return;
+        const result = await post("/api/delete", {
+          kind: state.editing.kind,
+          file: state.editing.file,
+          index: state.editing.index,
+        });
+        say(result.message || "deleted");
+        await load();
+        form.hidden = true;
+        state.editing = null;
+      }
+
+      async function post(url, body) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        return response.json();
+      }
+
+      // --- wiring --------------------------------------------------
+
+      document.querySelectorAll(".tabs button").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.tab = button.dataset.tab;
+          state.editing = null;
+          form.hidden = true;
+          renderList();
+        });
+      });
+
+      document.getElementById("new-record").addEventListener("click", async () => {
+        const kind = state.tab === "locations" ? "location" : state.tab === "people" ? "person" : "event";
+        const record =
+          kind === "location"
+            ? { name: "New place", map: state.mapId, tags: [] }
+            : kind === "person"
+              ? { name: "New person", tags: [] }
+              : { title: "New event", when: "1800", tags: [] };
+        const result = await post("/api/create", { kind, record });
+        say(result.message || "created");
+        await load();
+        const created = (state.world[kind === "location" ? "locations" : kind === "person" ? "people" : "events"] ?? []).find(
+          (entry) => (kind === "event" ? entry.title : entry.name) === (kind === "event" ? record.title : record.name),
+        );
+        if (created) editRecord(state.tab, created.id);
+      });
+
+      document.getElementById("add-location").addEventListener("click", () => {
+        state.mode = state.mode === "location" ? null : "location";
+        document.getElementById("add-location").classList.toggle("active", state.mode === "location");
+        document.getElementById("add-event").classList.remove("active");
+        say(state.mode ? "Click the map to place it." : "");
+      });
+
+      document.getElementById("add-event").addEventListener("click", () => {
+        state.mode = state.mode === "event" ? null : "event";
+        document.getElementById("add-event").classList.toggle("active", state.mode === "event");
+        document.getElementById("add-location").classList.remove("active");
+        say(state.mode ? "Click the map to place the event." : "");
+      });
+
+      document.getElementById("image-upload").addEventListener("change", async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const data = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        const result = await post("/api/image", { mapId: state.mapId, fileName: file.name, data });
+        say(result.message || "image saved");
+        await load();
+      });
+
+      mapSelect.addEventListener("change", () => {
+        state.mapId = mapSelect.value;
+        showMap();
+      });
+
+      async function load() {
+        const response = await fetch("/api/editor");
+        state.world = await response.json();
+        if (!state.mapId && state.world.maps.length > 0) {
+          state.mapId = state.world.maps[0].id;
+          mapSelect.innerHTML = state.world.maps
+            .map((map) => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`)
+            .join("");
+          mapSelect.value = state.mapId;
+          showMap();
+        }
+        for (const record of state.world.locations) record.kind = "location";
+        for (const record of state.world.people) record.kind = "person";
+        for (const record of state.world.events) record.kind = "event";
+        renderList();
+      }
+
+      load();
+    </script>
+  </body>
+</html>

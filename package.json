@@ -1,6 +1,6 @@
 {
   "name": "timewright",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "description": "Build interactive timeline maps of real history or fiction from plain YAML files.",
   "license": "MIT",
   "author": "Jason Swan",
@@ -14,6 +14,7 @@
     "dist",
     "src/viewer",
     "src/cli/picker.html",
+    "src/cli/editor.html",
     "docs",
     "templates",
     "README.md",

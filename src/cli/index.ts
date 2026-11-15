@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { runBuild } from "./commands/build.js";
 import { runDev } from "./commands/dev.js";
+import { runEdit } from "./commands/edit.js";
 import { runInit } from "./commands/init.js";
 import { runPick } from "./commands/pick.js";
 import { runSchema } from "./commands/schema.js";
@@ -22,6 +23,7 @@ Usage:
   timewright build [options]     Build a world into a static site
   timewright dev [options]       Run the viewer locally, reloading on changes
   timewright pick [options]      Pick coordinates on a map, and place locations
+  timewright edit [options]      Edit the world in the browser
   timewright schema [options]    Print the JSON Schema for the world format
   timewright help                Show this help
   timewright version             Print the version
@@ -33,7 +35,8 @@ Options:
   -o, --out <path>    Output folder (build) or file (schema)
       --base <path>   Base path the site is served from (build), e.g. /repo/
       --single-file   Also write one self-contained HTML file (build)
-      --port <n>      Port for the dev server (5173) or the picker (5174)
+      --port <n>      Port for the dev server (5173), the picker (5174) or the
+                      editor (5175)
       --force         Write into a folder that already has something in it (init)
   -h, --help          Show this help
 
@@ -184,6 +187,8 @@ async function main(argv: string[]): Promise<number> {
       return runDev({ world: args.world, port: args.port });
     case "pick":
       return runPick({ world: args.world, port: args.port });
+    case "edit":
+      return runEdit({ world: args.world, port: args.port });
     case "schema":
       return runSchema({ out: args.out });
     case "version":
