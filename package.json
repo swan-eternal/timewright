@@ -1,0 +1,49 @@
+{
+  "name": "timewright",
+  "version": "0.1.0",
+  "description": "Build interactive timeline maps of real history or fiction from plain YAML files.",
+  "license": "MIT",
+  "author": "Jason Swan",
+  "type": "module",
+  "bin": {
+    "timewright": "dist/cli/index.js"
+  },
+  "main": "dist/core/index.js",
+  "types": "dist/core/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:viewer": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && node --test \"build/test/*.test.js\"",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "timeline",
+    "map",
+    "history",
+    "interactive",
+    "yaml",
+    "storymap"
+  ],
+  "dependencies": {
+    "dompurify": "^3.4.18",
+    "leaflet": "^1.9.4",
+    "marked": "^18.2.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

@@ -1,0 +1,15 @@
+- name: Napoleon Bonaparte
+  aliases: [Napoleon, Bonaparte]
+  born: 1769-08-15
+  died: 1821-05-05
+  color: "#1f4fa0"
+  tags: [france, emperor]
+  bio: |
+    Emperor of the French, 1804-1814 and again in 1815.
+  stays:
+    - { at: Elba, from: 1814-05, until: 1815-02 }
+
+- name: Marcus Vance
+  tags: [captain]
+  stays:
+    - { at: Nostalgia for Infinity, from: 2566, until: 2567 }

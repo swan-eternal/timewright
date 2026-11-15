@@ -1,0 +1,17 @@
+- title: Treaty of Amiens
+  when: 1802-03-25
+  where: { map: europe, at: [12, 12] }
+  tags: [treaty]
+
+- title: Battle of Waterloo
+  when: 1815-06-18
+  where: Waterloo
+  people: [Napoleon]
+  tags: [battle]
+  order: 1
+  card: |
+    The last battle of the Napoleonic Wars.
+
+- title: The Great Schism
+  when: 1054
+  tags: [history]

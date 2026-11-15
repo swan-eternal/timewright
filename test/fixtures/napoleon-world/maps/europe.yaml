@@ -1,0 +1,15 @@
+- id: europe
+  name: Europe
+  size: [40, 30]
+  images:
+    - file: europe-1800.png
+      until: 1812
+    - file: europe-1815.png
+      from: 1812
+
+- id: london
+  name: London
+  parent: europe
+  size: [20, 10]
+  images:
+    - file: london.png

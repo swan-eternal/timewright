@@ -1,0 +1,25 @@
+- name: London
+  map: europe
+  at: [20, 15]
+  opens: london
+  tags: [city]
+
+- name: Waterloo
+  aliases: [Waterloo battlefield]
+  map: europe
+  at: [25, 18]
+  tags: [battlefield]
+
+- name: Elba
+  map: europe
+  at: [15, 20]
+
+- name: Resurgam
+  map: europe
+  at: [10, 10]
+
+- name: Nostalgia for Infinity
+  kind: mobile
+  tags: [vessel, lighthugger]
+  stays:
+    - { at: Resurgam, from: 2566, until: 2567 }
