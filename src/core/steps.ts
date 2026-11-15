@@ -7,7 +7,7 @@
  * of one person or vessel, plus the boundaries of their stays.
  */
 
-import { compareBounds, type DateBound } from "./dates.js";
+import { compareBounds, compareDateBounds, type DateBound } from "./dates.js";
 import { eventPlace, sortedEvents } from "./derive.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "./model.js";
 
@@ -175,6 +175,100 @@ export function traceable(world: ResolvedWorld): { id: string; name: string; kin
     .map((location) => ({ id: location.id, name: location.name, kind: "location" as const }));
   return [...people, ...mobile];
 }
+
+/** One thing the reader can step onto. */
+export interface ViewStep {
+  label: string;
+  date: DateBound;
+  eventId?: string | undefined;
+  mapId?: string | undefined;
+}
+
+export interface StepOptions {
+  /** "span" walks the events in the span; "trace" walks one person. */
+  mode: "span" | "trace";
+  traceId?: string | undefined;
+  span?: Span | undefined;
+  /** Text filter over the step labels. */
+  query?: string | undefined;
+  /** Tags the steps must all carry. */
+  tags?: string[] | undefined;
+}
+
+/**
+ * The steps the reader can walk through.
+ *
+ * In span mode they are the events inside the visible span, plus the events
+ * that have no place on a map - those belong to no map's era, so they stay
+ * on the timeline even when the span does not reach them. In trace mode
+ * they are the steps of one person or vessel.
+ */
+export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[] {
+  const query = (options.query ?? "").trim().toLowerCase();
+  const tags = options.tags ?? [];
+
+  let steps: ViewStep[];
+  if (options.mode === "trace" && options.traceId !== undefined) {
+    steps = traceSteps(world, options.traceId).map((step) => ({
+      label: step.label,
+      date: step.date,
+      eventId: step.eventId,
+      mapId: step.mapId,
+    }));
+  } else if (options.span !== undefined) {
+    const inside = spanSteps(world, options.span).map((event) => ({
+      label: event.title,
+      date: event.when,
+      eventId: event.id,
+      mapId: eventPlace(world, event)?.mapId,
+    }));
+    const unplaced = unplacedEvents(world).map((event) => ({
+      label: event.title,
+      date: event.when,
+      eventId: event.id,
+    }));
+    const seen = new Set(inside.map((step) => step.eventId));
+    steps = [...inside, ...unplaced.filter((step) => !seen.has(step.eventId))].sort((a, b) =>
+      compareDateBounds(a.date, b.date),
+    );
+  } else {
+    steps = [];
+  }
+
+  if (query !== "") {
+    steps = steps.filter((step) => step.label.toLowerCase().includes(query));
+  }
+  if (tags.length > 0) {
+    steps = steps.filter((step) => {
+      if (step.eventId === undefined) {
+        return false;
+      }
+      const event = world.events.find((entry) => entry.id === step.eventId);
+      return event !== undefined && tags.every((tag) => event.tags.includes(tag));
+    });
+  }
+  return steps;
+}
+
+/** The step we are on: the last one at or before the date. */
+export function stepIndex(steps: ViewStep[], date?: DateBound): number {
+  if (steps.length === 0) {
+    return 0;
+  }
+  let index = 0;
+  if (date !== undefined) {
+    for (let position = 0; position < steps.length; position += 1) {
+      const step = steps[position];
+      if (step !== undefined && compareDateBounds(step.date, date) <= 0) {
+        index = position;
+      }
+    }
+  }
+  return index;
+}
+
+/** Compare two dates that may only be a year apart. */
+export { compareDateBounds } from "./dates.js";
 
 /** The step a date belongs to: the last step at or before it. */
 export function stepAt(steps: TraceStep[], date: DateBound): TraceStep | undefined {

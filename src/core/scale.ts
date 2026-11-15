@@ -14,7 +14,7 @@
  * ever needs a broken axis, that is a change to `dateFraction` alone.
  */
 
-import { compareDates, type DateBound } from "./dates.js";
+import { compareDates, dateValue, type DateBound } from "./dates.js";
 import { eventPlace } from "./derive.js";
 import type { ResolvedWorld } from "./model.js";
 
@@ -48,12 +48,7 @@ export function eventDomain(world: ResolvedWorld, options: DomainOptions = {}): 
 }
 
 /** A date as a number of years, so two dates can be compared. */
-export function dateValue(date: DateBound): number {
-  const year = date.year ?? 0;
-  const month = (date.month ?? 1) - 1;
-  const day = (date.day ?? 1) - 1;
-  return year + month / 12 + day / 365.25;
-}
+export { dateValue } from "./dates.js";
 
 /** Where a date sits on the axis, from 0 to 1. */
 export function dateFraction(date: DateBound, domain: TimeDomain): number {

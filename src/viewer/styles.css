@@ -50,7 +50,7 @@ select {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.5rem max(0.75rem, env(safe-area-inset-left));
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -99,7 +99,7 @@ select {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem max(0.75rem, env(safe-area-inset-right)) 0.35rem max(0.75rem, env(safe-area-inset-left));
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -146,6 +146,8 @@ select {
 #map {
   min-height: 0;
   background: #ded7c9;
+  /* Dragging the map must not scroll the page under it. */
+  touch-action: none;
 }
 
 #timeline {
@@ -256,9 +258,11 @@ select {
 #card {
   background: var(--panel);
   border-top: 1px solid var(--line);
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   max-height: 38vh;
   overflow: auto;
+  /* Scrolling the card should not scroll the page behind it. */
+  overscroll-behavior: contain;
 }
 
 #card h2 {
@@ -282,7 +286,10 @@ select {
 }
 
 .tag {
-  padding: 0.1rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.1rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #f3ede0;
@@ -300,11 +307,20 @@ select {
 }
 
 .result {
-  padding: 0.2rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
+}
+
+.embed-link {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.85rem;
 }
 
 #status {

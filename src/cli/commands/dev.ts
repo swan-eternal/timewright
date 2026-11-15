@@ -7,7 +7,7 @@
  */
 
 import path from "node:path";
-import { createServer, type Plugin } from "vite";
+import type { Plugin } from "vite";
 
 import { resolveWorld } from "../../core/derive.js";
 import { loadWorld } from "../load.js";
@@ -21,6 +21,9 @@ export interface DevOptions {
 
 export async function runDev(options: DevOptions = {}): Promise<number> {
   const root = path.resolve(options.world ?? process.cwd());
+
+  // Loaded here, not at the top: only the dev server needs a bundler.
+  const { createServer } = await import("vite");
 
   const server = await createServer({
     configFile: false,

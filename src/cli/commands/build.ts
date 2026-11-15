@@ -9,7 +9,6 @@ import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build as viteBuild } from "vite";
 
 import { resolveWorld } from "../../core/derive.js";
 import { validateWorld } from "../../core/validate.js";
@@ -46,6 +45,10 @@ export async function runBuild(options: BuildOptions = {}): Promise<number> {
 
   // The viewer is built first, because Vite empties the output folder.
   // The map images and world.json are written after it, so they survive.
+  // Vite is only needed to build a site, so it is loaded here rather than
+  // on every command. Validating a world should not need a bundler.
+  const { build: viteBuild } = await import("vite");
+
   await viteBuild({
     configFile: false,
     root: findViewerRoot(),

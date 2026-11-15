@@ -7,7 +7,7 @@ import "./styles.css";
 import { parseDate, type DateBound } from "../core/dates.js";
 import { eventDomain } from "../core/scale.js";
 import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
-import { spanSteps, tracePath, traceSteps, traceable, unplacedEvents, type Span } from "../core/steps.js";
+import { stepIndex, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
 import { readLink, writeLink } from "./link.js";
@@ -15,13 +15,6 @@ import { MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
 import { Store, type AppState } from "./state.js";
 import { Timeline } from "./timeline.js";
-
-interface ViewerStep {
-  label: string;
-  date: DateBound;
-  eventId?: string;
-  mapId?: string;
-}
 
 const statusElement = document.querySelector<HTMLElement>("#status");
 const cardElement = document.querySelector<HTMLElement>("#card");
@@ -172,79 +165,6 @@ function renderResults(state: AppState): void {
   resultsElement.hidden = matches.length === 0;
 }
 
-/** The steps the reader can walk through, filtered by the search and tags. */
-function currentSteps(state: AppState, span: Span | undefined): ViewerStep[] {
-  const query = (state.query ?? "").trim().toLowerCase();
-  const tags = state.tags ?? [];
-
-  let steps: ViewerStep[];
-  if (state.mode === "trace" && state.traceId !== undefined) {
-    steps = traceSteps(state.world, state.traceId).map((step) => ({
-      label: step.label,
-      date: step.date,
-      eventId: step.eventId,
-      mapId: step.mapId,
-    }));
-  } else if (span !== undefined) {
-    const inside = spanSteps(state.world, span).map((event) => ({
-      label: event.title,
-      date: event.when,
-      eventId: event.id,
-      mapId: eventPlace(state.world, event)?.mapId,
-    }));
-    // Events with no place belong to no map's era, so they stay on the
-    // timeline even when the span does not reach them.
-    const unplaced = unplacedEvents(state.world).map((event) => ({
-      label: event.title,
-      date: event.when,
-      eventId: event.id,
-    }));
-    const seen = new Set(inside.map((step) => step.eventId));
-    steps = [...inside, ...unplaced.filter((step) => !seen.has(step.eventId))].sort(
-      (a, b) => compare(a.date, b.date),
-    );
-  } else {
-    steps = [];
-  }
-
-  if (query !== "") {
-    steps = steps.filter((step) => step.label.toLowerCase().includes(query));
-  }
-  if (tags.length > 0) {
-    steps = steps.filter((step) => {
-      if (step.eventId === undefined) {
-        return false;
-      }
-      const event = state.world.events.find((entry) => entry.id === step.eventId);
-      return event !== undefined && tags.every((tag) => event.tags.includes(tag));
-    });
-  }
-  return steps;
-}
-
-/** The step we are on: the last one at or before the current date. */
-function currentIndex(steps: ViewerStep[], date: DateBound | undefined): number {
-  if (steps.length === 0) {
-    return 0;
-  }
-  let index = 0;
-  if (date !== undefined) {
-    for (let position = 0; position < steps.length; position += 1) {
-      const step = steps[position];
-      if (step !== undefined && compare(step.date, date) <= 0) {
-        index = position;
-      }
-    }
-  }
-  return index;
-}
-
-function compare(a: DateBound, b: DateBound): number {
-  const value = (date: DateBound): number =>
-    (date.year ?? 0) + ((date.month ?? 1) - 1) / 12 + ((date.day ?? 1) - 1) / 365.25;
-  return value(a) - value(b);
-}
-
 async function boot(): Promise<void> {
   if (
     mapElement === null ||
@@ -259,6 +179,7 @@ async function boot(): Promise<void> {
     setStatus("The viewer is missing its elements.");
     return;
   }
+  setupEmbedLink();
 
   let world: ResolvedWorld;
   const inline = document.querySelector<HTMLScriptElement>("#world-data");
@@ -337,7 +258,13 @@ async function boot(): Promise<void> {
     onStep: (index) => {
       const state = store.get();
       const span = state.span ?? (domain !== undefined ? { from: domain.from, to: domain.to } : undefined);
-      const steps = currentSteps(state, span);
+      const steps = viewSteps(state.world, {
+        mode: state.mode,
+        traceId: state.traceId,
+        span,
+        query: state.query,
+        tags: state.tags,
+      });
       const step = steps[index];
       if (step === undefined) {
         return;
@@ -395,8 +322,14 @@ async function boot(): Promise<void> {
     const span =
       state.mode === "trace" ? (traceSpan ?? domainSpan) : (state.span ?? domainSpan);
 
-    const steps = currentSteps(state, span);
-    const index = currentIndex(steps, state.date);
+    const steps = viewSteps(state.world, {
+      mode: state.mode,
+      traceId: state.traceId,
+      span,
+      query: state.query,
+      tags: state.tags,
+    });
+    const index = stepIndex(steps, state.date);
     const focused = steps[index];
 
     const tickIds = new Set<string>();
@@ -514,6 +447,26 @@ async function boot(): Promise<void> {
 
   renderBreadcrumb(store.get());
   store.set({ date: store.get().date });
+}
+
+/**
+ * When the viewer is embedded in a page, offer a way out of it.
+ *
+ * The link carries the current view, so it lands where the reader is.
+ */
+function setupEmbedLink(): void {
+  if (window.self === window.top) {
+    return;
+  }
+  const topbar = document.querySelector<HTMLElement>("#topbar");
+  if (topbar === null) {
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = window.location.href;
+  link.className = "embed-link";
+  link.textContent = "Open full screen";
+  topbar.appendChild(link);
 }
 
 function updateLink(state: AppState): void {

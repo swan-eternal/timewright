@@ -340,6 +340,19 @@ function checkRange(
   }
 }
 
+/** A date as a number of years, so two dates can be compared. */
+export function dateValue(date: DateBound): number {
+  const year = date.year ?? 0;
+  const month = (date.month ?? 1) - 1;
+  const day = (date.day ?? 1) - 1;
+  return year + month / 12 + day / 365.25;
+}
+
+/** Compare two dates that may only be a year apart. */
+export function compareDateBounds(a: DateBound, b: DateBound): number {
+  return dateValue(a) - dateValue(b);
+}
+
 /** Sort key for one bound. Missing parts sort before present ones. */
 export function sortKey(bound: DateBound): number[] {
   return [

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { loadWorld } from "../src/cli/load.js";
 import { resolveWorld } from "../src/core/derive.js";
 import { parseDate } from "../src/core/dates.js";
-import { spanSteps, stepAt, tracePath, traceSteps, traceable } from "../src/core/steps.js";
+import { spanSteps, stepAt, stepIndex, tracePath, traceSteps, traceable, viewSteps } from "../src/core/steps.js";
 
 function fixture(name: string): string {
   return fileURLToPath(new URL(`../../test/fixtures/${name}`, import.meta.url));
@@ -30,6 +30,66 @@ describe("span steps", () => {
     const resolved = await world();
     const steps = spanSteps(resolved, { from: parseDate("1900"), to: parseDate("2000") });
     assert.deepEqual(steps, []);
+  });
+});
+
+describe("the steps the reader walks", () => {
+  it("lists the events in the span, and keeps the ones with no place", async () => {
+    const resolved = await world();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span: { from: parseDate("1800"), to: parseDate("1820") },
+    });
+    // The Great Schism (1054) has no place, so it stays on the timeline
+    // even though the span does not reach it.
+    assert.ok(steps.some((step) => step.label === "The Great Schism"));
+    assert.ok(steps.some((step) => step.label === "Battle of Waterloo"));
+  });
+
+  it("walks one person's steps in trace mode", async () => {
+    const resolved = await world();
+    const steps = viewSteps(resolved, { mode: "trace", traceId: "napoleon-bonaparte" });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Arrived at Elba", "Left Elba", "Battle of Waterloo"],
+    );
+  });
+
+  it("filters by the search text", async () => {
+    const resolved = await world();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span: { from: parseDate("1800"), to: parseDate("1820") },
+      query: "waterloo",
+    });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Battle of Waterloo"],
+    );
+  });
+
+  it("filters by tags", async () => {
+    const resolved = await world();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span: { from: parseDate("1800"), to: parseDate("1820") },
+      tags: ["battle"],
+    });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Battle of Waterloo"],
+    );
+  });
+
+  it("finds the step a date belongs to", async () => {
+    const resolved = await world();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span: { from: parseDate("1800"), to: parseDate("1820") },
+    });
+    assert.equal(stepIndex(steps, parseDate("1800")), 0);
+    assert.equal(stepIndex(steps, parseDate("1700")), 0);
+    assert.equal(stepIndex(steps, parseDate("1900")), steps.length - 1);
   });
 });
 
