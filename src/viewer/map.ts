@@ -22,6 +22,22 @@ export interface MapViewOptions {
   onImageMissing: (message: string) => void;
 }
 
+/**
+ * Where an asset lives.
+ *
+ * In a normal build that is a path under the site. In the single-file
+ * build it is a data URI, already in the file.
+ */
+export function assetUrl(path: string | undefined): string | undefined {
+  if (path === undefined) {
+    return undefined;
+  }
+  if (path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  return `${import.meta.env.BASE_URL}${path}`;
+}
+
 interface MarkerItem {
   x: number;
   y: number;
@@ -62,7 +78,7 @@ export class MapView {
     }
 
     const image = imageForDate(map, date);
-    const url = image?.path !== undefined ? `${import.meta.env.BASE_URL}${image.path}` : undefined;
+    const url = assetUrl(image?.path);
     const size = map.size;
 
     if (url !== this.currentImage) {

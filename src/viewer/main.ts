@@ -261,13 +261,19 @@ async function boot(): Promise<void> {
   }
 
   let world: ResolvedWorld;
+  const inline = document.querySelector<HTMLScriptElement>("#world-data");
   try {
-    const response = await fetch(`${import.meta.env.BASE_URL}world.json`);
-    if (!response.ok) {
-      setStatus(`Could not load world.json (${response.status}).`);
-      return;
+    if (inline !== null && inline.textContent !== null && inline.textContent !== "") {
+      // The single-file build carries the world inside the page.
+      world = JSON.parse(inline.textContent) as ResolvedWorld;
+    } else {
+      const response = await fetch(`${import.meta.env.BASE_URL}world.json`);
+      if (!response.ok) {
+        setStatus(`Could not load world.json (${response.status}).`);
+        return;
+      }
+      world = (await response.json()) as ResolvedWorld;
     }
-    world = (await response.json()) as ResolvedWorld;
   } catch (error) {
     setStatus(`Could not load the world: ${error instanceof Error ? error.message : String(error)}`);
     return;

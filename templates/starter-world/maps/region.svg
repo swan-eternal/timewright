@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">
+  <rect width="1000" height="700" fill="#d7e1e6" />
+  <g stroke="#bcc9cf" stroke-width="1">
+    <path d="M0 100H1000M0 200H1000M0 300H1000M0 400H1000M0 500H1000M0 600H1000" />
+    <path d="M100 0V700M200 0V700M300 0V700M400 0V700M500 0V700M600 0V700M700 0V700M800 0V700M900 0V700" />
+  </g>
+  <path d="M180 210 L330 150 L520 160 L690 230 L790 350 L740 470 L570 530 L390 520 L250 430 L160 320 Z" fill="#efe3c8" stroke="#b5a57b" stroke-width="2" />
+  <g fill="#1f4fa0">
+    <circle cx="430" cy="320" r="5" />
+  </g>
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#544c3c" text-anchor="middle">
+    <text x="430" y="306" font-size="19">Home</text>
+  </g>
+  <text x="30" y="672" font-family="Georgia, 'Times New Roman', serif" fill="#7d735f" font-size="18">A sketch of the region — replace it with your own map</text>
+</svg>

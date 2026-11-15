@@ -1,0 +1,6 @@
+- id: region
+  name: The Region
+  size: [1000, 700]
+  images:
+    - file: region.svg
+      caption: The whole region, as a sketch.

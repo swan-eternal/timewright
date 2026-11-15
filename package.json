@@ -13,6 +13,9 @@
   "files": [
     "dist",
     "src/viewer",
+    "src/cli/picker.html",
+    "docs",
+    "templates",
     "README.md",
     "LICENSE"
   ],
@@ -20,7 +23,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "build:viewer": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsc -p tsconfig.json && node --test \"build/test/*.test.js\"",

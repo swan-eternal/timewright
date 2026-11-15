@@ -1,0 +1,8 @@
+- title: Something Happens
+  when: 1820
+  where: Home
+  people: [Alex Vale]
+  tags: [event]
+  card: |
+    What happened, and why it matters. Markdown works here: **bold**, lists
+    and [links](https://example.com) all render.

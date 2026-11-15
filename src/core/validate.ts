@@ -36,7 +36,10 @@ export interface Issue {
 
 export interface Source<T> {
   data: T;
+  /** The file the record came from. */
   file?: string | undefined;
+  /** Which record in that file it was, when the file holds a list. */
+  index?: number | undefined;
 }
 
 export interface WorldData {

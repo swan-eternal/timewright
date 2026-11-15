@@ -14,11 +14,14 @@ import { build as viteBuild } from "vite";
 import { resolveWorld } from "../../core/derive.js";
 import { validateWorld } from "../../core/validate.js";
 import { loadWorld, resolveImagePath } from "../load.js";
+import { writeSingleFile } from "../single-file.js";
 
 export interface BuildOptions {
   world?: string | undefined;
   out?: string | undefined;
   base?: string | undefined;
+  /** Also write one self-contained HTML file. */
+  singleFile?: boolean | undefined;
 }
 
 export async function runBuild(options: BuildOptions = {}): Promise<number> {
@@ -80,6 +83,15 @@ export async function runBuild(options: BuildOptions = {}): Promise<number> {
   );
 
   await writeFile(path.join(outDir, "world.json"), `${JSON.stringify(world, null, 2)}\n`, "utf8");
+
+  if (options.singleFile === true) {
+    const single = await writeSingleFile(outDir, world);
+    const megabytes = single.bytes / (1024 * 1024);
+    console.log(`  one file: ${single.file} (${megabytes.toFixed(1)} MB)`);
+    if (megabytes > 50) {
+      console.log("  That is large. It will open, but slowly.");
+    }
+  }
 
   const warnings = issues.filter((issue) => issue.severity === "warning");
   console.log(`timewright build: ${world.title}`);

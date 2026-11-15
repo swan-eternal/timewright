@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timewright — coordinate picker</title>
+    <link rel="stylesheet" href="/leaflet/leaflet.css" />
+    <style>
+      :root { --bg: #f7f4ee; --panel: #fffdf8; --ink: #2b2620; --muted: #6b6155; --line: #ddd4c4; --accent: #1f4fa0; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+      header { display: flex; gap: 0.75rem; align-items: center; padding: 0.6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+      header h1 { font-size: 1rem; margin: 0; }
+      select { padding: 0.35rem; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+      main { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; height: calc(100vh - 3.4rem); }
+      #map { min-height: 0; background: #ded7c9; }
+      aside { border-left: 1px solid var(--line); background: var(--panel); padding: 1rem; overflow: auto; }
+      aside h2 { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 0.5rem; }
+      #readout { font-family: ui-monospace, Menlo, Consolas, monospace; background: #f3ede0; border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin-bottom: 1rem; white-space: pre-wrap; }
+      #places { list-style: none; margin: 0; padding: 0; }
+      #places li { margin-bottom: 0.35rem; }
+      #places button { width: 100%; text-align: left; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; font: inherit; cursor: pointer; }
+      #places button.active { border-color: var(--accent); background: #e8eef9; }
+      #places button:disabled { opacity: 0.5; cursor: default; }
+      p.hint { color: var(--muted); font-size: 0.85rem; }
+      @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Timewright picker</h1>
+      <select id="map-select" aria-label="Map"></select>
+      <span id="map-name" class="hint"></span>
+    </header>
+    <main>
+      <div id="map"></div>
+      <aside>
+        <h2>Coordinates</h2>
+        <div id="readout">Click the map.</div>
+        <h2>Needs placing</h2>
+        <ul id="places"></ul>
+        <p class="hint" id="hint">Pick a location, then click the map to place it. The YAML is edited in place, comments and all.</p>
+      </aside>
+    </main>
+    <script src="/leaflet/leaflet.js"></script>
+    <script>
+      const state = { world: null, mapId: null, image: null, active: null, map: null, overlay: null };
+
+      const readout = document.getElementById("readout");
+      const select = document.getElementById("map-select");
+      const places = document.getElementById("places");
+      const hint = document.getElementById("hint");
+
+      function currentMap() {
+        return state.world.maps.find((m) => m.id === state.mapId);
+      }
+
+      function showMap() {
+        const map = currentMap();
+        if (!map) return;
+        document.getElementById("map-name").textContent = map.name;
+        if (state.map) state.map.remove();
+        state.map = L.map("map", { crs: L.CRS.Simple, minZoom: -4, maxZoom: 4, zoomSnap: 0.25, attributionControl: false });
+        state.overlay = L.imageOverlay("/api/image/" + encodeURIComponent(map.id), [[0, 0], [map.height, map.width]]);
+        state.overlay.on("load", () => {
+          const image = state.overlay.getElement();
+          state.map.fitBounds([[0, 0], [image.naturalHeight, image.naturalWidth]]);
+          state.map.on("click", onClick);
+        });
+        state.overlay.addTo(state.map);
+      }
+
+      function pixelAt(event) {
+        const image = state.overlay && state.overlay.getElement();
+        if (!image) return null;
+        const rect = image.getBoundingClientRect();
+        const containerRect = state.map.getContainer().getBoundingClientRect();
+        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
+        const left = (rect.left - containerRect.left) / scale;
+        const top = (rect.top - containerRect.top) / scale;
+        const x = Math.round(((event.containerPoint.x - left) / image.clientWidth) * image.naturalWidth);
+        const y = Math.round(((event.containerPoint.y - top) / image.clientHeight) * image.naturalHeight);
+        return { x, y };
+      }
+
+      async function onClick(event) {
+        const point = pixelAt(event);
+        if (!point) return;
+        readout.textContent = "at: [" + point.x + ", " + point.y + "]";
+        if (!state.active) return;
+        const response = await fetch("/api/place", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: state.active.id, mapId: state.mapId, x: point.x, y: point.y }),
+        });
+        const result = await response.json();
+        hint.textContent = result.ok ? result.message : result.message;
+        if (result.ok) {
+          state.active = null;
+          await load();
+        }
+      }
+
+      function renderPlaces() {
+        places.innerHTML = "";
+        const list = state.world.needsPlacing;
+        if (list.length === 0) {
+          places.innerHTML = '<li class="hint">Nothing to place. Every location has a position.</li>';
+          return;
+        }
+        for (const location of list) {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = location.name;
+          button.addEventListener("click", () => {
+            state.active = location;
+            for (const other of places.querySelectorAll("button")) other.classList.remove("active");
+            button.classList.add("active");
+            hint.textContent = "Click the map to place " + location.name + ".";
+          });
+          item.appendChild(button);
+          places.appendChild(item);
+        }
+      }
+
+      async function load() {
+        const response = await fetch("/api/world");
+        state.world = await response.json();
+        if (!state.mapId && state.world.maps.length > 0) {
+          state.mapId = state.world.maps[0].id;
+          select.innerHTML = state.world.maps.map((m) => '<option value="' + m.id + '">' + m.name + "</option>").join("");
+          select.value = state.mapId;
+          showMap();
+        }
+        renderPlaces();
+      }
+
+      select.addEventListener("change", () => {
+        state.mapId = select.value;
+        state.active = null;
+        showMap();
+      });
+
+      load();
+    </script>
+  </body>
+</html>

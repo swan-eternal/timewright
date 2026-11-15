@@ -210,7 +210,7 @@ async function collectRecords<T>(
       const name = recordLabel(item, `${label} #${index + 1}`);
       const checked = checkRecord<T>(schema, item, file, name, issues);
       if (checked !== undefined) {
-        records.push({ data: checked, file });
+        records.push({ data: checked, file, index: Array.isArray(parsed.value) ? index : undefined });
       }
     }
   }
