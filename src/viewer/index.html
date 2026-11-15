@@ -6,7 +6,19 @@
     <title>Timewright</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <header id="topbar">
+        <nav id="breadcrumb" aria-label="Map"></nav>
+        <form id="date-form">
+          <label class="visually-hidden" for="date-input">Date</label>
+          <input id="date-input" type="text" autocomplete="off" spellcheck="false" placeholder="1815-06-18" />
+          <button type="submit">Go</button>
+        </form>
+      </header>
+      <main id="map" aria-label="Map"></main>
+      <aside id="card" hidden aria-live="polite"></aside>
+      <p id="status" role="status"></p>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

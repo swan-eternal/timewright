@@ -1,0 +1,13 @@
+- id: europe
+  name: Europe
+  size: [1200, 800]
+  images:
+    - file: europe.svg
+      caption: A sketch of Europe around 1815.
+
+- id: london
+  name: London
+  parent: europe
+  size: [600, 400]
+  images:
+    - file: london.svg

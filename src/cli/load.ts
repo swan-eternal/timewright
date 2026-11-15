@@ -222,6 +222,16 @@ interface ResolvedImage {
   caseMismatch?: string;
 }
 
+/** The file a map image points at, wherever it sits in the world folder. */
+export async function resolveImagePath(
+  root: string,
+  sourceFile: string | undefined,
+  file: string,
+): Promise<string | undefined> {
+  const resolved = await resolveImage(root, sourceFile, file);
+  return resolved?.path;
+}
+
 async function resolveImage(
   root: string,
   sourceFile: string | undefined,
@@ -301,6 +311,10 @@ async function checkMapImages(
         continue;
       }
       sizes.add(`${size.width}x${size.height}`);
+      if (map.size === undefined) {
+        // The size is read from the image when the creator did not write it.
+        map.size = [size.width, size.height];
+      }
       if (map.size !== undefined && (map.size[0] !== size.width || map.size[1] !== size.height)) {
         issues.push({
           severity: "warning",

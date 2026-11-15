@@ -1,0 +1,162 @@
+:root {
+  --bg: #f7f4ee;
+  --panel: #fffdf8;
+  --ink: #2b2620;
+  --muted: #6b6155;
+  --line: #ddd4c4;
+  --accent: #1f4fa0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#topbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+#breadcrumb {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#breadcrumb button {
+  background: none;
+  border: 0;
+  padding: 0.25rem 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+#date-form {
+  display: flex;
+  gap: 0.35rem;
+}
+
+#date-input {
+  width: 8.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+#date-form button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#map {
+  min-height: 0;
+  background: #ded7c9;
+}
+
+#card {
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 1rem 1.25rem;
+  max-height: 42vh;
+  overflow: auto;
+}
+
+#card h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+}
+
+#card .meta {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#card .people {
+  margin: 0 0 0.5rem;
+}
+
+#card a {
+  color: var(--accent);
+}
+
+#status {
+  margin: 0;
+  padding: 0.4rem 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#status:empty {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  #app {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 26rem;
+  }
+
+  #topbar {
+    grid-column: 1 / -1;
+  }
+
+  #map {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  #card {
+    grid-row: 2;
+    grid-column: 2;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    max-height: none;
+  }
+
+  #status {
+    grid-column: 1 / -1;
+  }
+}

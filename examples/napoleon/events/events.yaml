@@ -1,0 +1,25 @@
+- title: The Treaty of Amiens
+  when: 1802-03-25
+  where: { map: europe, at: [400, 350] }
+  tags: [treaty]
+  card: |
+    A brief peace between France and Britain. It held for fourteen months.
+
+- title: Napoleon's Return from Elba
+  when: 1815-03-20
+  where: Elba
+  people: [Napoleon]
+  tags: [escape]
+  card: |
+    Napoleon landed in France after eleven months on Elba. "From Elba to
+    Paris" became the phrase for the impossible.
+
+- title: The Battle of Waterloo
+  when: 1815-06-18
+  where: Waterloo
+  people: [Napoleon]
+  tags: [battle]
+  order: 1
+  card: |
+    Napoleon's last battle, fought in the rain in what is now Belgium. The
+    defeat ended his Hundred Days and sent him into exile for good.

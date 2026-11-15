@@ -5,7 +5,7 @@
  * Windows, macOS and Linux with no build step.
  */
 
-export type ImageFormat = "png" | "jpeg" | "gif" | "webp" | "bmp";
+export type ImageFormat = "png" | "jpeg" | "gif" | "webp" | "bmp" | "svg";
 
 export interface ImageSize {
   width: number;
@@ -17,6 +17,13 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** Read the pixel size of an image, or undefined when the format is unknown. */
 export function readImageSize(data: Uint8Array): ImageSize | undefined {
+  if (data.length < 8) {
+    return undefined;
+  }
+  const svg = readSvgSize(data);
+  if (svg !== undefined) {
+    return svg;
+  }
   if (data.length < 16) {
     return undefined;
   }
@@ -44,6 +51,33 @@ export function readImageSize(data: Uint8Array): ImageSize | undefined {
     data[11] === 0x50
   ) {
     return readWebp(data);
+  }
+  return undefined;
+}
+
+function readSvgSize(data: Uint8Array): ImageSize | undefined {
+  if (data[0] !== 0x3c) {
+    return undefined;
+  }
+  const head = new TextDecoder().decode(data.subarray(0, 2048));
+  if (!/<svg[\s>]/i.test(head)) {
+    return undefined;
+  }
+  const width = /\bwidth="([\d.]+)"/i.exec(head);
+  const height = /\bheight="([\d.]+)"/i.exec(head);
+  if (width !== null && height !== null) {
+    return {
+      width: Math.round(Number(width[1])),
+      height: Math.round(Number(height[1])),
+      format: "svg",
+    };
+  }
+  const viewBox = /\bviewBox="([^"]+)"/i.exec(head);
+  if (viewBox !== null) {
+    const parts = viewBox[1].trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+      return { width: Math.round(parts[2]), height: Math.round(parts[3]), format: "svg" };
+    }
   }
   return undefined;
 }

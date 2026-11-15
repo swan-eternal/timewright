@@ -1,0 +1,12 @@
+- name: Napoleon Bonaparte
+  aliases: [Napoleon, Bonaparte]
+  born: 1769-08-15
+  died: 1821-05-05
+  color: "#1f4fa0"
+  tags: [france, emperor]
+  bio: |
+    Emperor of the French from 1804 to 1814, and again for a hundred days in
+    1815. Born in Corsica, he came to power through the Revolution and the
+    wars that followed it.
+  stays:
+    - { at: Elba, from: 1814-05, until: 1815-02 }

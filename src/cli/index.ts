@@ -7,6 +7,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runBuild } from "./commands/build.js";
+import { runDev } from "./commands/dev.js";
 import { runSchema } from "./commands/schema.js";
 import { runValidate } from "./commands/validate.js";
 
@@ -14,27 +16,33 @@ const USAGE = `timewright - build interactive timeline maps from YAML worlds
 
 Usage:
   timewright validate [options]   Check a world folder and explain what to fix
-  timewright schema [options]     Print the JSON Schema for the world format
-  timewright help                 Show this help
-  timewright version              Print the version
+  timewright build [options]     Build a world into a static site
+  timewright dev [options]       Run the viewer locally, reloading on changes
+  timewright schema [options]    Print the JSON Schema for the world format
+  timewright help                Show this help
+  timewright version             Print the version
 
 Options:
   -w, --world <dir>   The world folder (default: the current folder)
       --json          Machine-readable output (validate)
       --strict        Treat warnings as errors (validate)
-  -o, --out <file>    Write to a file (schema)
+  -o, --out <path>    Output folder (build) or file (schema)
+      --base <path>   Base path the site is served from (build), e.g. /repo/
+      --port <n>      Port for the dev server (default: 5173)
   -h, --help          Show this help
 
 Examples:
   timewright validate --world ./my-world
-  timewright validate --world ./my-world --json
-  timewright schema --out world.schema.json
+  timewright build --world ./my-world --out ./my-world/dist --base /my-world/
+  timewright dev --world ./my-world
 `;
 
 interface ParsedArgs {
   command: string;
   world?: string;
   out?: string;
+  base?: string;
+  port?: number;
   json: boolean;
   strict: boolean;
   help: boolean;
@@ -65,6 +73,22 @@ function parseArgs(argv: string[]): ParsedArgs {
       const value = argv[index + 1];
       if (value !== undefined) {
         parsed.out = value;
+        index += 1;
+      }
+      continue;
+    }
+    if (argument === "--base") {
+      const value = argv[index + 1];
+      if (value !== undefined) {
+        parsed.base = value;
+        index += 1;
+      }
+      continue;
+    }
+    if (argument === "--port") {
+      const value = Number(argv[index + 1]);
+      if (Number.isFinite(value)) {
+        parsed.port = value;
         index += 1;
       }
       continue;
@@ -119,6 +143,10 @@ async function main(argv: string[]): Promise<number> {
   switch (args.command) {
     case "validate":
       return runValidate({ world: args.world, json: args.json, strict: args.strict });
+    case "build":
+      return runBuild({ world: args.world, out: args.out, base: args.base });
+    case "dev":
+      return runDev({ world: args.world, port: args.port });
     case "schema":
       return runSchema({ out: args.out });
     case "version":
