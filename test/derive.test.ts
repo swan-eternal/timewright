@@ -54,6 +54,7 @@ describe("locationVisibleAt", () => {
     name: "London",
     aliases: [],
     tags: [],
+    stays: [],
     exists: { from: parseDate("1800"), until: parseDate("1900") },
   };
 

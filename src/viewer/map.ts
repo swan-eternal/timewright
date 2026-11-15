@@ -13,6 +13,7 @@ import "leaflet/dist/leaflet.css";
 import type { DateBound } from "../core/dates.js";
 import { eventPlace, imageForDate, locationVisibleAt } from "../core/derive.js";
 import type { ResolvedWorld } from "../core/model.js";
+import type { PathPoint } from "../core/steps.js";
 
 export interface MapViewOptions {
   element: HTMLElement;
@@ -32,10 +33,12 @@ interface MarkerItem {
 export class MapView {
   private readonly map: L.Map;
   private readonly markers: L.LayerGroup;
+  private readonly pathLayer: L.LayerGroup;
   private readonly options: MapViewOptions;
   private overlay?: L.ImageOverlay;
   private currentImage?: string;
   private items: MarkerItem[] = [];
+  private pathPoints: PathPoint[] = [];
 
   constructor(options: MapViewOptions) {
     this.options = options;
@@ -48,10 +51,11 @@ export class MapView {
     });
     this.map.attributionControl.addAttribution("Leaflet");
     this.markers = L.layerGroup().addTo(this.map);
+    this.pathLayer = L.layerGroup().addTo(this.map);
   }
 
   /** Draw the given map at the given date. */
-  render(world: ResolvedWorld, mapId: string, date?: DateBound): void {
+  render(world: ResolvedWorld, mapId: string, date?: DateBound, focusEventId?: string): void {
     const map = world.maps.find((entry) => entry.id === mapId);
     if (map === undefined) {
       return;
@@ -67,22 +71,27 @@ export class MapView {
     }
 
     this.items = [];
-    for (const location of world.locations) {
-      if (location.map !== mapId || location.at === undefined) {
-        continue;
+    if (focusEventId === undefined) {
+      for (const location of world.locations) {
+        if (location.map !== mapId || location.at === undefined) {
+          continue;
+        }
+        if (!locationVisibleAt(location, date)) {
+          continue;
+        }
+        this.items.push({
+          x: location.at[0],
+          y: location.at[1],
+          kind: "location",
+          id: location.id,
+          label: location.name,
+        });
       }
-      if (!locationVisibleAt(location, date)) {
-        continue;
-      }
-      this.items.push({
-        x: location.at[0],
-        y: location.at[1],
-        kind: "location",
-        id: location.id,
-        label: location.name,
-      });
     }
     for (const event of world.events) {
+      if (focusEventId !== undefined && event.id !== focusEventId) {
+        continue;
+      }
       const place = eventPlace(world, event);
       if (place === undefined || place.mapId !== mapId || place.at === undefined) {
         continue;
@@ -96,6 +105,12 @@ export class MapView {
       });
     }
     this.placeMarkers();
+  }
+
+  /** The path of a traced person or vessel. */
+  setPath(points: PathPoint[]): void {
+    this.pathPoints = points;
+    this.drawPath();
   }
 
   private setImage(url: string | undefined, size: [number, number] | undefined): void {
@@ -119,6 +134,7 @@ export class MapView {
       overlay.setBounds(L.latLngBounds([[0, 0], [height, width]]));
       this.map.fitBounds([[0, 0], [height, width]]);
       this.placeMarkers();
+      this.drawPath();
     });
     overlay.on("error", () => {
       this.options.onImageMissing(`The map image could not be loaded (${url}).`);
@@ -151,6 +167,57 @@ export class MapView {
       });
       marker.addTo(this.markers);
     }
+  }
+
+  /**
+   * The path of a traced person, drawn on the map.
+   *
+   * Points on the same map join up. When the path changes map, a marker
+   * shows where it went.
+   */
+  private drawPath(): void {
+    this.pathLayer.clearLayers();
+    const element = this.overlay?.getElement();
+    if (!(element instanceof HTMLImageElement) || element.naturalWidth === 0) {
+      return;
+    }
+
+    let run: L.LatLng[] = [];
+    let runMap: string | undefined;
+    let previousMap: string | undefined;
+
+    for (const point of this.pathPoints) {
+      if (point.mapId === undefined || point.at === undefined) {
+        continue;
+      }
+      if (point.mapId !== runMap) {
+        this.addRun(run);
+        run = [];
+        if (previousMap !== undefined && previousMap !== point.mapId) {
+          const latLng = this.latLngForPixel(element, point.at[0], point.at[1]);
+          L.circleMarker(latLng, {
+            radius: 8,
+            color: "#6a3fb5",
+            weight: 2,
+            fillColor: "#b18ce0",
+            fillOpacity: 0.9,
+          })
+            .bindTooltip(`→ ${point.locationName ?? "another map"}`)
+            .addTo(this.pathLayer);
+        }
+        runMap = point.mapId;
+      }
+      previousMap = point.mapId;
+      run.push(this.latLngForPixel(element, point.at[0], point.at[1]));
+    }
+    this.addRun(run);
+  }
+
+  private addRun(run: L.LatLng[]): void {
+    if (run.length < 2) {
+      return;
+    }
+    L.polyline(run, { color: "#b3541e", weight: 3, opacity: 0.85, dashArray: "7 5" }).addTo(this.pathLayer);
   }
 
   /**

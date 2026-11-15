@@ -15,8 +15,20 @@
           <button type="submit">Go</button>
         </form>
       </header>
+      <div id="stepbar">
+        <button id="prev-step" type="button" aria-label="Previous step">‹</button>
+        <span id="step-label"></span>
+        <button id="next-step" type="button" aria-label="Next step">›</button>
+        <select id="trace-select" aria-label="Trace someone"></select>
+        <input id="search" type="search" placeholder="Search" aria-label="Search" />
+      </div>
       <main id="map" aria-label="Map"></main>
+      <div id="timeline">
+        <div id="context" aria-label="The whole range of the world"></div>
+        <div id="strip" aria-label="Timeline"></div>
+      </div>
       <aside id="card" hidden aria-live="polite"></aside>
+      <div id="results" hidden></div>
       <p id="status" role="status"></p>
     </div>
     <script type="module" src="./main.ts"></script>

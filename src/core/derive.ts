@@ -67,6 +67,11 @@ export function resolveWorld(data: WorldData): ResolvedWorld {
         location.exists !== undefined
           ? { from: parse(location.exists.from), until: parse(location.exists.until) }
           : undefined,
+      stays: (location.stays ?? []).map((stay) => ({
+        at: index.locationNames.resolve(stay.at) ?? stay.at,
+        from: parse(stay.from),
+        until: parse(stay.until),
+      })),
       tags: location.tags ?? [],
       card: location.card,
       bio: location.bio,

@@ -1,10 +1,6 @@
-/**
- * A very small store: the world, where we are, what date we are at, and
- * what is open.
- */
-
-import type { ParsedDate } from "../core/dates.js";
+import type { DateBound } from "../core/dates.js";
 import type { ResolvedWorld } from "../core/model.js";
+import type { Span } from "../core/steps.js";
 
 export type SelectionKind = "event" | "location" | "person";
 
@@ -13,14 +9,26 @@ export interface Selection {
   id: string;
 }
 
+/** "span" walks the events in the visible span; "trace" walks one person. */
+export type Mode = "span" | "trace";
+
 export interface AppState {
   world: ResolvedWorld;
   /** The map on screen. */
   mapId: string;
   /** The date the map is showing. */
-  date?: ParsedDate | undefined;
+  date?: DateBound | undefined;
+  /** The visible span of time. */
+  span?: Span | undefined;
+  mode: Mode;
+  /** The person or vessel being traced. */
+  traceId?: string | undefined;
   /** What is open in the card. */
   selection?: Selection | undefined;
+  /** Text filter over events, people and locations. */
+  query?: string | undefined;
+  /** Tags the steps are filtered by. */
+  tags?: string[] | undefined;
 }
 
 export type Changed = Set<keyof AppState>;

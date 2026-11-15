@@ -1,15 +1,27 @@
 /**
- * The viewer: load the world, show the map, open cards.
+ * The viewer: load the world, show the map, walk the timeline.
  */
 
 import "./styles.css";
 
-import { parseDate, type ParsedDate } from "../core/dates.js";
-import { mapChain, sortedEvents } from "../core/derive.js";
+import { parseDate, type DateBound } from "../core/dates.js";
+import { eventDomain } from "../core/scale.js";
+import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
+import { spanSteps, tracePath, traceSteps, traceable, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
+import { readLink, writeLink } from "./link.js";
 import { MapView } from "./map.js";
+import { StepBar } from "./stepbar.js";
 import { Store, type AppState } from "./state.js";
+import { Timeline } from "./timeline.js";
+
+interface ViewerStep {
+  label: string;
+  date: DateBound;
+  eventId?: string;
+  mapId?: string;
+}
 
 const statusElement = document.querySelector<HTMLElement>("#status");
 const cardElement = document.querySelector<HTMLElement>("#card");
@@ -17,6 +29,14 @@ const breadcrumbElement = document.querySelector<HTMLElement>("#breadcrumb");
 const mapElement = document.querySelector<HTMLElement>("#map");
 const dateForm = document.querySelector<HTMLFormElement>("#date-form");
 const dateInput = document.querySelector<HTMLInputElement>("#date-input");
+const prevButton = document.querySelector<HTMLButtonElement>("#prev-step");
+const nextButton = document.querySelector<HTMLButtonElement>("#next-step");
+const stepLabel = document.querySelector<HTMLElement>("#step-label");
+const traceSelect = document.querySelector<HTMLSelectElement>("#trace-select");
+const searchInput = document.querySelector<HTMLInputElement>("#search");
+const resultsElement = document.querySelector<HTMLElement>("#results");
+const contextElement = document.querySelector<HTMLElement>("#context");
+const stripElement = document.querySelector<HTMLElement>("#strip");
 
 function setStatus(message: string): void {
   if (statusElement !== null) {
@@ -24,12 +44,17 @@ function setStatus(message: string): void {
   }
 }
 
-function escapeHtmlText(text: string): string {
-  return escapeHtml(text);
+function personLink(person: ResolvedPerson): string {
+  return `<a href="#" class="person" data-person="${escapeHtml(person.id)}">${escapeHtml(person.name)}</a>`;
 }
 
-function personLink(person: ResolvedPerson): string {
-  return `<a href="#" class="person" data-person="${escapeHtmlText(person.id)}">${escapeHtmlText(person.name)}</a>`;
+function tagChips(tags: string[]): string {
+  if (tags.length === 0) {
+    return "";
+  }
+  return `<p class="tags">${tags
+    .map((tag) => `<button type="button" class="tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`)
+    .join(" ")}</p>`;
 }
 
 function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
@@ -40,12 +65,12 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
     .filter((person): person is ResolvedPerson => person !== undefined)
     .map((person) => personLink(person))
     .join(", ");
-  const body = renderMarkdown(event.card);
   return [
-    `<h2>${escapeHtmlText(event.title)}</h2>`,
-    `<p class="meta">${escapeHtmlText(event.when.raw)}${where !== "" ? ` · ${escapeHtmlText(where)}` : ""}</p>`,
+    `<h2>${escapeHtml(event.title)}</h2>`,
+    `<p class="meta">${escapeHtml(event.when.raw)}${where !== "" ? ` · ${escapeHtml(where)}` : ""}</p>`,
     people !== "" ? `<p class="people">${people}</p>` : "",
-    body,
+    tagChips(event.tags),
+    renderMarkdown(event.card),
   ].join("\n");
 }
 
@@ -53,22 +78,22 @@ function locationCard(world: ResolvedWorld, location: ResolvedLocation): string 
   const people = world.people
     .filter((person) => person.stays.some((stay) => stay.at === location.id))
     .map((person) => personLink(person));
-  const body = renderMarkdown(location.card ?? location.bio);
   return [
-    `<h2>${escapeHtmlText(location.name)}</h2>`,
+    `<h2>${escapeHtml(location.name)}</h2>`,
     location.kind === "mobile" ? `<p class="meta">mobile</p>` : "",
     people.length > 0 ? `<p class="people">${people.join(", ")}</p>` : "",
-    body,
+    tagChips(location.tags),
+    renderMarkdown(location.card ?? location.bio),
   ].join("\n");
 }
 
 function personCard(person: ResolvedPerson): string {
   const life = [person.born?.raw, person.died?.raw].filter((part) => part !== undefined).join(" – ");
-  const body = renderMarkdown(person.bio);
   return [
-    `<h2>${escapeHtmlText(person.name)}</h2>`,
-    life !== "" ? `<p class="meta">${escapeHtmlText(life)}</p>` : "",
-    body,
+    `<h2>${escapeHtml(person.name)}</h2>`,
+    life !== "" ? `<p class="meta">${escapeHtml(life)}</p>` : "",
+    tagChips(person.tags),
+    renderMarkdown(person.bio),
   ].join("\n");
 }
 
@@ -102,16 +127,124 @@ function renderBreadcrumb(state: AppState): void {
     return;
   }
   const chain = mapChain(state.world, state.mapId);
-  const parts = chain.map((map, index) =>
-    index === chain.length - 1
-      ? `<span>${escapeHtmlText(map.name)}</span>`
-      : `<button type="button" data-map="${escapeHtmlText(map.id)}">${escapeHtmlText(map.name)}</button>`,
-  );
-  breadcrumbElement.innerHTML = parts.join(" › ");
+  breadcrumbElement.innerHTML = chain
+    .map((map, index) =>
+      index === chain.length - 1
+        ? `<span>${escapeHtml(map.name)}</span>`
+        : `<button type="button" data-map="${escapeHtml(map.id)}">${escapeHtml(map.name)}</button>`,
+    )
+    .join(" › ");
+}
+
+function renderResults(state: AppState): void {
+  if (resultsElement === null) {
+    return;
+  }
+  const query = (state.query ?? "").trim().toLowerCase();
+  if (query === "") {
+    resultsElement.hidden = true;
+    resultsElement.innerHTML = "";
+    return;
+  }
+  const matches: { kind: string; id: string; label: string }[] = [];
+  for (const event of state.world.events) {
+    if (event.title.toLowerCase().includes(query)) {
+      matches.push({ kind: "event", id: event.id, label: event.title });
+    }
+  }
+  for (const person of state.world.people) {
+    if (person.name.toLowerCase().includes(query)) {
+      matches.push({ kind: "person", id: person.id, label: person.name });
+    }
+  }
+  for (const location of state.world.locations) {
+    if (location.name.toLowerCase().includes(query)) {
+      matches.push({ kind: "location", id: location.id, label: location.name });
+    }
+  }
+  resultsElement.innerHTML = matches
+    .slice(0, 12)
+    .map(
+      (match) =>
+        `<button type="button" class="result" data-kind="${match.kind}" data-id="${escapeHtml(match.id)}">${escapeHtml(match.label)}</button>`,
+    )
+    .join("");
+  resultsElement.hidden = matches.length === 0;
+}
+
+/** The steps the reader can walk through, filtered by the search and tags. */
+function currentSteps(state: AppState, span: Span | undefined): ViewerStep[] {
+  const query = (state.query ?? "").trim().toLowerCase();
+  const tags = state.tags ?? [];
+
+  let steps: ViewerStep[];
+  if (state.mode === "trace" && state.traceId !== undefined) {
+    steps = traceSteps(state.world, state.traceId).map((step) => ({
+      label: step.label,
+      date: step.date,
+      eventId: step.eventId,
+      mapId: step.mapId,
+    }));
+  } else if (span !== undefined) {
+    steps = spanSteps(state.world, span).map((event) => ({
+      label: event.title,
+      date: event.when,
+      eventId: event.id,
+      mapId: eventPlace(state.world, event)?.mapId,
+    }));
+  } else {
+    steps = [];
+  }
+
+  if (query !== "") {
+    steps = steps.filter((step) => step.label.toLowerCase().includes(query));
+  }
+  if (tags.length > 0) {
+    steps = steps.filter((step) => {
+      if (step.eventId === undefined) {
+        return false;
+      }
+      const event = state.world.events.find((entry) => entry.id === step.eventId);
+      return event !== undefined && tags.every((tag) => event.tags.includes(tag));
+    });
+  }
+  return steps;
+}
+
+/** The step we are on: the last one at or before the current date. */
+function currentIndex(steps: ViewerStep[], date: DateBound | undefined): number {
+  if (steps.length === 0) {
+    return 0;
+  }
+  let index = 0;
+  if (date !== undefined) {
+    for (let position = 0; position < steps.length; position += 1) {
+      const step = steps[position];
+      if (step !== undefined && compare(step.date, date) <= 0) {
+        index = position;
+      }
+    }
+  }
+  return index;
+}
+
+function compare(a: DateBound, b: DateBound): number {
+  const value = (date: DateBound): number =>
+    (date.year ?? 0) + ((date.month ?? 1) - 1) / 12 + ((date.day ?? 1) - 1) / 365.25;
+  return value(a) - value(b);
 }
 
 async function boot(): Promise<void> {
-  if (mapElement === null || cardElement === null) {
+  if (
+    mapElement === null ||
+    cardElement === null ||
+    contextElement === null ||
+    stripElement === null ||
+    prevButton === null ||
+    nextButton === null ||
+    stepLabel === null ||
+    traceSelect === null
+  ) {
     setStatus("The viewer is missing its elements.");
     return;
   }
@@ -129,14 +262,39 @@ async function boot(): Promise<void> {
     return;
   }
 
+  const link = readLink(window.location.hash);
+  const domain = eventDomain(world);
   const firstEvent = sortedEvents(world)[0];
-  const initialDate: ParsedDate | undefined = world.start ?? firstEvent?.when;
-  const initialMap = world.overworld ?? world.maps[0]?.id ?? "";
+
+  let initialDate: DateBound | undefined = world.start ?? firstEvent?.when;
+  if (link.date !== undefined) {
+    try {
+      initialDate = parseDate(link.date);
+    } catch {
+      // A bad date in the link is ignored.
+    }
+  }
+  let initialSpan: Span | undefined;
+  if (link.span !== undefined) {
+    const [from, to] = link.span.split("..");
+    try {
+      if (from !== undefined && to !== undefined) {
+        initialSpan = { from: parseDate(from), to: parseDate(to) };
+      }
+    } catch {
+      // A bad span in the link is ignored.
+    }
+  }
 
   const store = new Store({
     world,
-    mapId: initialMap,
+    mapId: link.map ?? world.overworld ?? world.maps[0]?.id ?? "",
     date: initialDate,
+    span: initialSpan,
+    mode: link.trace !== undefined ? "trace" : "span",
+    traceId: link.trace,
+    selection: link.event !== undefined ? { kind: "event", id: link.event } : undefined,
+    query: link.query,
   });
 
   const mapView = new MapView({
@@ -155,16 +313,94 @@ async function boot(): Promise<void> {
     onImageMissing: (message) => setStatus(message),
   });
 
+  const stepBar = new StepBar({
+    prev: prevButton,
+    next: nextButton,
+    label: stepLabel,
+    onStep: (index) => {
+      const state = store.get();
+      const span = state.span ?? (domain !== undefined ? { from: domain.from, to: domain.to } : undefined);
+      const steps = currentSteps(state, span);
+      const step = steps[index];
+      if (step === undefined) {
+        return;
+      }
+      store.set({
+        date: step.date,
+        mapId: step.mapId ?? state.mapId,
+        selection: step.eventId !== undefined ? { kind: "event", id: step.eventId } : undefined,
+      });
+    },
+  });
+
+  const timeline = new Timeline({
+    context: contextElement,
+    strip: stripElement,
+    onDate: (date) => store.set({ date }),
+    onSpan: (span) => store.set({ span }),
+    onEvent: (eventId) => {
+      const event = world.events.find((entry) => entry.id === eventId);
+      if (event === undefined) {
+        return;
+      }
+      const place = eventPlace(world, event);
+      store.set({
+        date: event.when,
+        mapId: place?.mapId ?? store.get().mapId,
+        selection: { kind: "event", id: eventId },
+      });
+    },
+  });
+
+  traceSelect.innerHTML = [
+    '<option value="">Nobody traced</option>',
+    ...traceable(world).map(
+      (entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)}</option>`,
+    ),
+  ].join("");
+  traceSelect.value = store.get().traceId ?? "";
+
   store.subscribe((state, changed) => {
-    if (changed.has("mapId") || changed.has("date")) {
-      mapView.render(state.world, state.mapId, state.date);
+    const currentDomain = eventDomain(state.world);
+    const span =
+      state.mode === "trace" && currentDomain !== undefined
+        ? { from: currentDomain.from, to: currentDomain.to }
+        : (state.span ?? (currentDomain !== undefined ? { from: currentDomain.from, to: currentDomain.to } : undefined));
+
+    const steps = currentSteps(state, span);
+    const index = currentIndex(steps, state.date);
+    const focused = steps[index];
+
+    const tickIds = new Set<string>();
+    for (const step of steps) {
+      if (step.eventId !== undefined) {
+        tickIds.add(step.eventId);
+      }
     }
+    timeline.render(state.world, currentDomain, span, state.date, tickIds);
+    stepBar.render(
+      steps.map((step) => step.label),
+      index,
+    );
+
+    mapView.render(
+      state.world,
+      state.mapId,
+      state.date,
+      state.mode === "trace" ? focused?.eventId : undefined,
+    );
+    mapView.setPath(
+      state.mode === "trace" && state.traceId !== undefined
+        ? tracePath(state.world, state.traceId)
+        : [],
+    );
+
     if (changed.has("mapId")) {
       renderBreadcrumb(state);
     }
-    if (changed.has("selection")) {
-      renderCard(state);
-    }
+    renderCard(state);
+    renderResults(state);
+    updateLink(state);
   });
 
   document.addEventListener("click", (event) => {
@@ -178,16 +414,53 @@ async function boot(): Promise<void> {
       store.set({ mapId: mapButton.dataset.map });
       return;
     }
-    const personLinkElement = target.closest<HTMLElement>("[data-person]");
-    if (personLinkElement !== null && personLinkElement.dataset.person !== undefined) {
+    const personElement = target.closest<HTMLElement>("[data-person]");
+    if (personElement !== null && personElement.dataset.person !== undefined) {
       event.preventDefault();
-      store.set({ selection: { kind: "person", id: personLinkElement.dataset.person } });
+      const id = personElement.dataset.person;
+      store.set({ mode: "trace", traceId: id, selection: { kind: "person", id } });
+      return;
+    }
+    const resultElement = target.closest<HTMLElement>("[data-kind]");
+    if (resultElement !== null && resultElement.dataset.id !== undefined) {
+      event.preventDefault();
+      const kind = resultElement.dataset.kind;
+      const id = resultElement.dataset.id;
+      if (kind === "person") {
+        store.set({ mode: "trace", traceId: id, selection: { kind: "person", id } });
+      } else if (kind === "location") {
+        store.set({ selection: { kind: "location", id } });
+      } else {
+        store.set({ selection: { kind: "event", id } });
+      }
+      return;
+    }
+    const tagElement = target.closest<HTMLElement>("[data-tag]");
+    if (tagElement !== null && tagElement.dataset.tag !== undefined) {
+      event.preventDefault();
+      const tag = tagElement.dataset.tag;
+      const current = store.get().tags ?? [];
+      const next = current.includes(tag) ? current.filter((entry) => entry !== tag) : [...current, tag];
+      store.set({ tags: next });
       return;
     }
     if (target.closest("#close-card") !== null) {
       event.preventDefault();
       store.set({ selection: undefined });
     }
+  });
+
+  traceSelect.addEventListener("change", () => {
+    const value = traceSelect.value;
+    if (value === "") {
+      store.set({ mode: "span", traceId: undefined });
+      return;
+    }
+    store.set({ mode: "trace", traceId: value });
+  });
+
+  searchInput?.addEventListener("input", () => {
+    store.set({ query: searchInput.value });
   });
 
   dateForm?.addEventListener("submit", (event) => {
@@ -207,9 +480,26 @@ async function boot(): Promise<void> {
   if (dateInput !== null && initialDate !== undefined) {
     dateInput.value = initialDate.raw;
   }
+  if (searchInput !== null && store.get().query !== undefined) {
+    searchInput.value = store.get().query ?? "";
+  }
 
   renderBreadcrumb(store.get());
-  mapView.render(store.get().world, store.get().mapId, store.get().date);
+  store.set({ date: store.get().date });
+}
+
+function updateLink(state: AppState): void {
+  const link = writeLink({
+    map: state.mapId,
+    date: state.date?.raw,
+    span: state.span !== undefined ? `${state.span.from.raw}..${state.span.to.raw}` : undefined,
+    trace: state.traceId,
+    event: state.selection?.kind === "event" ? state.selection.id : undefined,
+    query: state.query !== undefined && state.query !== "" ? state.query : undefined,
+  });
+  if (link !== window.location.hash) {
+    window.history.replaceState(null, "", link);
+  }
 }
 
 void boot();

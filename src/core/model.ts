@@ -42,6 +42,8 @@ export interface ResolvedLocation {
   opens?: string | undefined;
   /** When the location exists. Both ends are inclusive. */
   exists?: { from?: ParsedDate | undefined; until?: ParsedDate | undefined } | undefined;
+  /** Where a mobile location is over time. */
+  stays: ResolvedStay[];
   tags: string[];
   card?: string | undefined;
   bio?: string | undefined;
