@@ -1,0 +1,9 @@
+id: 61-cygni
+name: 61 Cygni
+parent: region
+size:
+  - 800
+  - 600
+images:
+  - file: 61-cygni.svg
+    caption: 61 Cygni, schematically.

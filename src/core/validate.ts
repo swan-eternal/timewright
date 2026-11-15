@@ -126,15 +126,17 @@ export function buildIndex(data: WorldData): WorldIndex {
 
   for (const record of maps) {
     mapIds.set(record.id, record);
-    mapNames.add(record.id, record.data.name, record.data.aliases ?? []);
+    // The id answers to itself as well as to the name: "map: region" has to
+    // work when the map is called "The Local Neighbourhood".
+    mapNames.add(record.id, record.data.name, [record.id, ...(record.data.aliases ?? [])]);
   }
   for (const record of people) {
     peopleIds.set(record.id, record);
-    peopleNames.add(record.id, record.data.name, record.data.aliases ?? []);
+    peopleNames.add(record.id, record.data.name, [record.id, ...(record.data.aliases ?? [])]);
   }
   for (const record of locations) {
     locationIds.set(record.id, record);
-    locationNames.add(record.id, record.data.name, record.data.aliases ?? []);
+    locationNames.add(record.id, record.data.name, [record.id, ...(record.data.aliases ?? [])]);
   }
 
   return {

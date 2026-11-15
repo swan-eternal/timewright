@@ -82,16 +82,20 @@ export class Timeline {
       return;
     }
     const events = sortedEvents(world).filter((event) => {
-      const fraction = dateFraction(event.when, span);
-      if (fraction < 0 || fraction > 1) {
+      if (tickEventIds !== undefined && !tickEventIds.has(event.id)) {
         return false;
       }
-      return tickEventIds === undefined || tickEventIds.has(event.id);
+      return true;
     });
     const ticks = events
       .map((event) => {
-        const fraction = dateFraction(event.when, span);
-        return `<button type="button" class="tick" data-event="${escapeHtml(event.id)}" style="left:${fraction * 100}%" title="${escapeHtml(event.when.raw)} — ${escapeHtml(event.title)}"></button>`;
+        const raw = dateFraction(event.when, span);
+        // A tick outside the visible span is pinned to the edge: it belongs
+        // to no map's era, so it is still worth showing.
+        const pinned = raw < 0 || raw > 1;
+        const fraction = Math.min(Math.max(raw, 0), 1);
+        const className = pinned ? "tick pinned" : "tick";
+        return `<button type="button" class="${className}" data-event="${escapeHtml(event.id)}" style="left:${fraction * 100}%" title="${escapeHtml(event.when.raw)} — ${escapeHtml(event.title)}"></button>`;
       })
       .join("");
     const playhead = this.date !== undefined ? dateFraction(this.date, span) * 100 : 0;

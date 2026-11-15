@@ -222,6 +222,11 @@ select {
   background: var(--event);
 }
 
+.tick.pinned {
+  border-style: dotted;
+  opacity: 0.75;
+}
+
 .playhead {
   position: absolute;
   top: 0.35rem;

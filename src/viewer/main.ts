@@ -7,7 +7,7 @@ import "./styles.css";
 import { parseDate, type DateBound } from "../core/dates.js";
 import { eventDomain } from "../core/scale.js";
 import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
-import { spanSteps, tracePath, traceSteps, traceable, type Span } from "../core/steps.js";
+import { spanSteps, tracePath, traceSteps, traceable, unplacedEvents, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
 import { readLink, writeLink } from "./link.js";
@@ -186,12 +186,23 @@ function currentSteps(state: AppState, span: Span | undefined): ViewerStep[] {
       mapId: step.mapId,
     }));
   } else if (span !== undefined) {
-    steps = spanSteps(state.world, span).map((event) => ({
+    const inside = spanSteps(state.world, span).map((event) => ({
       label: event.title,
       date: event.when,
       eventId: event.id,
       mapId: eventPlace(state.world, event)?.mapId,
     }));
+    // Events with no place belong to no map's era, so they stay on the
+    // timeline even when the span does not reach them.
+    const unplaced = unplacedEvents(state.world).map((event) => ({
+      label: event.title,
+      date: event.when,
+      eventId: event.id,
+    }));
+    const seen = new Set(inside.map((step) => step.eventId));
+    steps = [...inside, ...unplaced.filter((step) => !seen.has(step.eventId))].sort(
+      (a, b) => compare(a.date, b.date),
+    );
   } else {
     steps = [];
   }
@@ -362,10 +373,21 @@ async function boot(): Promise<void> {
 
   store.subscribe((state, changed) => {
     const currentDomain = eventDomain(state.world);
+    const domainSpan =
+      currentDomain !== undefined ? { from: currentDomain.from, to: currentDomain.to } : undefined;
+
+    // Tracing shows the traced person's own timeline, not the whole world.
+    const traced =
+      state.mode === "trace" && state.traceId !== undefined
+        ? traceSteps(state.world, state.traceId)
+        : [];
+    const traceSpan =
+      traced.length > 0
+        ? { from: traced[0]?.date, to: traced[traced.length - 1]?.date }
+        : undefined;
+
     const span =
-      state.mode === "trace" && currentDomain !== undefined
-        ? { from: currentDomain.from, to: currentDomain.to }
-        : (state.span ?? (currentDomain !== undefined ? { from: currentDomain.from, to: currentDomain.to } : undefined));
+      state.mode === "trace" ? (traceSpan ?? domainSpan) : (state.span ?? domainSpan);
 
     const steps = currentSteps(state, span);
     const index = currentIndex(steps, state.date);

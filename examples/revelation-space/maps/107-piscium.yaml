@@ -1,0 +1,9 @@
+id: 107-piscium
+name: 107 Piscium
+parent: region
+size:
+  - 800
+  - 600
+images:
+  - file: 107-piscium.svg
+    caption: 107 Piscium, schematically.

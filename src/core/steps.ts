@@ -48,6 +48,17 @@ export function spanSteps(world: ResolvedWorld, span: Span): ResolvedEvent[] {
   });
 }
 
+/**
+ * The events that have no place on the map.
+ *
+ * They are not tied to any map's era, so they stay on the timeline even
+ * when the visible span does not cover them - the reader pins them to the
+ * edge of the strip rather than losing them.
+ */
+export function unplacedEvents(world: ResolvedWorld): ResolvedEvent[] {
+  return sortedEvents(world).filter((event) => eventPlace(world, event) === undefined);
+}
+
 /** The steps of one traced person or location. */
 export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] {
   const steps: TraceStep[] = [];

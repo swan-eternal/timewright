@@ -1,0 +1,9 @@
+id: epsilon-eridani
+name: Epsilon Eridani
+parent: region
+size:
+  - 800
+  - 600
+images:
+  - file: epsilon-eridani.svg
+    caption: Epsilon Eridani, schematically.

@@ -1,0 +1,9 @@
+id: lacaille-9352
+name: Lacaille 9352
+parent: region
+size:
+  - 800
+  - 600
+images:
+  - file: lacaille-9352.svg
+    caption: Lacaille 9352, schematically.

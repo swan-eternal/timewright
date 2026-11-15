@@ -1,0 +1,9 @@
+id: groombridge-1618
+name: Groombridge 1618
+parent: region
+size:
+  - 800
+  - 600
+images:
+  - file: groombridge-1618.svg
+    caption: Groombridge 1618, schematically.
