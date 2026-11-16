@@ -89,7 +89,22 @@ export function installDebug(): void {
       worldLines.push(`      (could not fetch: ${String(error)})`);
     }
 
+  const viewportWidth = window.innerWidth;
+  const offenders = Array.from(document.querySelectorAll<HTMLElement>("body *"))
+    .map((element) => ({ element, box: element.getBoundingClientRect() }))
+    .filter(({ box }) => box.right > viewportWidth + 1 || box.left < -1)
+    .slice(0, 12)
+    .map(
+      ({ element, box }) =>
+        `      <${element.tagName.toLowerCase()} class="${element.className}">` +
+        ` left=${Math.round(box.left)} right=${Math.round(box.right)} width=${Math.round(box.width)}`,
+    );
+
   const lines = [
+      `viewport: ${viewportWidth} wide`,
+      `document width: ${document.documentElement.scrollWidth}`,
+      `elements past the edge:`,
+      ...(offenders.length > 0 ? offenders : ["      (none)"]),
       `container: ${container !== undefined ? `${container.clientWidth} x ${container.clientHeight}` : "none"}`,
       `zoom: ${view?.zoom ?? "?"}`,
       `overlay image element: ${view?.overlayImage !== undefined ? "present" : "MISSING"}`,

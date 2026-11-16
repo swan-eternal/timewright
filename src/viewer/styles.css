@@ -42,8 +42,24 @@ select {
 #app {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto auto;
+  /* One column that can never be pushed wider than the window. Without an
+     explicit track, the implicit one is sized by its content, and one wide
+     child stretches the whole app - the timeline included. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
+}
+
+/* A grid item's default min-width is its content's, which lets it push a
+   track wider than the track was meant to be. */
+#topbar,
+#stepbar,
+#map,
+#timeline,
+#card,
+#results,
+#status {
+  min-width: 0;
 }
 
 #topbar {
@@ -154,6 +170,8 @@ select {
   background: var(--panel);
   border-top: 1px solid var(--line);
   padding: 0.4rem 0.75rem 0.6rem;
+  /* Nothing in the timeline may reach past the window. */
+  overflow: hidden;
 }
 
 #context {
@@ -263,6 +281,8 @@ select {
   overflow: auto;
   /* Scrolling the card should not scroll the page behind it. */
   overscroll-behavior: contain;
+  /* A long word in a card must not widen the card. */
+  overflow-wrap: anywhere;
 }
 
 #card h2 {
