@@ -53,6 +53,7 @@ export class MapView {
   private readonly options: MapViewOptions;
   private overlay?: L.ImageOverlay;
   private currentImage?: string;
+  private hasView = false;
   private items: MarkerItem[] = [];
   private pathPoints: PathPoint[] = [];
 
@@ -152,7 +153,21 @@ export class MapView {
     }
 
     const placeholder: [number, number] = size ?? [1000, 1000];
-    const overlay = L.imageOverlay(url, [[0, 0], [placeholder[1], placeholder[0]]]);
+    const width = placeholder[0];
+    const height = placeholder[1];
+
+    // Leaflet holds a layer back until the map has a view, and an image
+    // overlay only creates its image when the layer is added. So the map
+    // needs a view first: without one the image is never requested, never
+    // loads, and never reports its size - and the map stays blank with no
+    // error anywhere. This is only a starting point; fitBounds below
+    // replaces it once the image's real size is known.
+    if (!this.hasView) {
+      this.map.setView([height / 2, width / 2], -1);
+      this.hasView = true;
+    }
+
+    const overlay = L.imageOverlay(url, [[0, 0], [height, width]]);
     this.overlay = overlay;
     overlay.on("load", () => {
       const element = overlay.getElement();
@@ -161,10 +176,10 @@ export class MapView {
       // nothing - a zero-sized overlay is invisible, with nothing to show.
       const measuredWidth = element instanceof HTMLImageElement ? element.naturalWidth : 0;
       const measuredHeight = element instanceof HTMLImageElement ? element.naturalHeight : 0;
-      const width = measuredWidth > 0 ? measuredWidth : (size?.[0] ?? 1000);
-      const height = measuredHeight > 0 ? measuredHeight : (size?.[1] ?? 700);
-      overlay.setBounds(L.latLngBounds([[0, 0], [height, width]]));
-      this.map.fitBounds([[0, 0], [height, width]]);
+      const imageWidth = measuredWidth > 0 ? measuredWidth : width;
+      const imageHeight = measuredHeight > 0 ? measuredHeight : height;
+      overlay.setBounds(L.latLngBounds([[0, 0], [imageHeight, imageWidth]]));
+      this.map.fitBounds([[0, 0], [imageHeight, imageWidth]]);
       this.placeMarkers();
       this.drawPath();
     });

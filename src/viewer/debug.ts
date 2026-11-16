@@ -72,7 +72,24 @@ export function installDebug(): void {
       ].join(" ");
     });
 
-    const lines = [
+    // What the browser actually fetched for the world, and what the map's
+    // images look like in it.
+    let worldLines: string[] = [];
+    try {
+      const response = await fetch("./world.json", { cache: "no-store" });
+      const world = (await response.json()) as {
+        maps?: { id: string; size?: number[]; images?: { file: string; path?: string }[] }[];
+      };
+      for (const map of world.maps ?? []) {
+        worldLines.push(
+          `      ${map.id} size=${JSON.stringify(map.size)} images=${JSON.stringify(map.images)}`,
+        );
+      }
+    } catch (error) {
+      worldLines.push(`      (could not fetch: ${String(error)})`);
+    }
+
+  const lines = [
       `container: ${container !== undefined ? `${container.clientWidth} x ${container.clientHeight}` : "none"}`,
       `zoom: ${view?.zoom ?? "?"}`,
       `overlay image element: ${view?.overlayImage !== undefined ? "present" : "MISSING"}`,
@@ -89,6 +106,8 @@ export function installDebug(): void {
       mapPane !== undefined ? `map pane transform: ${mapPane.style.transform || "-"}` : "",
       `all images on the page:`,
       ...(everyImage.length > 0 ? everyImage : ["      (none)"]),
+      `world.json as the browser got it:`,
+      ...worldLines,
       `errors: ${errors.length > 0 ? errors.join(" | ") : "none"}`,
     ].filter((line) => line !== "");
 
