@@ -340,11 +340,18 @@ function checkRange(
   }
 }
 
-/** A date as a number of years, so two dates can be compared. */
+/**
+ * A date as a number of years, so two dates can be compared.
+ *
+ * A range is placed by where it starts: the range's bounds live in `from`
+ * and `to`, and the date itself carries no year of its own.
+ */
 export function dateValue(date: DateBound): number {
-  const year = date.year ?? 0;
-  const month = (date.month ?? 1) - 1;
-  const day = (date.day ?? 1) - 1;
+  const range = date as ParsedDate;
+  const bound = range.kind === "range" && range.from !== undefined ? range.from : date;
+  const year = bound.year ?? 0;
+  const month = (bound.month ?? 1) - 1;
+  const day = (bound.day ?? 1) - 1;
   return year + month / 12 + day / 365.25;
 }
 

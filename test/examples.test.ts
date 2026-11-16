@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { loadWorld } from "../src/cli/load.js";
+import { resolveWorld } from "../src/core/derive.js";
+import { eventDomain } from "../src/core/scale.js";
+import { traceable, viewSteps } from "../src/core/steps.js";
 import { validateWorld } from "../src/core/validate.js";
 
 function example(name: string): string {
@@ -33,5 +36,28 @@ describe("the examples", () => {
     // 61 nodes: 11 star systems, 33 places, 2 vessels and 15 people.
     assert.equal(loaded.data.locations.length, 46);
     assert.equal(loaded.data.people.length, 14);
+  });
+
+  it("gives every step its own identity", async () => {
+    // Two steps sharing a key cannot be told apart, and the reader would
+    // not be able to step back into the earlier of them.
+    for (const name of ["napoleon", "revelation-space"]) {
+      const loaded = await loadWorld(example(name));
+      const world = resolveWorld(loaded.data);
+      const domain = eventDomain(world);
+      const span = domain !== undefined ? { from: domain.from, to: domain.to } : undefined;
+      const lists = [viewSteps(world, { mode: "span", span })];
+      for (const entry of traceable(world)) {
+        lists.push(viewSteps(world, { mode: "trace", traceId: entry.id }));
+      }
+      for (const steps of lists) {
+        const keys = steps.map((step) => step.key);
+        assert.deepEqual(
+          [...new Set(keys)].length,
+          keys.length,
+          `${name}: two steps share a key`,
+        );
+      }
+    }
   });
 });

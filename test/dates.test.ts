@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { compareBounds, compareDates, compareOrder, parseDate, tryParseDate, type ParseOptions } from "../src/core/dates.js";
+import { compareBounds, compareDates, compareOrder, dateValue, parseDate, tryParseDate, type ParseOptions } from "../src/core/dates.js";
 
 const CALENDAR: ParseOptions = {
   calendar: {
@@ -138,5 +138,11 @@ describe("a bound as the period it covers", () => {
     assert.ok(compareOrder(parseDate("1815"), parseDate("1815-06-18")) < 0);
     assert.ok(compareOrder(parseDate("1815-06-18"), parseDate("1816")) < 0);
     assert.equal(compareOrder(parseDate("1815"), parseDate("1815")), 0);
+  });
+
+  it("places a range at the start of the range", () => {
+    // A range carries no year of its own - its bounds live in from and to -
+    // so without this it would be placed at year zero.
+    assert.equal(dateValue(parseDate("2650..2850")), dateValue(parseDate("2650")));
   });
 });

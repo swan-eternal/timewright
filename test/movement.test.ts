@@ -15,7 +15,7 @@ import type {
   ResolvedWorld,
 } from "../src/core/model.js";
 import { fractionDate } from "../src/core/scale.js";
-import { tracePath, traceSteps, viewSteps } from "../src/core/steps.js";
+import { findStep, stepIndex, tracePath, traceSteps, viewSteps } from "../src/core/steps.js";
 
 function location(
   partial: Partial<ResolvedLocation> & { id: string; name: string },
@@ -483,6 +483,70 @@ describe("the steps the reader walks", () => {
       steps.map((step) => step.label),
       ["First", "Second"],
     );
+  });
+});
+
+describe("which step the reader is on", () => {
+  const shared = world({
+    events: [
+      event({ id: "a", title: "First", when: parseDate("2650") }),
+      event({ id: "b", title: "Second", when: parseDate("2650") }),
+      event({ id: "c", title: "Third", when: parseDate("2660") }),
+    ],
+  });
+  const steps = viewSteps(shared, {
+    mode: "span",
+    span: { from: parseDate("2600"), to: parseDate("2700") },
+  });
+
+  it("gives two steps on the same date different identities", () => {
+    assert.equal(steps.length, 3);
+    assert.notEqual(steps[0]?.key, steps[1]?.key);
+  });
+
+  it("finds each of two steps that share a date", () => {
+    // The date cannot tell them apart - only the key can.
+    assert.equal(stepIndex(steps, parseDate("2650")), 1);
+    assert.equal(findStep(steps, steps[0]?.key, parseDate("2650")), 0);
+    assert.equal(findStep(steps, steps[1]?.key, parseDate("2650")), 1);
+  });
+
+  it("can walk all the way back through steps that share a date", () => {
+    // The way the arrows do it: take the previous step, keep its
+    // identity, and find it again.
+    let index = steps.length - 1;
+    const visited: number[] = [index];
+    while (index > 0) {
+      const target = steps[index - 1];
+      if (target === undefined) {
+        break;
+      }
+      index = findStep(steps, target.key, target.date);
+      visited.push(index);
+    }
+    assert.deepEqual(visited, [2, 1, 0]);
+  });
+
+  it("falls back to the date when the step is not in the list", () => {
+    // The trace or the filter changed, so the old step is gone.
+    assert.equal(findStep(steps, "event:not-here", parseDate("2650")), 1);
+  });
+
+  it("does not let a range date drag the position back", () => {
+    const ranged = world({
+      events: [
+        event({ id: "a", title: "Before", when: parseDate("2524") }),
+        event({ id: "b", title: "The range", when: parseDate("2650..2850") }),
+        event({ id: "c", title: "After", when: parseDate("2950") }),
+      ],
+    });
+    const rangedSteps = viewSteps(ranged, {
+      mode: "span",
+      span: { from: parseDate("2500"), to: parseDate("3000") },
+    });
+    // The range sits at 2650, so the 2524 step is found - not the range.
+    assert.equal(findStep(rangedSteps, undefined, parseDate("2524")), 0);
+    assert.equal(findStep(rangedSteps, undefined, parseDate("2650..2850")), 1);
   });
 });
 

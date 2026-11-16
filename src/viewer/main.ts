@@ -7,7 +7,7 @@ import "./styles.css";
 import { parseDate, type DateBound } from "../core/dates.js";
 import { eventDomain } from "../core/scale.js";
 import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
-import { stepIndex, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
+import { findStep, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
 import { debugOn, installDebug } from "./debug.js";
@@ -279,6 +279,7 @@ async function boot(): Promise<void> {
       }
       store.set({
         date: step.date,
+        stepKey: step.key,
         mapId: step.mapId ?? state.mapId,
         selection: step.eventId !== undefined ? { kind: "event", id: step.eventId } : undefined,
       });
@@ -288,7 +289,7 @@ async function boot(): Promise<void> {
   const timeline = new Timeline({
     context: contextElement,
     strip: stripElement,
-    onDate: (date) => store.set({ date }),
+    onDate: (date) => store.set({ date, stepKey: undefined }),
     onSpan: (span) => store.set({ span }),
     onEvent: (eventId) => {
       const event = world.events.find((entry) => entry.id === eventId);
@@ -298,6 +299,7 @@ async function boot(): Promise<void> {
       const place = eventPlace(world, event);
       store.set({
         date: event.when,
+        stepKey: `event:${eventId}`,
         mapId: place?.mapId ?? store.get().mapId,
         selection: { kind: "event", id: eventId },
       });
@@ -339,7 +341,12 @@ async function boot(): Promise<void> {
       query: state.query,
       tags: state.tags,
     });
-    const index = stepIndex(steps, state.date);
+    // The arrows move through the steps, so the position is remembered
+    // rather than worked out from the date: two steps can share a date,
+    // and the reader has to be able to step back into the earlier of
+    // them. When the step is not in the list any more - the trace or the
+    // filter changed - the date decides instead.
+    const index = findStep(steps, state.stepKey, state.date);
     const focused = steps[index];
 
     const tickIds = new Set<string>();
@@ -442,7 +449,7 @@ async function boot(): Promise<void> {
       return;
     }
     try {
-      store.set({ date: parseDate(raw) });
+      store.set({ date: parseDate(raw), stepKey: undefined });
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));

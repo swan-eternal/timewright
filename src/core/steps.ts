@@ -17,6 +17,13 @@ export interface Span {
 }
 
 export interface TraceStep {
+  /**
+   * A stable identity for this step.
+   *
+   * A step is not identified by its date: two steps can share one, and the
+   * reader has to be able to step back into the earlier of them.
+   */
+  key: string;
   /** The event this step is, when it is an event. */
   eventId?: string;
   /** A person or location the step belongs to. */
@@ -74,6 +81,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
       }
       const place = eventPlace(world, event);
       steps.push({
+        key: `event:${event.id}`,
         eventId: event.id,
         entityId: person.id,
         date: event.when,
@@ -97,6 +105,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
         continue;
       }
       steps.push({
+        key: `event:${event.id}`,
         eventId: event.id,
         entityId: location.id,
         date: event.when,
@@ -154,6 +163,7 @@ function staySteps(
     if (from !== undefined) {
       const resolved = resolveLocationAt(world, locationId, from);
       steps.push({
+        key: `stay:${entityId}:${locationId}:aboard:${from.raw}`,
         entityId,
         date: from,
         kind: "stay",
@@ -171,6 +181,7 @@ function staySteps(
           const resolved = resolveLocationAt(world, vesselStay.at, vesselStay.from);
           const targetName = world.locations.find((entry) => entry.id === vesselStay.at)?.name ?? vesselStay.at;
           steps.push({
+            key: `stay:${entityId}:${locationId}:vessel-arrived:${vesselStay.at}:${vesselStay.from.raw}`,
             entityId,
             date: vesselStay.from,
             kind: "stay",
@@ -185,6 +196,7 @@ function staySteps(
     if (until !== undefined) {
       const resolved = resolveLocationAt(world, locationId, until);
       steps.push({
+        key: `stay:${entityId}:${locationId}:left:${until.raw}`,
         entityId,
         date: until,
         kind: "stay",
@@ -200,6 +212,7 @@ function staySteps(
   if (from !== undefined) {
     const resolved = resolveLocationAt(world, locationId, from);
     steps.push({
+      key: `stay:${entityId}:${locationId}:arrived:${from.raw}`,
       entityId,
       date: from,
       kind: "stay",
@@ -212,6 +225,7 @@ function staySteps(
   if (until !== undefined) {
     const resolved = resolveLocationAt(world, locationId, until);
     steps.push({
+      key: `stay:${entityId}:${locationId}:left:${until.raw}`,
       entityId,
       date: until,
       kind: "stay",
@@ -260,6 +274,8 @@ export function traceable(world: ResolvedWorld): { id: string; name: string; kin
 
 /** One thing the reader can step onto. */
 export interface ViewStep {
+  /** A stable identity for this step, so the viewer can come back to it. */
+  key: string;
   label: string;
   date: DateBound;
   eventId?: string | undefined;
@@ -294,6 +310,7 @@ export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[
   let steps: ViewStep[];
   if (options.mode === "trace" && options.traceId !== undefined) {
     steps = traceSteps(world, options.traceId).map((step) => ({
+      key: step.key,
       label: step.label,
       date: step.date,
       eventId: step.eventId,
@@ -319,6 +336,7 @@ export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[
     steps = combined.map((event) => {
       const place = eventPlace(world, event);
       return {
+        key: `event:${event.id}`,
         label: event.title,
         date: event.when,
         eventId: event.id,
@@ -361,6 +379,24 @@ export function stepIndex(steps: ViewStep[], date?: DateBound): number {
     }
   }
   return index;
+}
+
+/**
+ * Which step the reader is on.
+ *
+ * A step is found by its key first, so two steps that share a date are
+ * still two steps and the reader can step back into the earlier of them.
+ * When the key is not in the list - the trace or the filter changed, so
+ * the list is a different one - the date decides instead.
+ */
+export function findStep(steps: ViewStep[], key?: string, date?: DateBound): number {
+  if (key !== undefined) {
+    const found = steps.findIndex((step) => step.key === key);
+    if (found >= 0) {
+      return found;
+    }
+  }
+  return stepIndex(steps, date);
 }
 
 /** Compare two dates that may only be a year apart. */

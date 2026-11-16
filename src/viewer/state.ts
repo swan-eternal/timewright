@@ -18,6 +18,12 @@ export interface AppState {
   mapId: string;
   /** The date the map is showing. */
   date?: DateBound | undefined;
+  /**
+   * Which step the reader is on, when they walked there with the arrows.
+   *
+   * The step cannot be worked out from the date: two steps can share one.
+   */
+  stepKey?: string | undefined;
   /** The visible span of time. */
   span?: Span | undefined;
   mode: Mode;
