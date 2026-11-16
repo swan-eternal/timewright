@@ -145,8 +145,13 @@ export class MapView {
     this.overlay = overlay;
     overlay.on("load", () => {
       const element = overlay.getElement();
-      const width = element instanceof HTMLImageElement ? element.naturalWidth : placeholder[0];
-      const height = element instanceof HTMLImageElement ? element.naturalHeight : placeholder[1];
+      // A browser can report zero for an image it cannot measure. The
+      // declared size is the fallback, and the image is never sized to
+      // nothing - a zero-sized overlay is invisible, with nothing to show.
+      const measuredWidth = element instanceof HTMLImageElement ? element.naturalWidth : 0;
+      const measuredHeight = element instanceof HTMLImageElement ? element.naturalHeight : 0;
+      const width = measuredWidth > 0 ? measuredWidth : (size?.[0] ?? 1000);
+      const height = measuredHeight > 0 ? measuredHeight : (size?.[1] ?? 700);
       overlay.setBounds(L.latLngBounds([[0, 0], [height, width]]));
       this.map.fitBounds([[0, 0], [height, width]]);
       this.placeMarkers();

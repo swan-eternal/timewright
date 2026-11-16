@@ -10,6 +10,7 @@ import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
 import { stepIndex, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
+import { installDebug } from "./debug.js";
 import { readLink, writeLink } from "./link.js";
 import { MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
@@ -167,6 +168,7 @@ function renderResults(state: AppState): void {
 }
 
 async function boot(): Promise<void> {
+  installDebug();
   if (
     mapElement === null ||
     cardElement === null ||
