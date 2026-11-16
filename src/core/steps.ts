@@ -73,6 +73,11 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
   const steps: TraceStep[] = [];
   const person = world.people.find((entry) => entry.id === entityId);
   const location = world.locations.find((entry) => entry.id === entityId);
+  // A person and a location can share an id. The validator rejects that,
+  // but a world written by hand can still have one, and tracing it must not
+  // merge two histories into one. The person wins: they are what a trace is
+  // usually for.
+  const ambiguous = person !== undefined && location !== undefined;
 
   if (person !== undefined) {
     for (const event of sortedEvents(world)) {
@@ -98,7 +103,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
     }
   }
 
-  if (location !== undefined) {
+  if (location !== undefined && !ambiguous) {
     for (const event of sortedEvents(world)) {
       const place = eventPlace(world, event);
       if (place?.location?.id !== location.id && !event.locations.includes(location.id)) {
@@ -269,7 +274,16 @@ export function traceable(world: ResolvedWorld): { id: string; name: string; kin
   const mobile = world.locations
     .filter((location: ResolvedLocation) => location.kind === "mobile")
     .map((location) => ({ id: location.id, name: location.name, kind: "location" as const }));
-  return [...people, ...mobile];
+  // Two entries with one id would be two choices for the same trace, so
+  // only the first is offered.
+  const seen = new Set<string>();
+  return [...people, ...mobile].filter((entry) => {
+    if (seen.has(entry.id)) {
+      return false;
+    }
+    seen.add(entry.id);
+    return true;
+  });
 }
 
 /** One thing the reader can step onto. */

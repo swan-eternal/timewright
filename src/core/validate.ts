@@ -244,6 +244,7 @@ function checkDuplicateIds(issues: Issue[], index: WorldIndex): void {
     { label: "location", records: index.locations },
     { label: "event", records: index.events },
   ];
+  // Within one kind, two records cannot share an id.
   for (const group of groups) {
     const seen = new Map<string, { name: string; file?: string | undefined }>();
     for (const record of group.records) {
@@ -261,6 +262,28 @@ function checkDuplicateIds(issues: Issue[], index: WorldIndex): void {
         continue;
       }
       seen.set(record.id, { name: record.name, file: record.file });
+    }
+  }
+  // A person and a location share one namespace: the trace is looked up by
+  // id, so an id that names both would show two histories at once. A map
+  // and a location may share a name - a place and the map it sits on - and
+  // those live in separate namespaces, so they are left alone.
+  const people = new Map<string, { name: string; file?: string | undefined }>();
+  for (const record of index.people) {
+    people.set(record.id, { name: record.name, file: record.file });
+  }
+  for (const record of index.locations) {
+    const existing = people.get(record.id);
+    if (existing !== undefined) {
+      issues.push({
+        severity: "error",
+        code: "duplicate-id",
+        message: `a person and a location resolve to the id "${record.id}"`,
+        file: record.file,
+        record: record.name,
+        field: "id",
+        suggestion: `The other one is "${existing.name}"${existing.file !== undefined ? ` in ${existing.file}` : ""}. Give one of them an explicit id.`,
+      });
     }
   }
 }
@@ -372,7 +395,11 @@ function checkMaps(issues: Issue[], index: WorldIndex): void {
             break;
           }
           seen.add(cursor);
-          cursor = index.mapIds.get(cursor)?.data.parent;
+          // The parent may be written as a name, so every hop is resolved
+          // through the index instead of being read as an id. A chain
+          // written in names used to stop at the second map.
+          const parentName: string | undefined = index.mapIds.get(cursor)?.data.parent;
+          cursor = parentName !== undefined ? index.mapNames.resolve(parentName) : undefined;
         }
       }
     }

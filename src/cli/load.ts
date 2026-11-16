@@ -238,11 +238,14 @@ async function resolveImage(
   file: string,
 ): Promise<ResolvedImage | undefined> {
   const base = sourceFile !== undefined ? path.dirname(sourceFile) : root;
+  // A world can name any file, and worlds are written by agents and shared
+  // between people, so a path that climbs out of the world folder is not an
+  // image: it is a way to read something that is not part of the world.
   const candidates = [
     path.resolve(base, file),
     path.resolve(root, file),
     path.resolve(root, "maps", file),
-  ];
+  ].filter((candidate) => isInside(root, candidate));
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       return { path: candidate };
@@ -250,16 +253,24 @@ async function resolveImage(
   }
   // macOS and Windows are case-insensitive, Linux and web hosts are not.
   const first = candidates[0];
-  const dir = path.dirname(first);
-  if (existsSync(dir)) {
-    const entries = await readdir(dir);
-    const target = path.basename(first).toLowerCase();
-    const match = entries.find((entry) => entry.toLowerCase() === target);
-    if (match !== undefined) {
-      return { path: path.join(dir, match), caseMismatch: match };
+  if (first !== undefined) {
+    const dir = path.dirname(first);
+    if (existsSync(dir)) {
+      const entries = await readdir(dir);
+      const target = path.basename(first).toLowerCase();
+      const match = entries.find((entry) => entry.toLowerCase() === target);
+      if (match !== undefined) {
+        return { path: path.join(dir, match), caseMismatch: match };
+      }
     }
   }
   return undefined;
+}
+
+/** Whether a path is inside the world folder. */
+function isInside(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 async function checkMapImages(
