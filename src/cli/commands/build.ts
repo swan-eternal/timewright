@@ -69,14 +69,29 @@ export async function runBuild(options: BuildOptions = {}): Promise<number> {
       if (source === undefined) {
         return [];
       }
-      return map.images.map(async (image, imageIndex) => {
+      const files = map.images.map((image, imageIndex) => {
         const raw = source.data.images?.[imageIndex] ?? (imageIndex === 0 ? source.data : undefined);
-        const file = raw !== undefined && "file" in raw && raw.file !== undefined ? raw.file : image.file;
+        return raw !== undefined && "file" in raw && raw.file !== undefined ? raw.file : image.file;
+      });
+      // Two images of one map can share a name - "a/pic.png" and "b/pic.png"
+      // - and they would land on the same file, so one would quietly replace
+      // the other and both dates would show the same picture. The names are
+      // numbered when that happens.
+      const names = files.map((file) => path.basename(file));
+      const shared = new Set(names.filter((name, position) => names.indexOf(name) !== position));
+      if (shared.size > 0) {
+        console.warn(
+          `timewright build: map "${map.name}" has more than one image named "${[...shared].join('", "')}"`,
+        );
+        console.warn("  they were written as numbered files, so none of them was lost");
+      }
+      return map.images.map(async (image, imageIndex) => {
+        const file = files[imageIndex];
         const resolved = await resolveImagePath(root, source.file, file);
         if (resolved === undefined) {
           return;
         }
-        const name = path.basename(file);
+        const name = shared.has(names[imageIndex]) ? `${imageIndex}-${names[imageIndex]}` : names[imageIndex];
         const target = path.join(outDir, "maps", map.id, name);
         await mkdir(path.dirname(target), { recursive: true });
         await copyFile(resolved, target);

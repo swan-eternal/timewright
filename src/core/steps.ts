@@ -367,12 +367,50 @@ export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[
     steps = steps.filter((step) => step.label.toLowerCase().includes(query));
   }
   if (tags.length > 0) {
-    steps = steps.filter((step) => {
+    const source = steps;
+    const tagged = new Set<string>();
+    for (const step of source) {
       if (step.eventId === undefined) {
-        return false;
+        continue;
       }
       const event = world.events.find((entry) => entry.id === step.eventId);
-      return event !== undefined && tags.every((tag) => event.tags.includes(tag));
+      if (event !== undefined && tags.every((tag) => event.tags.includes(tag))) {
+        tagged.add(step.key);
+      }
+    }
+    // A stay carries no tags of its own, so it used to disappear the moment
+    // a tag was chosen - and in a trace the stays are most of the story. A
+    // stay is kept when a tagged event falls between it and the next stay:
+    // the two boundaries bracket the event, and the movement around it is
+    // the context the reader wants.
+    steps = source.filter((step, index) => {
+      if (step.eventId !== undefined) {
+        return tagged.has(step.key);
+      }
+      let previous: DateBound | undefined;
+      let next: DateBound | undefined;
+      for (let before = index - 1; before >= 0; before -= 1) {
+        const candidate = source[before];
+        if (candidate !== undefined && candidate.eventId === undefined) {
+          previous = candidate.date;
+          break;
+        }
+      }
+      for (let after = index + 1; after < source.length; after += 1) {
+        const candidate = source[after];
+        if (candidate !== undefined && candidate.eventId === undefined) {
+          next = candidate.date;
+          break;
+        }
+      }
+      return source.some((other) => {
+        if (!tagged.has(other.key) || other.eventId === undefined) {
+          return false;
+        }
+        const afterPrevious = previous === undefined || compareOrder(other.date, previous) >= 0;
+        const beforeNext = next === undefined || compareOrder(other.date, next) <= 0;
+        return afterPrevious && beforeNext;
+      });
     });
   }
   return steps;

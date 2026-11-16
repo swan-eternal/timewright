@@ -26,7 +26,14 @@ export function readLink(hash: string): LinkState {
       continue;
     }
     const key = part.slice(0, index);
-    const value = decodeURIComponent(part.slice(index + 1));
+    let value: string;
+    try {
+      value = decodeURIComponent(part.slice(index + 1));
+    } catch {
+      // A stray "%" is not a value. The link is read without it, rather
+      // than the whole viewer failing to start.
+      continue;
+    }
     if ((KEYS as readonly string[]).includes(key)) {
       state[key as keyof LinkState] = value;
     }

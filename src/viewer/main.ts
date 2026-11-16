@@ -373,7 +373,7 @@ async function boot(): Promise<void> {
     );
     mapView.setPath(
       state.mode === "trace" && state.traceId !== undefined
-        ? tracePath(state.world, state.traceId)
+        ? tracePath(state.world, state.traceId, state.date)
         : [],
     );
 
