@@ -121,6 +121,18 @@ describe("where a location is at a date", () => {
     assert.ok(resolveLocationAt(w, "ship", parseDate("1815")) !== undefined);
   });
 
+  it("covers the whole year when a stay ends in a year", () => {
+    // The stay ends in 1815, so the whole of 1815 is covered - not just
+    // the first instant of it.
+    const resolved = resolveLocationAt(w, "ship", parseDate("1815-06-18"));
+    assert.equal(resolved?.mapId, "europe");
+    assert.deepEqual(resolved?.at, [15, 20]);
+  });
+
+  it("does not cover the year after a stay ends in a year", () => {
+    assert.equal(resolveLocationAt(w, "ship", parseDate("1816-01-01")), undefined);
+  });
+
   it("falls back to the first stay when there is no date", () => {
     const resolved = resolveLocationAt(w, "ship");
     assert.equal(resolved?.mapId, "europe");

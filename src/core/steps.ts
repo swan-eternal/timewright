@@ -7,7 +7,7 @@
  * of one person or vessel, plus the boundaries of their stays.
  */
 
-import { compareBounds, compareDateBounds, compareDates, type DateBound } from "./dates.js";
+import { compareBounds, compareDateBounds, compareDates, compareOrder, type DateBound } from "./dates.js";
 import { eventPlace, resolveLocationAt, sortedEvents } from "./derive.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "./model.js";
 
@@ -115,7 +115,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
 
   const ordered = steps.sort(
     (a, b) =>
-      compareBounds(a.date, b.date) ||
+      compareOrder(a.date, b.date) ||
       stepOrder(a) - stepOrder(b) ||
       (a.order ?? 0) - (b.order ?? 0) ||
       (a.eventId ?? a.label).localeCompare(b.eventId ?? b.label),
@@ -165,7 +165,7 @@ function staySteps(
     }
     for (const vesselStay of place.stays) {
       if (vesselStay.from !== undefined) {
-        const afterStart = from === undefined || compareBounds(vesselStay.from, from) > 0;
+        const afterStart = from === undefined || compareOrder(vesselStay.from, from) > 0;
         const beforeEnd = until === undefined || compareBounds(vesselStay.from, until) <= 0;
         if (afterStart && beforeEnd) {
           const resolved = resolveLocationAt(world, vesselStay.at, vesselStay.from);

@@ -363,8 +363,45 @@ export function sortKey(bound: DateBound): number[] {
 }
 
 export function compareBounds(a: DateBound, b: DateBound): number {
-  const keyA = sortKey(a);
-  const keyB = sortKey(b);
+  if (compareKeys(endKey(a), startKey(b)) < 0) {
+    return -1;
+  }
+  if (compareKeys(startKey(a), endKey(b)) > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * Compare two bounds as the periods they cover.
+ *
+ * A bare year covers that whole year; a bare month covers that whole
+ * month. Two bounds that overlap compare equal, so a date inside a year
+ * is inside that year however precise either was written. This is what
+ * makes a range inclusive at both ends: "until 1815" covers 1815-06-18,
+ * and not only the first instant of 1815.
+ *
+ * This is deliberately not a total order - "1815" equals "1815-06-18",
+ * and both equal "1815-12-31". To sort, use `compareOrder`.
+ */
+export function compareOrder(a: DateBound, b: DateBound): number {
+  return compareKeys(sortKey(a), sortKey(b));
+}
+
+/** The first instant a bound covers. A bare year starts on 1 January. */
+function startKey(bound: DateBound): number[] {
+  return [bound.year ?? Number.NEGATIVE_INFINITY, bound.month ?? 1, bound.day ?? 1];
+}
+
+/** The last instant a bound covers. A bare year ends on 31 December. */
+function endKey(bound: DateBound): number[] {
+  const month = bound.month ?? 12;
+  const lastDay = daysInMonth(bound.year, month, {}) ?? 31;
+  return [bound.year ?? Number.POSITIVE_INFINITY, month, bound.day ?? lastDay];
+}
+
+/** Compare two sort keys, part by part. */
+function compareKeys(keyA: number[], keyB: number[]): number {
   for (let index = 0; index < 3; index += 1) {
     if (keyA[index] < keyB[index]) {
       return -1;

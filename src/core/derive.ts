@@ -7,7 +7,7 @@
  * for what exists when.
  */
 
-import { compareBounds, compareDates, parseDate, type DateBound, type ParsedDate } from "./dates.js";
+import { compareBounds, compareDates, compareOrder, parseDate, type DateBound, type ParsedDate } from "./dates.js";
 import type {
   ResolvedEvent,
   ResolvedLocation,
@@ -193,7 +193,7 @@ export function imageForDate(map: ResolvedMap, date?: DateBound): ResolvedMapIma
 function compareImageStart(a: ResolvedMapImage, b: ResolvedMapImage): number {
   const left = a.from ?? { raw: "", approx: false };
   const right = b.from ?? { raw: "", approx: false };
-  return compareBounds(left, right);
+  return compareOrder(left, right);
 }
 
 /** Whether a location exists at a date. Both ends of `exists` are inclusive. */

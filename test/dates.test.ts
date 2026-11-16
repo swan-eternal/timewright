@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { compareDates, parseDate, tryParseDate, type ParseOptions } from "../src/core/dates.js";
+import { compareBounds, compareDates, compareOrder, parseDate, tryParseDate, type ParseOptions } from "../src/core/dates.js";
 
 const CALENDAR: ParseOptions = {
   calendar: {
@@ -114,5 +114,29 @@ describe("dates", () => {
 
   it("sorts ranges by their start", () => {
     assert.ok(compareDates(parseDate("1805..1807"), parseDate("1810")) < 0);
+  });
+});
+
+describe("a bound as the period it covers", () => {
+  it("treats a bare year as covering that whole year", () => {
+    assert.equal(compareBounds(parseDate("1815-06-18"), parseDate("1815")), 0);
+    assert.equal(compareBounds(parseDate("1815"), parseDate("1815-06-18")), 0);
+  });
+
+  it("keeps a date before a year before it, and one after it after", () => {
+    assert.ok(compareBounds(parseDate("1814-12-31"), parseDate("1815")) < 0);
+    assert.ok(compareBounds(parseDate("1816-01-01"), parseDate("1815")) > 0);
+  });
+
+  it("treats a bare month as covering that whole month", () => {
+    assert.equal(compareBounds(parseDate("1815-06-18"), parseDate("1815-06")), 0);
+    assert.ok(compareBounds(parseDate("1815-07-01"), parseDate("1815-06")) > 0);
+    assert.ok(compareBounds(parseDate("1815-05-31"), parseDate("1815-06")) < 0);
+  });
+
+  it("orders bounds strictly, for sorting", () => {
+    assert.ok(compareOrder(parseDate("1815"), parseDate("1815-06-18")) < 0);
+    assert.ok(compareOrder(parseDate("1815-06-18"), parseDate("1816")) < 0);
+    assert.equal(compareOrder(parseDate("1815"), parseDate("1815")), 0);
   });
 });
