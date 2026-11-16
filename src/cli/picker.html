@@ -61,6 +61,10 @@
         document.getElementById("map-name").textContent = map.name;
         if (state.map) state.map.remove();
         state.map = L.map("map", { crs: L.CRS.Simple, minZoom: -4, maxZoom: 4, zoomSnap: 0.25, attributionControl: false });
+        // Leaflet holds a layer back until the map has a view, and an image
+        // overlay only creates its image when the layer is added - so the
+        // map needs a view first, or the image is never requested.
+        state.map.setView([map.height / 2, map.width / 2], -1);
         state.overlay = L.imageOverlay("/api/image/" + encodeURIComponent(map.id), [[0, 0], [map.height, map.width]]);
         state.overlay.on("load", () => {
           const image = state.overlay.getElement();
