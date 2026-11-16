@@ -50,7 +50,7 @@ export function installDebug(): void {
     true,
   );
 
-  setInterval(() => {
+  setInterval(async () => {
     const mapElement = document.querySelector<HTMLElement>("#map");
     const container = mapElement?.querySelector<HTMLElement>(".leaflet-container") ?? undefined;
     const image = mapElement?.querySelector<HTMLImageElement>("img.leaflet-image-layer") ?? undefined;
