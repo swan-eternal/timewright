@@ -49,10 +49,10 @@ export function installDebug(): void {
 
   setInterval(() => {
     const mapElement = document.querySelector<HTMLElement>("#map");
-    const container = mapElement?.querySelector<HTMLElement>(".leaflet-container");
-    const image = mapElement?.querySelector<HTMLImageElement>("img.leaflet-image-layer");
-    const pane = mapElement?.querySelector<HTMLElement>(".leaflet-overlay-pane");
-    const mapPane = mapElement?.querySelector<HTMLElement>(".leaflet-map-pane");
+    const container = mapElement?.querySelector<HTMLElement>(".leaflet-container") ?? undefined;
+    const image = mapElement?.querySelector<HTMLImageElement>("img.leaflet-image-layer") ?? undefined;
+    const pane = mapElement?.querySelector<HTMLElement>(".leaflet-overlay-pane") ?? undefined;
+    const mapPane = mapElement?.querySelector<HTMLElement>(".leaflet-map-pane") ?? undefined;
     const rect = image?.getBoundingClientRect();
 
     const lines = [
