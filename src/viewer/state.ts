@@ -53,10 +53,9 @@ export class Store {
         changed.add(key);
       }
     }
-    if (changed.size === 0) {
-      return;
-    }
     this.state = { ...this.state, ...patch };
+    // Always notify, even when nothing actually changed: a caller that
+    // sets a value to refresh the view should not have to know that.
     for (const listener of this.listeners) {
       listener(this.state, changed);
     }

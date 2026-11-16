@@ -13,7 +13,7 @@ import { escapeHtml, renderMarkdown } from "./cards.js";
 import { readLink, writeLink } from "./link.js";
 import { MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
-import { Store, type AppState } from "./state.js";
+import { Store, type AppState, type Changed } from "./state.js";
 import { Timeline } from "./timeline.js";
 
 const statusElement = document.querySelector<HTMLElement>("#status");
@@ -31,9 +31,10 @@ const resultsElement = document.querySelector<HTMLElement>("#results");
 const contextElement = document.querySelector<HTMLElement>("#context");
 const stripElement = document.querySelector<HTMLElement>("#strip");
 
-function setStatus(message: string): void {
+function setStatus(message: string, error = false): void {
   if (statusElement !== null) {
     statusElement.textContent = message;
+    statusElement.classList.toggle("error", error);
   }
 }
 
@@ -248,7 +249,7 @@ async function boot(): Promise<void> {
     onEvent: (id) => {
       store.set({ selection: { kind: "event", id } });
     },
-    onImageMissing: (message) => setStatus(message),
+    onImageMissing: (message) => setStatus(message, true),
   });
 
   const stepBar = new StepBar({
@@ -304,7 +305,9 @@ async function boot(): Promise<void> {
   ].join("");
   traceSelect.value = store.get().traceId ?? "";
 
-  store.subscribe((state, changed) => {
+  const renderState = (state: AppState, changed: Changed): void => {
+    // An empty changed set means "nothing in particular" - render it all.
+    const everything = changed.size === 0;
     const currentDomain = eventDomain(state.world);
     const domainSpan =
       currentDomain !== undefined ? { from: currentDomain.from, to: currentDomain.to } : undefined;
@@ -356,13 +359,14 @@ async function boot(): Promise<void> {
         : [],
     );
 
-    if (changed.has("mapId")) {
+    if (everything || changed.has("mapId")) {
       renderBreadcrumb(state);
     }
     renderCard(state);
     renderResults(state);
     updateLink(state);
-  });
+  };
+  store.subscribe(renderState);
 
   document.addEventListener("click", (event) => {
     const target = event.target;
@@ -446,7 +450,7 @@ async function boot(): Promise<void> {
   }
 
   renderBreadcrumb(store.get());
-  store.set({ date: store.get().date });
+  renderState(store.get(), new Set());
 }
 
 /**

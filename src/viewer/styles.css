@@ -334,6 +334,14 @@ select {
   display: none;
 }
 
+/* A failed map image must not be a quiet grey line at the bottom. */
+#status.error {
+  color: #a3352f;
+  font-weight: 600;
+  background: #fbeceb;
+  border-top: 1px solid #e5c3c0;
+}
+
 @media (min-width: 900px) {
   #app {
     grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
