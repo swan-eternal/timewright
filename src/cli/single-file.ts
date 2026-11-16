@@ -34,12 +34,17 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
   const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"[^>]*><\/script>/g)].map((match) => match[1]);
   const styles = [...html.matchAll(/<link[^>]*href="([^"]+\.css)"[^>]*>/g)].map((match) => match[1]);
 
+  // The replacement is a function, not a string: a string replacement would
+  // expand `$&`, `` $` `` and `$'` inside the asset. The bundle has all
+  // three - Zod's own regex-escape helper is where they come from - and
+  // expanding them spliced the script tag into the middle of the
+  // JavaScript and cut the file in half.
   for (const reference of scripts) {
     const file = path.join(outDir, reference.replace(/^\.?\//, ""));
     const source = await readFile(file, "utf8");
     html = html.replace(
       new RegExp(`<script[^>]*src="${reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*></script>`),
-      `<script>\n${source}\n</script>`,
+      () => `<script>\n${source}\n</script>`,
     );
   }
   for (const reference of styles) {
@@ -47,7 +52,7 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
     const source = await readFile(file, "utf8");
     html = html.replace(
       new RegExp(`<link[^>]*href="${reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>`),
-      `<style>\n${source}\n</style>`,
+      () => `<style>\n${source}\n</style>`,
     );
   }
 
@@ -74,8 +79,13 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
 
   const json = JSON.stringify(world).replace(/</g, "\\u003c");
   const dataScript = `<script id="world-data" type="application/json">${json}</script>`;
-  if (html.includes("</body>")) {
-    html = html.replace("</body>", `${dataScript}\n</body>`);
+  // The last `</body>` in the document, not the first: the bundle holds
+  // one of its own - DOMPurify builds an empty document - and after the
+  // assets are inlined, the first one is in the middle of the
+  // JavaScript. The world's data has to go at the end of the page.
+  const body = html.lastIndexOf("</body>");
+  if (body !== -1) {
+    html = html.slice(0, body) + `${dataScript}\n` + html.slice(body);
   } else {
     html += `\n${dataScript}\n`;
   }

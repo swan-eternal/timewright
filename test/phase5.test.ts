@@ -95,4 +95,76 @@ describe("the single-file build", () => {
     assert.match(html, /data:image\/png;base64/);
     assert.equal(/src="\.\/assets/.test(html), false);
   });
+
+  it("keeps an asset's own dollar patterns intact", async () => {
+    // A minified bundle holds `$&`, `$` and `$'`: they are what a
+    // replacement string is made of. Inlining one with a string
+    // replacement expanded them, which cut the script in half and
+    // dumped the rest of it into the page as text.
+    const dir = await scratch();
+    await mkdir(path.join(dir, "assets"), { recursive: true });
+    await writeFile(
+      path.join(dir, "index.html"),
+      '<!doctype html><html><head></head><body><script type="module" src="./assets/a.js"></script></body></html>',
+    );
+    const source = [
+      "const escape = (text) => text.replace(/[.*+?^${}()|[\\]\\\\]/g, `\\\\$&`);",
+      'const before = "the text before";',
+      'const after = "the text after";',
+      'console.log(escape(before), escape(after));',
+    ].join("\n");
+    await writeFile(path.join(dir, "assets", "a.js"), source);
+
+    const world = {
+      title: "One file",
+      maps: [],
+      locations: [],
+      people: [],
+      events: [],
+    } as unknown as ResolvedWorld;
+
+    const result = await writeSingleFile(dir, world);
+    const html = await readFile(result.file, "utf8");
+
+    // The script is inlined whole, exactly as it was.
+    assert.ok(html.includes(source), "the asset should be inlined verbatim");
+    // And nothing was spliced in from the document around it.
+    assert.equal(html.includes("<script type=\"module\""), false);
+    // The script is still a script, and the page has one of them.
+    assert.equal((html.match(/<script/g) ?? []).length, 2);
+  });
+
+  it("puts the world at the end of the page, not inside the script", async () => {
+    // The bundle holds a `</body>` of its own - a sanitiser builds an
+    // empty document - so looking for the first one in the page found
+    // it inside the inlined JavaScript and put the world in the middle
+    // of the script.
+    const dir = await scratch();
+    await mkdir(path.join(dir, "assets"), { recursive: true });
+    await writeFile(
+      path.join(dir, "index.html"),
+      '<!doctype html><html><head></head><body><script type="module" src="./assets/a.js"></script></body></html>',
+    );
+    const source = 'const page = "<html><head></head><body></body></html>";\nconsole.log(page);';
+    await writeFile(path.join(dir, "assets", "a.js"), source);
+
+    const world = {
+      title: "One file",
+      maps: [],
+      locations: [],
+      people: [],
+      events: [],
+    } as unknown as ResolvedWorld;
+
+    const result = await writeSingleFile(dir, world);
+    const html = await readFile(result.file, "utf8");
+
+    const scriptEnd = html.indexOf("</script>");
+    const dataStart = html.indexOf('id="world-data"');
+    assert.ok(dataStart > scriptEnd, "the world should come after the script, not inside it");
+    // The script is whole.
+    assert.ok(html.includes(source), "the asset should be inlined verbatim");
+    // And the page still ends where it should.
+    assert.ok(html.lastIndexOf("</body>") > dataStart);
+  });
 });
