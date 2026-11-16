@@ -70,6 +70,17 @@ export class MapView {
     this.pathLayer = L.layerGroup().addTo(this.map);
   }
 
+  /** The map's current zoom, for the debug panel. */
+  get zoom(): number {
+    return this.map.getZoom();
+  }
+
+  /** The image element of the current overlay, if there is one. */
+  get overlayImage(): HTMLImageElement | undefined {
+    const element = this.overlay?.getElement();
+    return element instanceof HTMLImageElement ? element : undefined;
+  }
+
   /** Draw the given map at the given date. */
   render(world: ResolvedWorld, mapId: string, date?: DateBound, focusEventId?: string): void {
     const map = world.maps.find((entry) => entry.id === mapId);

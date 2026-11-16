@@ -6,9 +6,12 @@
  * image element ended up, and any error that fired along the way.
  */
 
+export const debugOn =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).get("debug") === "1";
+
 export function installDebug(): void {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("debug") !== "1") {
+  if (!debugOn) {
     return;
   }
 
@@ -51,15 +54,30 @@ export function installDebug(): void {
     const mapElement = document.querySelector<HTMLElement>("#map");
     const container = mapElement?.querySelector<HTMLElement>(".leaflet-container") ?? undefined;
     const image = mapElement?.querySelector<HTMLImageElement>("img.leaflet-image-layer") ?? undefined;
-    const pane = mapElement?.querySelector<HTMLElement>(".leaflet-overlay-pane") ?? undefined;
+    const pane = mapElement?.querySelector<HTMLElement>(".leaflet-overlayPane") ?? undefined;
     const mapPane = mapElement?.querySelector<HTMLElement>(".leaflet-map-pane") ?? undefined;
     const rect = image?.getBoundingClientRect();
+    const view = (window as unknown as { __timewright?: { mapView?: { zoom: number; overlayImage?: HTMLImageElement } } })
+      .__timewright?.mapView;
+
+    const everyImage = Array.from(document.querySelectorAll("img")).map((element) => {
+      const box = element.getBoundingClientRect();
+      return [
+        `      ${element.className || "(no class)"}`,
+        `src=${element.getAttribute("src")}`,
+        `natural=${element.naturalWidth}x${element.naturalHeight}`,
+        `complete=${element.complete}`,
+        `style=${element.style.width || "-"}x${element.style.height || "-"}`,
+        `at=${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}x${Math.round(box.height)}`,
+      ].join(" ");
+    });
 
     const lines = [
       `container: ${container !== undefined ? `${container.clientWidth} x ${container.clientHeight}` : "none"}`,
-      `image element: ${image !== undefined ? "present" : "MISSING"}`,
+      `zoom: ${view?.zoom ?? "?"}`,
+      `overlay image element: ${view?.overlayImage !== undefined ? "present" : "MISSING"}`,
+      `image in the map: ${image !== undefined ? "present" : "MISSING"}`,
       image !== undefined ? `  requested: ${image.currentSrc || image.src}` : "",
-      image !== undefined ? `  complete: ${image.complete}` : "",
       image !== undefined ? `  natural: ${image.naturalWidth} x ${image.naturalHeight}` : "",
       image !== undefined ? `  client: ${image.clientWidth} x ${image.clientHeight}` : "",
       image !== undefined ? `  style: ${image.style.width || "-"} x ${image.style.height || "-"}` : "",
@@ -69,6 +87,8 @@ export function installDebug(): void {
         : "",
       pane !== undefined ? `overlay pane transform: ${pane.style.transform || "-"}` : "",
       mapPane !== undefined ? `map pane transform: ${mapPane.style.transform || "-"}` : "",
+      `all images on the page:`,
+      ...(everyImage.length > 0 ? everyImage : ["      (none)"]),
       `errors: ${errors.length > 0 ? errors.join(" | ") : "none"}`,
     ].filter((line) => line !== "");
 

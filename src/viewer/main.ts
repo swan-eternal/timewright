@@ -10,7 +10,7 @@ import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
 import { stepIndex, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
-import { installDebug } from "./debug.js";
+import { debugOn, installDebug } from "./debug.js";
 import { readLink, writeLink } from "./link.js";
 import { MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
@@ -253,6 +253,11 @@ async function boot(): Promise<void> {
     },
     onImageMissing: (message) => setStatus(message, true),
   });
+
+  if (debugOn) {
+    // The debug panel reads the map's own state.
+    (window as unknown as { __timewright?: unknown }).__timewright = { mapView };
+  }
 
   const stepBar = new StepBar({
     prev: prevButton,
