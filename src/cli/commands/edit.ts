@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { eventPlace, resolveWorld } from "../../core/derive.js";
-import { validateWorld } from "../../core/validate.js";
+import { buildIndex, validateWorld } from "../../core/validate.js";
 import { loadWorld, resolveImagePath } from "../load.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
 import {
@@ -135,17 +135,19 @@ function respond(response: ServerResponse, payload: unknown): void {
 async function describe(root: string): Promise<unknown> {
   const loaded = await loadWorld(root);
   const world = resolveWorld(loaded.data);
+  // The same ids the core uses: an event called "Battle of Waterloo" has
+  // the id "battle-of-waterloo", and the editor has to look it up by that.
+  const index = buildIndex(loaded.data);
   const issues = validateWorld(loaded.data);
 
-  const maps = loaded.data.maps.map((source) => {
-    const map = source.data;
-    const id = map.id ?? map.name;
+  const maps = index.maps.map((record) => {
+    const map = record.data;
     return {
-      id,
-      name: map.name,
+      id: record.id,
+      name: record.name,
       size: map.size ?? [1000, 700],
-      file: source.file,
-      index: source.index,
+      file: record.file,
+      index: record.index,
       images: (map.images ?? []).map((image) => ({
         file: image.file,
         from: image.from,
@@ -154,43 +156,44 @@ async function describe(root: string): Promise<unknown> {
     };
   });
 
-  const locations = loaded.data.locations.map((source) => {
-    const location = source.data;
+  const locations = index.locations.map((record) => {
+    const location = record.data;
     return {
-      id: location.id ?? location.name,
-      name: location.name,
+      id: record.id,
+      name: record.name,
       aliases: location.aliases ?? [],
-      map: location.map ?? "",
+      // The map is written as a name, but the editor works in map ids.
+      map: (location.map !== undefined ? index.mapNames.resolve(location.map) : undefined) ?? "",
       at: location.at ?? null,
       tags: location.tags ?? [],
       card: location.card ?? "",
       kind: location.kind ?? "fixed",
-      file: source.file,
-      index: source.index,
+      file: record.file,
+      index: record.index,
     };
   });
 
-  const people = loaded.data.people.map((source) => {
-    const person = source.data;
+  const people = index.people.map((record) => {
+    const person = record.data;
     return {
-      id: person.id ?? person.name,
-      name: person.name,
+      id: record.id,
+      name: record.name,
       aliases: person.aliases ?? [],
       born: person.born ?? "",
       died: person.died ?? "",
       tags: person.tags ?? [],
       bio: person.bio ?? "",
-      file: source.file,
-      index: source.index,
+      file: record.file,
+      index: record.index,
     };
   });
 
-  const events = loaded.data.events.map((source) => {
-    const event = source.data;
-    const resolved = world.events.find((entry) => entry.id === (event.id ?? event.title));
+  const events = index.events.map((record) => {
+    const event = record.data;
+    const resolved = world.events.find((entry) => entry.id === record.id);
     const place = resolved !== undefined ? eventPlace(world, resolved) : undefined;
     return {
-      id: event.id ?? event.title,
+      id: record.id,
       title: event.title,
       when: event.when,
       where: typeof event.where === "string" ? event.where : "",
@@ -202,8 +205,8 @@ async function describe(root: string): Promise<unknown> {
       people: event.people ?? [],
       tags: event.tags ?? [],
       card: event.card ?? "",
-      file: source.file,
-      index: source.index,
+      file: record.file,
+      index: record.index,
     };
   });
 
@@ -221,17 +224,17 @@ async function describe(root: string): Promise<unknown> {
 
 async function imagePath(root: string, mapId: string): Promise<string | undefined> {
   const loaded = await loadWorld(root);
-  for (const source of loaded.data.maps) {
-    const map = source.data;
-    if ((map.id ?? map.name) !== mapId) {
+  const index = buildIndex(loaded.data);
+  for (const record of index.maps) {
+    if (record.id !== mapId) {
       continue;
     }
-    const images = map.images ?? (map.file !== undefined ? [{ file: map.file }] : []);
+    const images = record.data.images ?? (record.data.file !== undefined ? [{ file: record.data.file }] : []);
     const image = images[0];
     if (image === undefined) {
       return undefined;
     }
-    return resolveImagePath(root, source.file, image.file);
+    return resolveImagePath(root, record.file, image.file);
   }
   return undefined;
 }

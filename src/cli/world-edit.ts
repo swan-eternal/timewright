@@ -17,6 +17,7 @@ import path from "node:path";
 import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
 
 import { slugify } from "../core/resolve.js";
+import { buildIndex } from "../core/validate.js";
 
 export type EditableKind = "location" | "person" | "event";
 
@@ -311,20 +312,22 @@ export async function moveLocation(
 ): Promise<EditResult> {
   const { loadWorld } = await import("./load.js");
   const loaded = await loadWorld(root);
-  for (const source of loaded.data.locations) {
-    const location = source.data;
-    if ((location.id ?? location.name) !== id) {
+  const index = buildIndex(loaded.data);
+  for (const record of index.locations) {
+    const location = record.data;
+    // The editor sends the id the core uses; the picker sends the name.
+    if (record.id !== id && record.name !== id) {
       continue;
     }
-    if (source.file === undefined) {
+    if (record.file === undefined) {
       return { ok: false, message: "that location has no file to write to" };
     }
-    const text = await readFile(source.file, "utf8");
+    const text = await readFile(record.file, "utf8");
     const document = parseDocument(text);
-    const prefix = source.index !== undefined ? [source.index] : [];
+    const prefix = record.index !== undefined ? [record.index] : [];
     document.setIn([...prefix, "at"], [Math.round(x), Math.round(y)]);
     document.setIn([...prefix, "map"], mapId);
-    await writeFile(source.file, documentText(document), "utf8");
+    await writeFile(record.file, documentText(document), "utf8");
     return { ok: true, message: `placed ${location.name} at ${Math.round(x)}, ${Math.round(y)}` };
   }
   return { ok: false, message: `no location called "${id}"` };
@@ -339,21 +342,22 @@ export async function saveMapImage(
 ): Promise<EditResult> {
   const { loadWorld } = await import("./load.js");
   const loaded = await loadWorld(root);
-  for (const source of loaded.data.maps) {
-    const map = source.data;
-    if ((map.id ?? map.name) !== mapId) {
+  const index = buildIndex(loaded.data);
+  for (const record of index.maps) {
+    // The editor sends the id the core uses; the picker sends the name.
+    if (record.id !== mapId && record.name !== mapId) {
       continue;
     }
     const safeName = path.basename(fileName).replace(/[^\w.\-]+/g, "-");
-    const folder = source.file !== undefined ? path.dirname(source.file) : path.join(root, "maps");
+    const folder = record.file !== undefined ? path.dirname(record.file) : path.join(root, "maps");
     const target = path.join(folder, safeName);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, bytes);
 
-    if (source.file !== undefined) {
-      const text = await readFile(source.file, "utf8");
+    if (record.file !== undefined) {
+      const text = await readFile(record.file, "utf8");
       const document = parseDocument(text);
-      const prefix = source.index !== undefined ? [source.index] : [];
+      const prefix = record.index !== undefined ? [record.index] : [];
       const images = document.getIn([...prefix, "images"]) as YAMLSeq<unknown> | undefined;
       const entry = { file: safeName };
       if (images !== undefined && isSeq(images as YAMLSeq<unknown>)) {
@@ -361,7 +365,7 @@ export async function saveMapImage(
       } else {
         document.setIn([...prefix, "images"], [entry]);
       }
-      await writeFile(source.file, documentText(document), "utf8");
+      await writeFile(record.file, documentText(document), "utf8");
     }
     return { ok: true, message: `saved ${target}` };
   }

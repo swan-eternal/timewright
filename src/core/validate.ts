@@ -6,14 +6,18 @@
  * dates make sense, and a mobile location is not also a fixed one.
  */
 
-import { compareDates, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
+import { compareBounds, compareDates, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
 import { levenshtein, NameIndex, slugify } from "./resolve.js";
 import {
   EventSchema,
+  ExistsSchema,
   knownKeys,
   LocationSchema,
+  MapImageSchema,
   MapSchema,
   PersonSchema,
+  StaySchema,
+  WorldSchema,
   type EventRecord,
   type LocationRecord,
   type MapRecord,
@@ -55,10 +59,14 @@ export interface Indexed<T> {
   name: string;
   data: T;
   file?: string | undefined;
+  /** Which record in that file it is, when the file holds a list. */
+  index?: number | undefined;
 }
 
 export interface WorldIndex {
   world: WorldRecord;
+  /** The file world.yaml came from. */
+  worldFile?: string | undefined;
   maps: Indexed<MapRecord>[];
   people: Indexed<PersonRecord>[];
   locations: Indexed<LocationRecord>[];
@@ -92,6 +100,7 @@ export function buildIndex(data: WorldData): WorldIndex {
       name: source.data.name,
       data: source.data,
       file: source.file,
+      index: source.index,
     });
   }
   for (const source of data.people) {
@@ -100,6 +109,7 @@ export function buildIndex(data: WorldData): WorldIndex {
       name: source.data.name,
       data: source.data,
       file: source.file,
+      index: source.index,
     });
   }
   for (const source of data.locations) {
@@ -108,6 +118,7 @@ export function buildIndex(data: WorldData): WorldIndex {
       name: source.data.name,
       data: source.data,
       file: source.file,
+      index: source.index,
     });
   }
   for (const source of data.events) {
@@ -116,6 +127,7 @@ export function buildIndex(data: WorldData): WorldIndex {
       name: source.data.title,
       data: source.data,
       file: source.file,
+      index: source.index,
     });
   }
 
@@ -144,6 +156,7 @@ export function buildIndex(data: WorldData): WorldIndex {
 
   return {
     world: data.world.data,
+    worldFile: data.world.file,
     maps,
     people,
     locations,
@@ -198,6 +211,49 @@ export function validateWorld(data: WorldData, options: ValidateOptions = {}): I
   return issues;
 }
 
+/**
+ * The field this key was probably meant to be.
+ *
+ * A typo usually keeps its length, so a same-length field is the better
+ * guess: "bith" is meant to be "born", not "bio".
+ */
+function suggestField(key: string, known: string[]): string | undefined {
+  return known
+    .map((candidate) => {
+      const distance = levenshtein(key, candidate);
+      const lengthPenalty = Math.abs(candidate.length - key.length) * 0.25;
+      const sameLengthBonus = candidate.length === key.length ? -1 : 0;
+      return { candidate, distance, score: distance + lengthPenalty + sameLengthBonus };
+    })
+    .filter((entry) => entry.distance <= Math.max(3, Math.floor(key.length / 3)))
+    .sort((a, b) => a.score - b.score || a.distance - b.distance || a.candidate.localeCompare(b.candidate))[0]
+    ?.candidate;
+}
+
+/** Warn about any field the format does not know. */
+function reportUnknownFields(
+  issues: Issue[],
+  data: Record<string, unknown>,
+  known: string[],
+  context: { file?: string | undefined; record: string; prefix: string },
+): void {
+  for (const key of Object.keys(data)) {
+    if (known.includes(key)) {
+      continue;
+    }
+    const near = suggestField(key, known);
+    issues.push({
+      severity: "warning",
+      code: "unknown-field",
+      message: `unknown field "${key}"`,
+      file: context.file,
+      record: context.record,
+      field: context.prefix === "" ? key : `${context.prefix}.${key}`,
+      suggestion: near !== undefined ? `Did you mean "${near}"?` : undefined,
+    });
+  }
+}
+
 function checkUnknownFields(issues: Issue[], index: WorldIndex): void {
   const groups: { records: { file?: string | undefined; data: Record<string, unknown>; name: string }[]; known: string[] }[] = [
     { records: index.maps.map((record) => ({ file: record.file, data: record.data as Record<string, unknown>, name: record.name })), known: knownKeys(MapSchema) },
@@ -208,31 +264,54 @@ function checkUnknownFields(issues: Issue[], index: WorldIndex): void {
 
   for (const group of groups) {
     for (const record of group.records) {
-      for (const key of Object.keys(record.data)) {
-        if (group.known.includes(key)) {
-          continue;
-        }
-        // A typo usually keeps its length, so a same-length field is the
-        // better guess: "bith" is meant to be "born", not "bio".
-        const near = group.known
-          .map((known) => {
-            const distance = levenshtein(key, known);
-            const lengthPenalty = Math.abs(known.length - key.length) * 0.25;
-            const sameLengthBonus = known.length === key.length ? -1 : 0;
-            return { known, distance, score: distance + lengthPenalty + sameLengthBonus };
-          })
-          .filter((candidate) => candidate.distance <= Math.max(3, Math.floor(key.length / 3)))
-          .sort((a, b) => a.score - b.score || a.distance - b.distance || a.known.localeCompare(b.known))[0];
-        issues.push({
-          severity: "warning",
-          code: "unknown-field",
-          message: `unknown field "${key}"`,
-          file: record.file,
-          record: record.name,
-          field: key,
-          suggestion: near !== undefined ? `Did you mean "${near.known}"?` : undefined,
-        });
-      }
+      reportUnknownFields(issues, record.data, group.known, {
+        file: record.file,
+        record: record.name,
+        prefix: "",
+      });
+    }
+  }
+
+  // world.yaml, and the objects nested inside the records. A typo inside a
+  // stay or an image changes what the record means, so it is worth saying
+  // so: "fro" is not a date, it is a missing one.
+  reportUnknownFields(issues, index.world as Record<string, unknown>, knownKeys(WorldSchema), {
+    file: index.worldFile,
+    record: index.world.title,
+    prefix: "",
+  });
+  for (const record of index.people) {
+    for (const stay of record.data.stays ?? []) {
+      reportUnknownFields(issues, stay as Record<string, unknown>, knownKeys(StaySchema), {
+        file: record.file,
+        record: record.name,
+        prefix: "stays",
+      });
+    }
+  }
+  for (const record of index.locations) {
+    for (const stay of record.data.stays ?? []) {
+      reportUnknownFields(issues, stay as Record<string, unknown>, knownKeys(StaySchema), {
+        file: record.file,
+        record: record.name,
+        prefix: "stays",
+      });
+    }
+    if (record.data.exists !== undefined) {
+      reportUnknownFields(issues, record.data.exists as Record<string, unknown>, knownKeys(ExistsSchema), {
+        file: record.file,
+        record: record.name,
+        prefix: "exists",
+      });
+    }
+  }
+  for (const record of index.maps) {
+    for (const image of record.data.images ?? []) {
+      reportUnknownFields(issues, image as Record<string, unknown>, knownKeys(MapImageSchema), {
+        file: record.file,
+        record: record.name,
+        prefix: "images",
+      });
     }
   }
 }
@@ -447,6 +526,15 @@ function checkLocations(issues: Issue[], index: WorldIndex, parseOptions: ParseO
       });
     }
 
+    if (location.at !== undefined && location.map !== undefined) {
+      checkPoint(issues, index, location.map, location.at, {
+        file: record.file,
+        record: record.name,
+        field: "at",
+        what: `location "${record.name}"`,
+      });
+    }
+
     if (location.opens !== undefined) {
       if (!index.mapNames.has(location.opens)) {
         issues.push({
@@ -594,6 +682,7 @@ function checkStays(
   if (stays === undefined) {
     return;
   }
+  const bounds: { at: string; from?: ParsedDate | undefined; until?: ParsedDate | undefined }[] = [];
   for (const stay of stays) {
     if (!index.locationNames.has(stay.at)) {
       issues.push({
@@ -618,7 +707,70 @@ function checkStays(
         field,
       });
     }
+    bounds.push({ at: stay.at, from, until });
   }
+  // Two stays that overlap put the reader in two places at once, and the
+  // resolver quietly picks the first one it finds.
+  for (let first = 0; first < bounds.length; first += 1) {
+    for (let second = first + 1; second < bounds.length; second += 1) {
+      const a = bounds[first];
+      const b = bounds[second];
+      if (a === undefined || b === undefined || !staysOverlap(a, b)) {
+        continue;
+      }
+      issues.push({
+        severity: "warning",
+        code: "overlapping-stays",
+        message: `the stays at "${a.at}" and "${b.at}" overlap in time`,
+        file,
+        record: recordName,
+        field,
+        suggestion: "One of them has to end before the other begins.",
+      });
+    }
+  }
+}
+
+/** Whether two stays cover some of the same time. */
+function staysOverlap(
+  a: { from?: ParsedDate | undefined; until?: ParsedDate | undefined },
+  b: { from?: ParsedDate | undefined; until?: ParsedDate | undefined },
+): boolean {
+  const aEndsBeforeB = a.until !== undefined && b.from !== undefined && compareBounds(a.until, b.from) < 0;
+  const bEndsBeforeA = b.until !== undefined && a.from !== undefined && compareBounds(b.until, a.from) < 0;
+  return !aEndsBeforeB && !bEndsBeforeA;
+}
+
+/**
+ * Warn when a point falls outside the map it belongs to.
+ *
+ * A mistyped coordinate is simply off-screen, with nothing to say so.
+ */
+function checkPoint(
+  issues: Issue[],
+  index: WorldIndex,
+  mapReference: string,
+  point: [number, number],
+  context: { file?: string | undefined; record: string; field: string; what: string },
+): void {
+  const mapId = index.mapNames.resolve(mapReference);
+  const map = mapId !== undefined ? index.mapIds.get(mapId)?.data : undefined;
+  if (map?.size === undefined) {
+    return;
+  }
+  const [x, y] = point;
+  if (x >= 0 && y >= 0 && x <= map.size[0] && y <= map.size[1]) {
+    return;
+  }
+  issues.push({
+    severity: "warning",
+    code: "point-off-map",
+    message: `${context.what} is at [${x}, ${y}], outside its map "${map.name}" (${map.size[0]}x${map.size[1]})`,
+    file: context.file,
+    record: context.record,
+    field: context.field,
+    suggestion: "A point off the map cannot be drawn.",
+  });
 }
 
 function checkEvents(issues: Issue[], index: WorldIndex, parseOptions: ParseOptions): void {
@@ -664,6 +816,13 @@ function checkEvents(issues: Issue[], index: WorldIndex, parseOptions: ParseOpti
           record: record.name,
           field: "where.map",
           suggestion: suggestionText(index.mapNames.suggest(event.where.map)),
+        });
+      } else {
+        checkPoint(issues, index, event.where.map, event.where.at, {
+          file: record.file,
+          record: record.name,
+          field: "where.at",
+          what: `event "${record.name}"`,
         });
       }
     }

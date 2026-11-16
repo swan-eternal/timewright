@@ -67,6 +67,12 @@ export const WhereSchema = z.union([
   }),
 ]);
 
+/** When a location exists. */
+export const ExistsSchema = z.looseObject({
+  from: DateLike.optional(),
+  until: DateLike.optional(),
+});
+
 export const LocationSchema = z.looseObject({
   id: z.string().min(1).optional(),
   name: z.string().min(1),
@@ -79,12 +85,7 @@ export const LocationSchema = z.looseObject({
   /** A sub-map this location opens. */
   opens: z.string().min(1).optional(),
   /** When the location exists. */
-  exists: z
-    .looseObject({
-      from: DateLike.optional(),
-      until: DateLike.optional(),
-    })
-    .optional(),
+  exists: ExistsSchema.optional(),
   /** Where a mobile location is over time. */
   stays: z.array(StaySchema).optional(),
   tags: z.array(z.string().min(1)).optional(),
