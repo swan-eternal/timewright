@@ -7,8 +7,8 @@
  * of one person or vessel, plus the boundaries of their stays.
  */
 
-import { compareBounds, compareDateBounds, type DateBound } from "./dates.js";
-import { eventPlace, sortedEvents } from "./derive.js";
+import { compareBounds, compareDateBounds, compareDates, type DateBound } from "./dates.js";
+import { eventPlace, resolveLocationAt, sortedEvents } from "./derive.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "./model.js";
 
 export interface Span {
@@ -27,6 +27,8 @@ export interface TraceStep {
   mapId?: string | undefined;
   at?: [number, number] | undefined;
   locationId?: string | undefined;
+  /** Event sort order within the same date, if from an event. */
+  order?: number | undefined;
 }
 
 export interface PathPoint {
@@ -66,7 +68,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
   const location = world.locations.find((entry) => entry.id === entityId);
 
   if (person !== undefined) {
-    for (const event of world.events) {
+    for (const event of sortedEvents(world)) {
       if (!event.people.includes(person.id)) {
         continue;
       }
@@ -80,6 +82,7 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
         mapId: place?.mapId,
         at: place?.at,
         locationId: place?.location?.id,
+        order: event.order,
       });
     }
     for (const stay of person.stays) {
@@ -88,9 +91,9 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
   }
 
   if (location !== undefined) {
-    for (const event of world.events) {
+    for (const event of sortedEvents(world)) {
       const place = eventPlace(world, event);
-      if (place?.location?.id !== location.id) {
+      if (place?.location?.id !== location.id && !event.locations.includes(location.id)) {
         continue;
       }
       steps.push({
@@ -99,9 +102,10 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
         date: event.when,
         kind: "event",
         label: event.title,
-        mapId: place.mapId,
-        at: place.at,
+        mapId: place?.mapId,
+        at: place?.at,
         locationId: location.id,
+        order: event.order,
       });
     }
     for (const stay of location.stays) {
@@ -109,7 +113,28 @@ export function traceSteps(world: ResolvedWorld, entityId: string): TraceStep[] 
     }
   }
 
-  return steps.sort((a, b) => compareBounds(a.date, b.date) || stepOrder(a) - stepOrder(b));
+  const ordered = steps.sort(
+    (a, b) =>
+      compareBounds(a.date, b.date) ||
+      stepOrder(a) - stepOrder(b) ||
+      (a.order ?? 0) - (b.order ?? 0) ||
+      (a.eventId ?? a.label).localeCompare(b.eventId ?? b.label),
+  );
+
+  // Merge redundant stay boundaries into canon events on the same date & place
+  // (e.g. "Departure of Sylveste expedition" absorbs "Left Chasm City").
+  const eventKeys = new Set<string>();
+  for (const step of ordered) {
+    if (step.kind === "event" && step.locationId !== undefined) {
+      eventKeys.add(`${step.date.raw}|${step.locationId}`);
+    }
+  }
+  return ordered.filter((step) => {
+    if (step.kind !== "stay" || step.locationId === undefined) {
+      return true;
+    }
+    return !eventKeys.has(`${step.date.raw}|${step.locationId}`);
+  });
 }
 
 function stepOrder(step: TraceStep): number {
@@ -125,35 +150,92 @@ function staySteps(
 ): TraceStep[] {
   const steps: TraceStep[] = [];
   const place = world.locations.find((entry) => entry.id === locationId);
+  if (place?.kind === "mobile") {
+    if (from !== undefined) {
+      const resolved = resolveLocationAt(world, locationId, from);
+      steps.push({
+        entityId,
+        date: from,
+        kind: "stay",
+        label: `Aboard ${place.name}`,
+        mapId: resolved?.mapId,
+        at: resolved?.at,
+        locationId,
+      });
+    }
+    for (const vesselStay of place.stays) {
+      if (vesselStay.from !== undefined) {
+        const afterStart = from === undefined || compareBounds(vesselStay.from, from) > 0;
+        const beforeEnd = until === undefined || compareBounds(vesselStay.from, until) <= 0;
+        if (afterStart && beforeEnd) {
+          const resolved = resolveLocationAt(world, vesselStay.at, vesselStay.from);
+          const targetName = world.locations.find((entry) => entry.id === vesselStay.at)?.name ?? vesselStay.at;
+          steps.push({
+            entityId,
+            date: vesselStay.from,
+            kind: "stay",
+            label: `${place.name} arrived at ${targetName}`,
+            mapId: resolved?.mapId,
+            at: resolved?.at,
+            locationId: vesselStay.at,
+          });
+        }
+      }
+    }
+    if (until !== undefined) {
+      const resolved = resolveLocationAt(world, locationId, until);
+      steps.push({
+        entityId,
+        date: until,
+        kind: "stay",
+        label: `Left ${place.name}`,
+        mapId: resolved?.mapId,
+        at: resolved?.at,
+        locationId,
+      });
+    }
+    return steps;
+  }
+
   if (from !== undefined) {
+    const resolved = resolveLocationAt(world, locationId, from);
     steps.push({
       entityId,
       date: from,
       kind: "stay",
       label: `Arrived at ${place?.name ?? locationId}`,
-      mapId: place?.map,
-      at: place?.at,
+      mapId: resolved?.mapId ?? place?.map,
+      at: resolved?.at ?? place?.at,
       locationId,
     });
   }
   if (until !== undefined) {
+    const resolved = resolveLocationAt(world, locationId, until);
     steps.push({
       entityId,
       date: until,
       kind: "stay",
       label: `Left ${place?.name ?? locationId}`,
-      mapId: place?.map,
-      at: place?.at,
+      mapId: resolved?.mapId ?? place?.map,
+      at: resolved?.at ?? place?.at,
       locationId,
     });
   }
   return steps;
 }
 
-/** Where a traced person or vessel went, in date order. */
-export function tracePath(world: ResolvedWorld, entityId: string): PathPoint[] {
+/** Where a traced person or vessel went, in date order (optionally up to `upTo`). */
+export function tracePath(world: ResolvedWorld, entityId: string, upTo?: DateBound): PathPoint[] {
   return traceSteps(world, entityId)
-    .filter((step) => step.mapId !== undefined && step.at !== undefined)
+    .filter((step) => {
+      if (step.mapId === undefined || step.at === undefined) {
+        return false;
+      }
+      if (upTo !== undefined && compareDateBounds(step.date, upTo) > 0) {
+        return false;
+      }
+      return true;
+    })
     .map((step) => ({
       date: step.date,
       mapId: step.mapId,
@@ -182,6 +264,8 @@ export interface ViewStep {
   date: DateBound;
   eventId?: string | undefined;
   mapId?: string | undefined;
+  locationId?: string | undefined;
+  at?: [number, number] | undefined;
 }
 
 export interface StepOptions {
@@ -214,23 +298,35 @@ export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[
       date: step.date,
       eventId: step.eventId,
       mapId: step.mapId,
+      locationId: step.locationId,
+      at: step.at,
     }));
   } else if (options.span !== undefined) {
-    const inside = spanSteps(world, options.span).map((event) => ({
-      label: event.title,
-      date: event.when,
-      eventId: event.id,
-      mapId: eventPlace(world, event)?.mapId,
-    }));
-    const unplaced = unplacedEvents(world).map((event) => ({
-      label: event.title,
-      date: event.when,
-      eventId: event.id,
-    }));
-    const seen = new Set(inside.map((step) => step.eventId));
-    steps = [...inside, ...unplaced.filter((step) => !seen.has(step.eventId))].sort((a, b) =>
-      compareDateBounds(a.date, b.date),
-    );
+    const inside = spanSteps(world, options.span);
+    const seen = new Set(inside.map((event) => event.id));
+    const unplaced = unplacedEvents(world).filter((event) => !seen.has(event.id));
+    const combined = [...inside, ...unplaced].sort((a, b) => {
+      const byDate = compareDates(a.when, b.when);
+      if (byDate !== 0) {
+        return byDate;
+      }
+      const byOrder = (a.order ?? 0) - (b.order ?? 0);
+      if (byOrder !== 0) {
+        return byOrder;
+      }
+      return a.id.localeCompare(b.id);
+    });
+    steps = combined.map((event) => {
+      const place = eventPlace(world, event);
+      return {
+        label: event.title,
+        date: event.when,
+        eventId: event.id,
+        mapId: place?.mapId,
+        locationId: place?.location?.id,
+        at: place?.at,
+      };
+    });
   } else {
     steps = [];
   }

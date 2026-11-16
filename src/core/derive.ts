@@ -240,18 +240,133 @@ export function sortedEvents(world: ResolvedWorld): ResolvedEvent[] {
   });
 }
 
+/**
+ * The place a location resolves to at a given date.
+ *
+ * Fixed locations resolve straight to their own `map` and `at`. Mobile
+ * locations (and anything sitting inside a mobile location's `opens`
+ * sub-map) walk their `stays` and events to find where they were at `date`,
+ * rejecting cycles.
+ */
+export function resolveLocationAt(
+  world: ResolvedWorld,
+  locationId: string,
+  date?: DateBound,
+  seen: Set<string> = new Set(),
+): { mapId: string; at: [number, number]; location: ResolvedLocation } | undefined {
+  if (seen.has(locationId)) {
+    return undefined;
+  }
+  seen.add(locationId);
+
+  const location = world.locations.find((entry) => entry.id === locationId);
+  if (location === undefined) {
+    return undefined;
+  }
+
+  if (location.kind !== "mobile") {
+    if (location.map !== undefined && location.at !== undefined) {
+      return { mapId: location.map, at: location.at, location };
+    }
+    return undefined;
+  }
+
+  // Mobile location: find an active stay covering `date`.
+  if (date !== undefined) {
+    for (const stay of location.stays) {
+      if (stay.from !== undefined && compareBounds(date, stay.from) < 0) {
+        continue;
+      }
+      if (stay.until !== undefined && compareBounds(date, stay.until) > 0) {
+        continue;
+      }
+      const target = resolveLocationAt(world, stay.at, date, seen);
+      if (target !== undefined) {
+        return { mapId: target.mapId, at: target.at, location };
+      }
+    }
+  } else if (location.stays.length > 0) {
+    const first = location.stays[0];
+    if (first !== undefined) {
+      const target = resolveLocationAt(world, first.at, date, seen);
+      if (target !== undefined) {
+        return { mapId: target.mapId, at: target.at, location };
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * The anchor location on a parent map that `opens` the given sub-map, if any.
+ *
+ * Lets a point on London also project onto Europe when drawing paths or
+ * jumping across maps.
+ */
+export function anchorForMap(
+  world: ResolvedWorld,
+  mapId: string,
+  date?: DateBound,
+): { mapId: string; at: [number, number]; location: ResolvedLocation } | undefined {
+  const opener = world.locations.find((entry) => entry.opens === mapId);
+  if (opener === undefined) {
+    return undefined;
+  }
+  return resolveLocationAt(world, opener.id, date);
+}
+
+/**
+ * Project a `(mapId, at)` point onto `targetMapId` by walking up sub-map
+ * anchors (`opens` links) when `mapId` is nested inside `targetMapId`.
+ */
+export function projectToMap(
+  world: ResolvedWorld,
+  mapId: string | undefined,
+  at: [number, number] | undefined,
+  targetMapId: string,
+  date?: DateBound,
+): { at: [number, number]; viaLocation?: ResolvedLocation | undefined } | undefined {
+  if (mapId === undefined || at === undefined) {
+    return undefined;
+  }
+  if (mapId === targetMapId) {
+    return { at };
+  }
+  const visited = new Set<string>();
+  let currentMap: string | undefined = mapId;
+  while (currentMap !== undefined && !visited.has(currentMap)) {
+    visited.add(currentMap);
+    const anchor = anchorForMap(world, currentMap, date);
+    if (anchor === undefined) {
+      return undefined;
+    }
+    if (anchor.mapId === targetMapId) {
+      return { at: anchor.at, viaLocation: anchor.location };
+    }
+    currentMap = anchor.mapId;
+  }
+  return undefined;
+}
+
 /** The place an event happens: a location on a map, or a raw point. */
 export function eventPlace(
   world: ResolvedWorld,
   event: ResolvedEvent,
+  atDate?: DateBound,
 ): { mapId?: string; at?: [number, number]; location?: ResolvedLocation } | undefined {
   if (event.where === undefined) {
     return undefined;
   }
+  const effectiveDate = atDate ?? event.when;
   if (event.where.location !== undefined) {
     const location = world.locations.find((entry) => entry.id === event.where?.location);
     if (location === undefined) {
       return undefined;
+    }
+    const resolved = resolveLocationAt(world, location.id, effectiveDate);
+    if (resolved !== undefined) {
+      return { mapId: resolved.mapId, at: resolved.at, location };
     }
     return { mapId: location.map, at: location.at, location };
   }

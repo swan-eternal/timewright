@@ -74,8 +74,17 @@ export function fractionDate(fraction: number, domain: TimeDomain): DateBound {
   const clamped = Math.min(Math.max(fraction, 0), 1);
   const value = from + (to - from) * clamped;
   const year = Math.floor(value);
-  const month = Math.floor((value - year) * 12) + 1;
-  return { raw: String(year), approx: false, year, month };
+  const spanYears = Math.abs(to - from);
+  const hasMonths = domain.from.month !== undefined || domain.to.month !== undefined;
+  if (spanYears <= 20 || hasMonths) {
+    const month = Math.min(12, Math.max(1, Math.floor((value - year) * 12) + 1));
+    if (spanYears <= 5) {
+      const raw = `${year}-${String(month).padStart(2, "0")}`;
+      return { raw, approx: false, year, month };
+    }
+    return { raw: String(year), approx: false, year, month };
+  }
+  return { raw: String(year), approx: false, year };
 }
 
 /** A human label for the ends of the axis. */
