@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { eventPlace, resolveWorld } from "../../core/derive.js";
-import { buildIndex, validateWorld } from "../../core/validate.js";
+import { buildIndex } from "../../core/building.js";
+import { validateWorld } from "../../core/validate.js";
 import { loadWorld, resolveImagePath } from "../load.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
 import {

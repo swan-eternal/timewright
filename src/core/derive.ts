@@ -16,7 +16,7 @@ import type {
   ResolvedPerson,
   ResolvedWorld,
 } from "./model.js";
-import { buildIndex, calendarOptions, type WorldData } from "./validate.js";
+import { buildIndex, calendarOptions, type WorldData } from "./building.js";
 
 /** Resolve a loaded world into the model the viewer reads. */
 export function resolveWorld(data: WorldData): ResolvedWorld {

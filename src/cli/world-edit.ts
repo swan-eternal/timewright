@@ -17,7 +17,7 @@ import path from "node:path";
 import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
 
 import { slugify } from "../core/resolve.js";
-import { buildIndex } from "../core/validate.js";
+import { buildIndex } from "../core/building.js";
 
 export type EditableKind = "location" | "person" | "event";
 
