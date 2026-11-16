@@ -341,18 +341,74 @@ function checkRange(
 }
 
 /**
- * A date as a number of years, so two dates can be compared.
+ * How far a bounded date sits from the bound it names, in years.
  *
- * A range is placed by where it starts: the range's bounds live in `from`
- * and `to`, and the date itself carries no year of its own.
+ * A date that reaches back ("before 2300") is a quarter of a year
+ * before the bound; one that reaches forward ("after 2300") is a
+ * quarter of a year after it. Enough to keep the two apart on the
+ * timeline and in the order, and not enough to look like a different
+ * year.
  */
-export function dateValue(date: DateBound): number {
-  const range = date as ParsedDate;
-  const bound = range.kind === "range" && range.from !== undefined ? range.from : date;
+const REACH = 0.25;
+
+/**
+ * The first instant a bound covers, as a number of years.
+ *
+ * A bare year starts on 1 January; a bare month on its first day.
+ */
+function instantOf(bound: DateBound): number {
   const year = bound.year ?? 0;
   const month = (bound.month ?? 1) - 1;
   const day = (bound.day ?? 1) - 1;
   return year + month / 12 + day / 365.25;
+}
+
+/**
+ * The last instant a bound covers, as a number of years: the end of its
+ * last day.
+ */
+function endOf(bound: DateBound): number {
+  const year = bound.year ?? 0;
+  const month = bound.month ?? 12;
+  const day = bound.day ?? daysInMonth(bound.year, month, {}) ?? 31;
+  return year + (month - 1) / 12 + (day - 1) / 365.25;
+}
+
+/**
+ * How precise a bound is: a year, a year and a month, or a full date.
+ *
+ * Used to break ties, so that the less precise date comes first.
+ */
+function precisionOf(bound: DateBound): number {
+  if (bound.day !== undefined) {
+    return 3;
+  }
+  if (bound.month !== undefined) {
+    return 2;
+  }
+  return 1;
+}
+
+/**
+ * A date as a number of years, so two dates can be compared.
+ *
+ * A range is placed by where it starts: the range's bounds live in `from`
+ * and `to`, and the date itself carries no year of its own. A bounded
+ * date sits just outside the bound it names, so `<2300` and `2300` are
+ * two places on the timeline rather than one.
+ */
+export function dateValue(date: DateBound): number {
+  const parsed = date as ParsedDate;
+  if (parsed.kind === "range") {
+    return parsed.from !== undefined ? dateValue(parsed.from) : 0;
+  }
+  if (parsed.kind === "before") {
+    return instantOf(parsed) - REACH;
+  }
+  if (parsed.kind === "after") {
+    return instantOf(parsed) + REACH;
+  }
+  return instantOf(parsed);
 }
 
 /** Compare two dates that may only be a year apart. */
@@ -360,56 +416,97 @@ export function compareDateBounds(a: DateBound, b: DateBound): number {
   return dateValue(a) - dateValue(b);
 }
 
-/** Sort key for one bound. Missing parts sort before present ones. */
-export function sortKey(bound: DateBound): number[] {
-  return [
-    bound.year ?? Number.NEGATIVE_INFINITY,
-    bound.month ?? Number.NEGATIVE_INFINITY,
-    bound.day ?? Number.NEGATIVE_INFINITY,
-  ];
+/**
+ * The order a date takes: when it is, and how precise it is.
+ *
+ * One key for every kind of date. A range sorts by its start, a
+ * bounded date sorts just outside the bound it names, and the less
+ * precise of two dates at the same moment comes first.
+ */
+export function orderKey(date: DateBound): number[] {
+  const parsed = date as ParsedDate;
+  if (parsed.kind === "range") {
+    return parsed.from !== undefined ? orderKey(parsed.from) : [Number.NEGATIVE_INFINITY, 0];
+  }
+  if (parsed.year === undefined) {
+    return [Number.NEGATIVE_INFINITY, 0];
+  }
+  return [dateValue(parsed), precisionOf(parsed)];
 }
 
-export function compareBounds(a: DateBound, b: DateBound): number {
-  if (compareKeys(endKey(a), startKey(b)) < 0) {
-    return -1;
+/**
+ * The period a date covers: the first instant it includes, and the
+ * last.
+ *
+ * A bare year covers that whole year, and a bare month that whole
+ * month. A range covers the span between its bounds. A date that
+ * reaches back covers everything before the bound it names, and one
+ * that reaches forward everything after it.
+ */
+function periodOf(date: DateBound): { start: number; end: number } {
+  const parsed = date as ParsedDate;
+  // A range is checked first: its year lives on its bounds, not on the
+  // range itself, so the "no year" case below would otherwise swallow it
+  // and make every range cover all of time.
+  if (parsed.kind === "range") {
+    return {
+      start: parsed.from !== undefined ? instantOf(parsed.from) : Number.NEGATIVE_INFINITY,
+      end: parsed.to !== undefined ? endOf(parsed.to) : Number.POSITIVE_INFINITY,
+    };
   }
-  if (compareKeys(startKey(a), endKey(b)) > 0) {
-    return 1;
+  if (parsed.year === undefined) {
+    // A bound with no year covers everything, as it always has.
+    return { start: Number.NEGATIVE_INFINITY, end: Number.POSITIVE_INFINITY };
   }
-  return 0;
+  if (parsed.kind === "before") {
+    return { start: Number.NEGATIVE_INFINITY, end: instantOf(parsed) };
+  }
+  if (parsed.kind === "after") {
+    return { start: instantOf(parsed), end: Number.POSITIVE_INFINITY };
+  }
+  return { start: instantOf(parsed), end: endOf(parsed) };
 }
 
 /**
  * Compare two bounds as the periods they cover.
  *
- * A bare year covers that whole year; a bare month covers that whole
- * month. Two bounds that overlap compare equal, so a date inside a year
- * is inside that year however precise either was written. This is what
+ * Two bounds that overlap compare equal, so a date inside a year is
+ * inside that year however precise either was written. This is what
  * makes a range inclusive at both ends: "until 1815" covers 1815-06-18,
  * and not only the first instant of 1815.
  *
  * This is deliberately not a total order - "1815" equals "1815-06-18",
  * and both equal "1815-12-31". To sort, use `compareOrder`.
  */
+export function compareBounds(a: DateBound, b: DateBound): number {
+  const left = periodOf(a);
+  const right = periodOf(b);
+  if (left.end < right.start) {
+    return -1;
+  }
+  if (left.start > right.end) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * Compare two bounds in the order of time.
+ *
+ * This is the total order: every kind of date has one place in it. A
+ * range sorts by its start, a date that reaches back or forward sorts
+ * just outside the bound it names, and the less precise of two dates at
+ * the same moment comes first.
+ *
+ * For whether one bound covers another, use `compareBounds`.
+ */
 export function compareOrder(a: DateBound, b: DateBound): number {
-  return compareKeys(sortKey(a), sortKey(b));
-}
-
-/** The first instant a bound covers. A bare year starts on 1 January. */
-function startKey(bound: DateBound): number[] {
-  return [bound.year ?? Number.NEGATIVE_INFINITY, bound.month ?? 1, bound.day ?? 1];
-}
-
-/** The last instant a bound covers. A bare year ends on 31 December. */
-function endKey(bound: DateBound): number[] {
-  const month = bound.month ?? 12;
-  const lastDay = daysInMonth(bound.year, month, {}) ?? 31;
-  return [bound.year ?? Number.POSITIVE_INFINITY, month, bound.day ?? lastDay];
+  return compareKeys(orderKey(a), orderKey(b));
 }
 
 /** Compare two sort keys, part by part. */
 function compareKeys(keyA: number[], keyB: number[]): number {
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < keyA.length; index += 1) {
     if (keyA[index] < keyB[index]) {
       return -1;
     }
@@ -420,37 +517,14 @@ function compareKeys(keyA: number[], keyB: number[]): number {
   return 0;
 }
 
-/** Sort key for a whole date, including ranges and bounded dates. */
-export function effectiveSortKey(date: ParsedDate): number[] {
-  if (date.kind === "range") {
-    return date.from !== undefined
-      ? sortKey(date.from)
-      : [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
-  }
-  const key = sortKey(date);
-  if (date.year !== undefined) {
-    if (date.kind === "before") {
-      key[0] = date.year - 0.25;
-    }
-    if (date.kind === "after") {
-      key[0] = date.year + 0.25;
-    }
-  }
-  return key;
-}
-
+/**
+ * Compare two dates in the order of time.
+ *
+ * The same total order as `compareOrder`; this name is what the rest of
+ * the core reaches for.
+ */
 export function compareDates(a: ParsedDate, b: ParsedDate): number {
-  const keyA = effectiveSortKey(a);
-  const keyB = effectiveSortKey(b);
-  for (let index = 0; index < 3; index += 1) {
-    if (keyA[index] < keyB[index]) {
-      return -1;
-    }
-    if (keyA[index] > keyB[index]) {
-      return 1;
-    }
-  }
-  return 0;
+  return compareOrder(a, b);
 }
 
 /** The bounds a date covers: one for a plain date, two for a range. */

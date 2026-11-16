@@ -259,43 +259,50 @@ export function resolveLocationAt(
   }
   seen.add(locationId);
 
-  const location = world.locations.find((entry) => entry.id === locationId);
-  if (location === undefined) {
+  try {
+    const location = world.locations.find((entry) => entry.id === locationId);
+    if (location === undefined) {
+      return undefined;
+    }
+
+    if (location.kind !== "mobile") {
+      if (location.map !== undefined && location.at !== undefined) {
+        return { mapId: location.map, at: location.at, location };
+      }
+      return undefined;
+    }
+
+    // Mobile location: find an active stay covering `date`.
+    if (date !== undefined) {
+      for (const stay of location.stays) {
+        if (stay.from !== undefined && compareBounds(date, stay.from) < 0) {
+          continue;
+        }
+        if (stay.until !== undefined && compareBounds(date, stay.until) > 0) {
+          continue;
+        }
+        const target = resolveLocationAt(world, stay.at, date, seen);
+        if (target !== undefined) {
+          return { mapId: target.mapId, at: target.at, location };
+        }
+      }
+    } else if (location.stays.length > 0) {
+      const first = location.stays[0];
+      if (first !== undefined) {
+        const target = resolveLocationAt(world, first.at, date, seen);
+        if (target !== undefined) {
+          return { mapId: target.mapId, at: target.at, location };
+        }
+      }
+    }
+
     return undefined;
+  } finally {
+    // The set is the path we are walking, not everywhere we have been:
+    // two vessels may both stay at the same place, and the second one
+    // must still be able to find it.
+    seen.delete(locationId);
   }
-
-  if (location.kind !== "mobile") {
-    if (location.map !== undefined && location.at !== undefined) {
-      return { mapId: location.map, at: location.at, location };
-    }
-    return undefined;
-  }
-
-  // Mobile location: find an active stay covering `date`.
-  if (date !== undefined) {
-    for (const stay of location.stays) {
-      if (stay.from !== undefined && compareBounds(date, stay.from) < 0) {
-        continue;
-      }
-      if (stay.until !== undefined && compareBounds(date, stay.until) > 0) {
-        continue;
-      }
-      const target = resolveLocationAt(world, stay.at, date, seen);
-      if (target !== undefined) {
-        return { mapId: target.mapId, at: target.at, location };
-      }
-    }
-  } else if (location.stays.length > 0) {
-    const first = location.stays[0];
-    if (first !== undefined) {
-      const target = resolveLocationAt(world, first.at, date, seen);
-      if (target !== undefined) {
-        return { mapId: target.mapId, at: target.at, location };
-      }
-    }
-  }
-
-  return undefined;
 }
 
 /**
@@ -374,4 +381,21 @@ export function eventPlace(
     return { mapId: event.where.map, at: event.where.at };
   }
   return undefined;
+}
+
+/**
+ * Whether an event has a position on a map.
+ *
+ * An event can name a place that has not been placed yet: a location
+ * with a map but no coordinates. The event belongs to the story, but
+ * there is nothing to draw, so it does not widen the timeline and it
+ * is pinned to the edge instead.
+ */
+export function eventHasPosition(
+  world: ResolvedWorld,
+  event: ResolvedEvent,
+  atDate?: DateBound,
+): boolean {
+  const place = eventPlace(world, event, atDate);
+  return place !== undefined && place.at !== undefined;
 }

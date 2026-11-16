@@ -1,0 +1,6 @@
+- name: Placed
+  map: europe
+  at: [10, 10]
+
+- name: Unplaced
+  map: europe

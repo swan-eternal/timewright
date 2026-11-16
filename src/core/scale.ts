@@ -14,8 +14,8 @@
  * ever needs a broken axis, that is a change to `dateFraction` alone.
  */
 
-import { compareDates, dateValue, type DateBound } from "./dates.js";
-import { eventPlace } from "./derive.js";
+import { compareDates, dateValue, type DateBound, type ParsedDate } from "./dates.js";
+import { eventHasPosition } from "./derive.js";
 import type { ResolvedWorld } from "./model.js";
 
 export interface TimeDomain {
@@ -30,7 +30,9 @@ export interface DomainOptions {
 
 /** The range the strip covers. */
 export function eventDomain(world: ResolvedWorld, options: DomainOptions = {}): TimeDomain | undefined {
-  const placed = world.events.filter((event) => eventPlace(world, event) !== undefined);
+  // An event whose place is not placed yet has no position on the map, so
+  // it does not widen the strip - it is pinned to the edge instead.
+  const placed = world.events.filter((event) => eventHasPosition(world, event));
   const pool = options.includeUnplaced === true || placed.length === 0 ? world.events : placed;
   if (pool.length === 0) {
     return undefined;
@@ -43,8 +45,19 @@ export function eventDomain(world: ResolvedWorld, options: DomainOptions = {}): 
   }
   return {
     from: world.start ?? first.when,
-    to: world.end ?? last.when,
+    to: endOfDate(world.end ?? last.when),
   };
+}
+
+/**
+ * The end of a date: the end bound of a range, or the date itself.
+ *
+ * The strip runs to the last moment the world covers, so a world whose
+ * last event is a range runs to the end of that range and not to the
+ * moment it began.
+ */
+function endOfDate(date: ParsedDate): DateBound {
+  return date.kind === "range" && date.to !== undefined ? date.to : date;
 }
 
 /** A date as a number of years, so two dates can be compared. */

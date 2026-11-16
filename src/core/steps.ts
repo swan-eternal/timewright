@@ -8,7 +8,7 @@
  */
 
 import { compareBounds, compareDateBounds, compareDates, compareOrder, type DateBound } from "./dates.js";
-import { eventPlace, resolveLocationAt, sortedEvents } from "./derive.js";
+import { eventHasPosition, eventPlace, resolveLocationAt, sortedEvents } from "./derive.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "./model.js";
 
 export interface Span {
@@ -65,7 +65,7 @@ export function spanSteps(world: ResolvedWorld, span: Span): ResolvedEvent[] {
  * edge of the strip rather than losing them.
  */
 export function unplacedEvents(world: ResolvedWorld): ResolvedEvent[] {
-  return sortedEvents(world).filter((event) => eventPlace(world, event) === undefined);
+  return sortedEvents(world).filter((event) => !eventHasPosition(world, event));
 }
 
 /** The steps of one traced person or location. */

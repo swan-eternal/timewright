@@ -1,0 +1,5 @@
+- id: europe
+  name: Europe
+  size: [40, 30]
+  images:
+    - file: europe.png

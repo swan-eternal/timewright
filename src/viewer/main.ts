@@ -207,10 +207,14 @@ async function boot(): Promise<void> {
   const domain = eventDomain(world);
   const firstEvent = sortedEvents(world)[0];
 
+  // The world's calendar, so a date written in its eras reads the same
+  // here as it does in the validator.
+  const calendar = { calendar: world.calendar };
+
   let initialDate: DateBound | undefined = world.start ?? firstEvent?.when;
   if (link.date !== undefined) {
     try {
-      initialDate = parseDate(link.date);
+      initialDate = parseDate(link.date, calendar);
     } catch {
       // A bad date in the link is ignored.
     }
@@ -220,7 +224,7 @@ async function boot(): Promise<void> {
     const [from, to] = link.span.split("..");
     try {
       if (from !== undefined && to !== undefined) {
-        initialSpan = { from: parseDate(from), to: parseDate(to) };
+        initialSpan = { from: parseDate(from, calendar), to: parseDate(to, calendar) };
       }
     } catch {
       // A bad span in the link is ignored.
@@ -449,7 +453,7 @@ async function boot(): Promise<void> {
       return;
     }
     try {
-      store.set({ date: parseDate(raw), stepKey: undefined });
+      store.set({ date: parseDate(raw, calendar), stepKey: undefined });
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));

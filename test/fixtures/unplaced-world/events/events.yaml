@@ -1,0 +1,11 @@
+- title: Ancient at an unplaced place
+  when: 500
+  where: Unplaced
+
+- title: An old event
+  when: 1000
+  where: Placed
+
+- title: A recent event
+  when: 1800
+  where: Placed
