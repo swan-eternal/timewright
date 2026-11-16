@@ -12,7 +12,7 @@ import {
   type WorldData,
   type WorldIndex,
 } from "./building.js";
-import { compareBounds, compareDates, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
+import { compareDates, dateValue, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
 import { levenshtein } from "./resolve.js";
 import {
   EventSchema,
@@ -604,14 +604,33 @@ function checkStays(
   }
 }
 
-/** Whether two stays cover some of the same time. */
+/**
+ * Whether two stays cross each other.
+ *
+ * Two stays that touch - one ends in 2405, the next begins in 2405 - are
+ * one after the other, not a conflict: a year is the finest thing a stay
+ * is written in, and the end of one and the start of the next share it.
+ * Two stays that nest are the other normal case: a person aboard a ship
+ * is also where the ship is, and a faction is in several places at once.
+ *
+ * A conflict is the stays crossing: one begins while the other is still
+ * running, and the first ends while the second is still running. The
+ * reader would be in two places at once, and the resolver quietly picks
+ * whichever comes first in the file.
+ */
 function staysOverlap(
   a: { from?: ParsedDate | undefined; until?: ParsedDate | undefined },
   b: { from?: ParsedDate | undefined; until?: ParsedDate | undefined },
 ): boolean {
-  const aEndsBeforeB = a.until !== undefined && b.from !== undefined && compareBounds(a.until, b.from) < 0;
-  const bEndsBeforeA = b.until !== undefined && a.from !== undefined && compareBounds(b.until, a.from) < 0;
-  return !aEndsBeforeB && !bEndsBeforeA;
+  const aStart = a.from !== undefined ? dateValue(a.from) : Number.NEGATIVE_INFINITY;
+  const aEnd = a.until !== undefined ? dateValue(a.until) : Number.POSITIVE_INFINITY;
+  const bStart = b.from !== undefined ? dateValue(b.from) : Number.NEGATIVE_INFINITY;
+  const bEnd = b.until !== undefined ? dateValue(b.until) : Number.POSITIVE_INFINITY;
+  const firstStart = Math.min(aStart, bStart);
+  const firstEnd = aStart <= bStart ? aEnd : bEnd;
+  const secondStart = Math.max(aStart, bStart);
+  const secondEnd = aStart <= bStart ? bEnd : aEnd;
+  return firstStart < secondStart && secondStart < firstEnd && firstEnd < secondEnd;
 }
 
 /**
