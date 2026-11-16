@@ -299,13 +299,10 @@
           <button type="button" class="danger" id="delete">Delete</button>
         </div>`;
         if (tab === "locations") {
-          const options = state.world.maps
-            .map((map) => `<option value="${escapeHtml(map.id)}"${map.id === record.map ? " selected" : ""}>${escapeHtml(map.name)}</option>`)
-            .join("");
           return (
             field("Name", "name", record.name) +
             field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
-            `<label>Map<select name="map">${options}</select></label>` +
+            `<label>Map<select name="map">${mapOptions(record)}</select></label>` +
             field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
             area("Card (Markdown)", "card", record.card) +
             actions
@@ -317,17 +314,19 @@
             field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
             `<div class="row">${field("Born", "born", record.born)}${field("Died", "died", record.died)}</div>` +
             field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
-            area("Bio (Markdown)", "card", record.card) +
+            area("Bio (Markdown)", "bio", record.bio) +
             actions
           );
         }
-        const whereOptions = ["", ...state.world.locations.map((location) => location.name)]
-          .map((name) => `<option value="${escapeHtml(name)}"${name === record.where ? " selected" : ""}>${escapeHtml(name || "(nowhere)")}</option>`)
-          .join("");
+        // An event's place can be a raw point on the map, which the editor
+        // has no form for. It is left alone rather than cleared.
+        const whereField = record.whereIsPoint
+          ? `<p class="hint">This event points at a raw spot on the map, which the editor leaves alone.</p>`
+          : `<label>Where<select name="where">${whereOptions(record)}</select></label>`;
         return (
           field("Title", "title", record.title) +
           field("When (1815, 1815-06-18, ~1200, 1805..1807)", "when", record.when) +
-          `<label>Where<select name="where">${whereOptions}</select></label>` +
+          whereField +
           field("People (comma separated)", "people", (record.people ?? []).join(", ")) +
           field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
           area("Card (Markdown)", "card", record.card) +
@@ -335,40 +334,73 @@
         );
       }
 
+      /**
+       * The places an event can be at.
+       *
+       * A name the editor does not know is still offered, so that saving
+       * a record does not quietly drop a place it cannot show.
+       */
+      function whereOptions(record) {
+        const current = record.where ?? "";
+        const names = ["", ...state.world.locations.map((location) => location.name)];
+        if (current !== "" && !names.includes(current)) {
+          names.push(current);
+        }
+        return names
+          .map((name) => `<option value="${escapeHtml(name)}"${name === current ? " selected" : ""}>${escapeHtml(name || "(nowhere)")}</option>`)
+          .join("");
+      }
+
+      /**
+       * The maps a location can sit on, the same way: a map the editor
+       * does not know is kept rather than swapped for the first one.
+       */
+      function mapOptions(record) {
+        const current = record.map ?? "";
+        const maps = state.world.maps.map((map) => ({ id: map.id, name: map.name }));
+        if (current !== "" && !maps.some((map) => map.id === current)) {
+          maps.unshift({ id: current, name: current });
+        }
+        return maps
+          .map((map) => `<option value="${escapeHtml(map.id)}"${map.id === current ? " selected" : ""}>${escapeHtml(map.name)}</option>`)
+          .join("");
+      }
+
+      /**
+       * What the person typed, and nothing more.
+       *
+       * The page does not decide what a field means - whether an empty
+       * date is removed or written, whether a blank card is kept. It
+       * sends what was typed; the server works out what it means.
+       */
       function readForm() {
         const data = new FormData(form);
-        const list = (name) =>
-          String(data.get(name) ?? "")
-            .split(",")
-            .map((part) => part.trim())
-            .filter((part) => part !== "");
-        const fields = {};
+        const text = (name) => String(data.get(name) ?? "");
+        const values = {};
         if (state.tab === "events") {
-          fields.title = String(data.get("title") ?? "");
-          fields.when = String(data.get("when") ?? "");
-          const where = String(data.get("where") ?? "");
-          if (where === "") {
-            fields.where = undefined;
-          } else {
-            fields.where = where;
+          values.title = text("title");
+          values.when = text("when");
+          if (!state.editing.whereIsPoint) {
+            values.where = text("where");
           }
-          fields.people = list("people");
-          fields.tags = list("tags");
-          fields.card = String(data.get("card") ?? "");
+          values.people = text("people");
+          values.tags = text("tags");
+          values.card = text("card");
+        } else if (state.tab === "locations") {
+          values.name = text("name");
+          values.aliases = text("aliases");
+          values.map = text("map");
+          values.tags = text("tags");
+          values.card = text("card");
         } else {
-          fields.name = String(data.get("name") ?? "");
-          fields.aliases = list("aliases");
-          fields.tags = list("tags");
-          fields.card = String(data.get("card") ?? "");
-          if (state.tab === "locations") {
-            fields.map = String(data.get("map") ?? "");
-          } else {
-            fields.bio = String(data.get("card") ?? "");
-            fields.born = String(data.get("born") ?? "");
-            fields.died = String(data.get("died") ?? "");
-          }
+          values.name = text("name");
+          values.aliases = text("aliases");
+          values.born = text("born");
+          values.died = text("died");
+          values.tags = text("tags");
+          values.bio = text("bio");
         }
-        return fields;
+        return values;
       }
 
       async function saveRecord() {
@@ -377,9 +409,14 @@
           kind: state.editing.kind,
           file: state.editing.file,
           index: state.editing.index,
-          fields: readForm(),
+          values: readForm(),
         });
         say(result.message || "saved");
+        if (!result.ok) {
+          // The record was not written; keep the form open so the
+          // mistake can be corrected.
+          return;
+        }
         await load();
         form.hidden = true;
         state.editing = null;

@@ -14,7 +14,7 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
+import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
 
 import { slugify } from "../core/resolve.js";
 
@@ -31,6 +31,119 @@ export interface EditResult {
   ok: boolean;
   message: string;
   file?: string | undefined;
+}
+
+/**
+ * The fields each kind of record can change from the editor.
+ *
+ * `required` cannot be left empty, `optional` is taken away when it is
+ * left empty, and `lists` are comma separated.
+ */
+const EDITABLE_FIELDS: Record<
+  EditableKind,
+  { required: { key: string; label: string }[]; optional: string[]; lists: string[] }
+> = {
+  location: {
+    required: [{ key: "name", label: "a name" }],
+    optional: ["map", "card"],
+    lists: ["aliases", "tags"],
+  },
+  person: {
+    required: [{ key: "name", label: "a name" }],
+    optional: ["born", "died", "bio"],
+    lists: ["aliases", "tags"],
+  },
+  event: {
+    required: [
+      { key: "title", label: "a title" },
+      { key: "when", label: "a date" },
+    ],
+    optional: ["where", "card"],
+    lists: ["people", "tags"],
+  },
+};
+
+/**
+ * The file a write is allowed to touch.
+ *
+ * The editor's API takes the path from the browser, so it has to be
+ * checked: a path outside the world folder is not ours to write.
+ */
+function resolveWithinWorld(root: string, file: string): string | undefined {
+  const resolved = path.resolve(file);
+  const base = path.resolve(root);
+  if (!resolved.startsWith(base + path.sep)) {
+    return undefined;
+  }
+  return resolved;
+}
+
+/**
+ * Whether a path names a record in a document.
+ *
+ * The index comes from the browser too, and a list only goes so far:
+ * writing past the end of one would fill it with blanks.
+ */
+function isRecordAt(document: { getIn(path: unknown[]): unknown }, index: number): boolean {
+  if (!Number.isInteger(index) || index < 0) {
+    return false;
+  }
+  const node = document.getIn([index]);
+  return isMap(node);
+}
+
+/**
+ * The fields to write for a record, from what the editor form collected.
+ *
+ * Three states, and the difference matters:
+ *
+ * - a key that is not in `values` is left alone;
+ * - a key with a value is written;
+ * - a key with an empty value is taken away.
+ *
+ * An empty optional field is therefore `null` - "remove it" - rather
+ * than an empty string. An empty string would leave a date that cannot
+ * be read and a card that hides the text underneath it.
+ */
+export function fieldsFromForm(
+  kind: EditableKind,
+  values: Record<string, string>,
+): { ok: true; fields: Record<string, unknown> } | { ok: false; message: string } {
+  const shape = EDITABLE_FIELDS[kind];
+  const fields: Record<string, unknown> = {};
+
+  for (const { key, label } of shape.required) {
+    if (!(key in values)) {
+      continue;
+    }
+    const value = values[key]?.trim() ?? "";
+    if (value === "") {
+      return { ok: false, message: `this ${kind} needs ${label}` };
+    }
+    fields[key] = value;
+  }
+
+  for (const key of shape.optional) {
+    if (!(key in values)) {
+      continue;
+    }
+    const value = values[key]?.trim() ?? "";
+    fields[key] = value === "" ? null : value;
+  }
+
+  for (const key of shape.lists) {
+    if (!(key in values)) {
+      continue;
+    }
+    const list = (values[key] ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part !== "");
+    // An empty list is no list, so the key goes rather than staying as [].
+    fields[key] = list.length === 0 ? null : list;
+  }
+
+  return { ok: true, fields };
 }
 
 const DIRECTORIES: Record<EditableKind, string> = {
@@ -90,27 +203,40 @@ export async function writeRecordFields(
   if (place.file === undefined) {
     return { ok: false, message: "that record has no file to write to" };
   }
-  const text = await readFile(place.file, "utf8");
+  const file = resolveWithinWorld(root, place.file);
+  if (file === undefined) {
+    return { ok: false, message: "that file is outside the world folder" };
+  }
+  const text = await readFile(file, "utf8");
   const document = parseDocument(text);
+  if (place.index !== undefined && !isRecordAt(document, place.index)) {
+    return { ok: false, message: "that record is not in the file" };
+  }
   const prefix = place.index !== undefined ? [place.index] : [];
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) {
       continue;
     }
+    if (value === null) {
+      // null means "take this field away", which is how a cleared date
+      // or a cleared location is written.
+      document.deleteIn([...prefix, key]);
+      continue;
+    }
     document.setIn([...prefix, key], value);
   }
-  await writeFile(place.file, documentText(document), "utf8");
+  await writeFile(file, documentText(document), "utf8");
 
   // A record that lives in its own file should keep its file named after it.
   if (place.index === undefined) {
     const name = fields.name ?? fields.title;
     if (typeof name === "string" && name !== "") {
-      const folder = path.dirname(place.file);
+      const folder = path.dirname(file);
       if (folder === path.join(root, DIRECTORIES[kind])) {
         const wanted = `${slugify(name)}.yaml`;
-        if (wanted !== path.basename(place.file)) {
+        if (wanted !== path.basename(file)) {
           try {
-            await rename(place.file, path.join(folder, wanted));
+            await rename(file, path.join(folder, wanted));
           } catch {
             // A rename is a nicety, not a requirement.
           }
@@ -119,7 +245,7 @@ export async function writeRecordFields(
     }
   }
 
-  return { ok: true, message: `saved ${place.file}`, file: place.file };
+  return { ok: true, message: `saved ${file}`, file };
 }
 
 /** Remove a record from the world. */
@@ -132,8 +258,8 @@ export async function deleteRecord(
   if (place.file === undefined) {
     return { ok: false, message: "that record has no file to delete from" };
   }
-  const resolved = path.resolve(place.file);
-  if (!resolved.startsWith(path.resolve(root) + path.sep)) {
+  const resolved = resolveWithinWorld(root, place.file);
+  if (resolved === undefined) {
     return { ok: false, message: "that file is outside the world folder" };
   }
   if (place.index === undefined) {
@@ -142,6 +268,9 @@ export async function deleteRecord(
   }
   const text = await readFile(resolved, "utf8");
   const document = parseDocument(text);
+  if (!isRecordAt(document, place.index)) {
+    return { ok: false, message: "that record is not in the file" };
+  }
   document.deleteIn([place.index]);
   await writeFile(resolved, documentText(document), "utf8");
   return { ok: true, message: `deleted a record from ${resolved}`, file: resolved };

@@ -9,7 +9,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { eventPlace, resolveWorld } from "../../core/derive.js";
 import { validateWorld } from "../../core/validate.js";
@@ -18,6 +18,7 @@ import { readJsonBody, startLocalServer } from "../local-server.js";
 import {
   createRecord,
   deleteRecord,
+  fieldsFromForm,
   moveLocation,
   saveMapImage,
   writeRecordFields,
@@ -41,66 +42,89 @@ export async function runEdit(options: EditOptions = {}): Promise<number> {
     host,
     page: path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "editor.html"),
     image: async (mapId) => imagePath(root, mapId),
-    api: async (request, response, url) => {
-      if (url === "/api/editor" && request.method === "GET") {
-        respond(response, await describe(root));
-        return;
-      }
-      if (url === "/api/record" && request.method === "POST") {
-        const body = await readJsonBody(request);
-        const kind = String(body.kind ?? "location") as EditableKind;
-        const fields = (body.fields ?? {}) as Record<string, unknown>;
-        const place = { file: body.file as string | undefined, index: body.index as number | undefined };
-        respond(response, await writeRecordFields(root, kind, place, fields));
-        return;
-      }
-      if (url === "/api/create" && request.method === "POST") {
-        const body = await readJsonBody(request);
-        const kind = String(body.kind ?? "location") as EditableKind;
-        const record = (body.record ?? {}) as Record<string, unknown>;
-        respond(response, await createRecord(root, kind, record));
-        return;
-      }
-      if (url === "/api/move" && request.method === "POST") {
-        const body = await readJsonBody(request);
-        respond(
-          response,
-          await moveLocation(
-            root,
-            String(body.id ?? ""),
-            String(body.mapId ?? ""),
-            Number(body.x ?? 0),
-            Number(body.y ?? 0),
-          ),
-        );
-        return;
-      }
-      if (url === "/api/delete" && request.method === "POST") {
-        const body = await readJsonBody(request);
-        const kind = String(body.kind ?? "location") as EditableKind;
-        const place = { file: body.file as string | undefined, index: body.index as number | undefined };
-        respond(response, await deleteRecord(root, kind, place));
-        return;
-      }
-      if (url === "/api/image" && request.method === "POST") {
-        const body = await readJsonBody(request);
-        const data = String(body.data ?? "");
-        const bytes = Buffer.from(data.includes(",") ? data.split(",")[1] ?? "" : data, "base64");
-        respond(
-          response,
-          await saveMapImage(root, String(body.mapId ?? ""), String(body.fileName ?? "map.png"), bytes),
-        );
-        return;
-      }
-      response.statusCode = 404;
-      response.end("not found");
-    },
+    api: createEditorApi(root),
   });
 
   console.log(`timewright edit: ${root}`);
   console.log(`  http://${host}:${port}/`);
   console.log("  Edit the world in the browser. Ctrl-C to stop.");
   return 0;
+}
+
+/**
+ * The editor's API.
+ *
+ * It is a function of its own so that it can be called without a
+ * server: what the page can ask for, and what it can write, are the
+ * two things worth testing.
+ */
+export function createEditorApi(root: string): (
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: string,
+) => Promise<void> {
+  return async (request, response, url) => {
+    if (url === "/api/editor" && request.method === "GET") {
+      respond(response, await describe(root));
+      return;
+    }
+    if (url === "/api/record" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const kind = String(body.kind ?? "location") as EditableKind;
+      const place = { file: body.file as string | undefined, index: body.index as number | undefined };
+      // The page sends what the person typed. What that means for a
+      // record - which fields it has, what an empty one means - is
+      // decided here, where it can be tested.
+      const values = (body.values ?? {}) as Record<string, string>;
+      const built = fieldsFromForm(kind, values);
+      if (!built.ok) {
+        respond(response, { ok: false, message: built.message });
+        return;
+      }
+      respond(response, await writeRecordFields(root, kind, place, built.fields));
+      return;
+    }
+    if (url === "/api/create" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const kind = String(body.kind ?? "location") as EditableKind;
+      const record = (body.record ?? {}) as Record<string, unknown>;
+      respond(response, await createRecord(root, kind, record));
+      return;
+    }
+    if (url === "/api/move" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      respond(
+        response,
+        await moveLocation(
+          root,
+          String(body.id ?? ""),
+          String(body.mapId ?? ""),
+          Number(body.x ?? 0),
+          Number(body.y ?? 0),
+        ),
+      );
+      return;
+    }
+    if (url === "/api/delete" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const kind = String(body.kind ?? "location") as EditableKind;
+      const place = { file: body.file as string | undefined, index: body.index as number | undefined };
+      respond(response, await deleteRecord(root, kind, place));
+      return;
+    }
+    if (url === "/api/image" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const data = String(body.data ?? "");
+      const bytes = Buffer.from(data.includes(",") ? data.split(",")[1] ?? "" : data, "base64");
+      respond(
+        response,
+        await saveMapImage(root, String(body.mapId ?? ""), String(body.fileName ?? "map.png"), bytes),
+      );
+      return;
+    }
+    response.statusCode = 404;
+    response.end("not found");
+  };
 }
 
 function respond(response: ServerResponse, payload: unknown): void {
@@ -139,7 +163,7 @@ async function describe(root: string): Promise<unknown> {
       map: location.map ?? "",
       at: location.at ?? null,
       tags: location.tags ?? [],
-      card: location.card ?? location.bio ?? "",
+      card: location.card ?? "",
       kind: location.kind ?? "fixed",
       file: source.file,
       index: source.index,
@@ -155,7 +179,7 @@ async function describe(root: string): Promise<unknown> {
       born: person.born ?? "",
       died: person.died ?? "",
       tags: person.tags ?? [],
-      card: person.bio ?? "",
+      bio: person.bio ?? "",
       file: source.file,
       index: source.index,
     };
@@ -170,6 +194,9 @@ async function describe(root: string): Promise<unknown> {
       title: event.title,
       when: event.when,
       where: typeof event.where === "string" ? event.where : "",
+      // A place given as a raw point on the map has no name to offer, so
+      // the editor leaves it alone rather than clearing it.
+      whereIsPoint: typeof event.where === "object" && event.where !== null,
       map: place?.mapId ?? "",
       at: place?.at ?? null,
       people: event.people ?? [],
