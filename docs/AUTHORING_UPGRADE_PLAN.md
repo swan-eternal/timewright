@@ -4,7 +4,7 @@ Baseline committed at `24703cd` (*"Build visual Studio editor, CRS.Simple viewer
 
 This plan breaks the next upgrade into **five small, self-contained phases** so each step stays fast, easy to review, and safe against context/output timeouts. Every phase leaves `npm run build` and `npm test` green.
 
-**Status: all five phases are done** (2026-11-17). Phase 1 `b586c4d` · Phase 2 `8a39486` · Phase 3 `e6402a2` · Phase 4 `03a742d` · Phase 5 `408cbb2`, plus the end-to-end smoke test `966c697`. 201 tests, 200 passing, 1 todo — the todo is the seam (a rename does not yet carry the references that pointed at it), which is deliberately visible rather than silently green.
+**Status: all five phases are done** (2026-11-17). Phase 1 `b586c4d` · Phase 2 `8a39486` · Phase 3 `e6402a2` · Phase 4 `03a742d` · Phase 5 `408cbb2`, plus the end-to-end smoke test `966c697` and the doc sync `90d109a`. 201 tests, 200 passing, 1 todo — the todo is the seam (a rename does not yet carry the references that pointed at it), which is deliberately visible rather than silently green. **Phase 6 below is written up but not started** — it needs Jason's go.
 
 ---
 
@@ -89,3 +89,25 @@ This plan breaks the next upgrade into **five small, self-contained phases** so 
 - **Clickable Character Pills on Event Form:**
   - Replace the plain comma-separated `people` text input with **clickable toggle pills** for every character in `People` (plus an inline `+ Quick Add Person` mini-input if a new character appears mid-scene).
 - **Final Verification:** `npm run build && npm test`, smoke-test end-to-end, and commit cleanly.
+
+---
+
+### Phase 6 — The Reference Seam (PROPOSED, not started — needs Jason's go)
+*Scope: Make a rename carry the references that pointed at the record, so the Studio can no longer lose an event's place. This is the one remaining issue that loses data today.*
+
+**Why it is not more than this.** `normalizeName` lowercases and strips punctuation, so `slugify("The Old Mill")` → `the-old-mill` normalizes to the same key as the name itself. The spelling difference between `map: the-region` and `map: The Region` is therefore **not** the problem — both resolve to the same record. The problem is only two things: **what gets written**, and **what survives a rename**. Everything below follows from that.
+
+- **Item 1 — permanent ids on creation** (`src/cli/world-edit.ts` → `createRecord`):
+  Studio-created records get an explicit `id:` written into the YAML, so the id stops being `slugify(name)` recomputed at load time. Reproduced today: create map "Region", place a location on it, rename the map to "The Region" in the Studio → `unknown map "region"`, and the file `region.yaml` → `the-region.yaml` drags the filename with it.
+- **Item 2 — one canonical reference-writing helper** (`src/cli/world-edit.ts`, `src/cli/commands/pick.ts`, `src/cli/commands/edit.ts`):
+  The spelling becomes **names for people and places, ids for maps** — the one rule all three writers follow. Today the Studio writes `map:` as the map's id while `src/cli/commands/pick.ts` writes raw `id ?? name` (an unresolved spelling the core then re-resolves). One helper, three callers.
+- **Item 3 — the rename cascade** (`src/cli/world-edit.ts` → `writeRecordFields`):
+  When a record is renamed, every reference that pointed at it is rewritten in the same pass. This is the part that loses data today, and it is independent of items 1–2 — which is why it can be done first if preferred.
+- **Item 4 — surface the name collisions** (`src/core/validate.ts`):
+  `NameIndex.collisions` is computed on every load and then **never reported** — two records answering to one name make a reference ambiguous, and nothing says so. Report it as a warning with the two names.
+
+**Order:** items 1–2 (small, and they make the cascade's job well-defined) → item 3 → item 4. Item 3 alone is the bug; the rest is the floor under it.
+
+**Deliberately not doing:** "names everywhere, ids nowhere" — it makes `map: The Local Neighbourhood` the on-disk form, which reads badly and still breaks on rename without a cascade, so it buys prose consistency and pays in plumbing.
+
+- **Verify:** `npm run typecheck && npm test`, plus an end-to-end rename that keeps the event's place (`test/studio-smoke.test.ts` already holds the `it.todo` for exactly this).
