@@ -171,4 +171,39 @@ describe("the editor's date", () => {
     assert.equal(quiet.whereMode, "general");
     assert.ok(quiet.fraction > arrival.fraction);
   });
+
+  it("marks the events that happen on the day being looked at", async () => {
+    const data = await editor(await world(), "1815");
+    const arrival = data.timeline.events.find((e: { title: string }) => e.title === "Arrival");
+    const quiet = data.timeline.events.find((e: { title: string }) => e.title === "A quiet year");
+    assert.equal(arrival.current, true);
+    assert.equal(quiet.current, false);
+  });
+
+  it("answers a playhead dragged along the strip", async () => {
+    const root = await world();
+    const { response, json } = capture();
+    await createEditorApi(root)(get(), response, "/api/editor", new URLSearchParams("fraction=0.5"));
+    const data = json();
+    assert.equal(data.activeDate, "1850");
+    assert.ok(Math.abs(data.timeline.activeFraction - 0.5) < 0.02);
+  });
+
+  it("lays out the route of a vessel", async () => {
+    const data = await editor(await world(), "1855");
+    const vessel = data.locations.find((l: { name: string }) => l.name === "Larkspur");
+    assert.equal(vessel.routes.length, 1);
+    assert.equal(vessel.routes[0].name, "Harbour");
+    assert.equal(vessel.routes[0].map, "region");
+    assert.deepEqual(vessel.routes[0].mapAt, [4, 4]);
+  });
+
+  it("counts the events at a place the way the Viewer counts them", async () => {
+    const root = await world();
+    const data = await editor(root, "1855");
+    const harbour = data.locations.find((l: { name: string }) => l.name === "Harbour");
+    assert.deepEqual(harbour.eventIds, [
+      data.events.find((e: { title: string }) => e.title === "Arrival").id,
+    ]);
+  });
 });

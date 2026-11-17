@@ -16,6 +16,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import {
   eventPlace,
+  eventsAtPlace,
   imageForDate,
   locationVisibleAt,
   mapChain,
@@ -23,8 +24,8 @@ import {
   resolveWorld,
 } from "../../core/derive.js";
 import { buildIndex } from "../../core/building.js";
-import { compareBounds, compareDates, parseDate } from "../../core/dates.js";
-import { dateFraction, eventDomain } from "../../core/scale.js";
+import { compareBounds, compareDates, dateValue, parseDate } from "../../core/dates.js";
+import { dateFraction, eventDomain, fractionDate } from "../../core/scale.js";
 import type { DateBound, ParsedDate } from "../../core/dates.js";
 import type { ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../../core/model.js";
 import { validateWorld } from "../../core/validate.js";
@@ -101,7 +102,15 @@ export function createEditorApi(root: string): (
 ) => Promise<void> {
   return async (request, response, url, query = new URLSearchParams()) => {
     if (url === "/api/editor" && request.method === "GET") {
-      respond(response, await describe(root, query.get("date") ?? undefined));
+      const fraction = query.get("fraction");
+      respond(
+        response,
+        await describe(
+          root,
+          query.get("date") ?? undefined,
+          fraction !== null && fraction !== "" ? Number(fraction) : undefined,
+        ),
+      );
       return;
     }
 
@@ -359,7 +368,11 @@ function respond(response: ServerResponse, payload: unknown): void {
   response.end(JSON.stringify(payload));
 }
 
-export async function describe(root: string, dateStr?: string): Promise<unknown> {
+export async function describe(
+  root: string,
+  dateStr?: string,
+  fraction?: number,
+): Promise<unknown> {
   const loaded = await loadWorld(root);
   const world = resolveWorld(loaded.data);
   const index = buildIndex(loaded.data);
@@ -368,7 +381,7 @@ export async function describe(root: string, dateStr?: string): Promise<unknown>
   // The date the Studio is looking at: what it asked for, or where the
   // world begins. Everything below - which image a map shows, where a
   // vessel is, who is present - is answered at this date.
-  const active = resolveActiveDate(world, dateStr);
+  const active = resolveActiveDate(world, dateStr, fraction);
   const atDate: DateBound | undefined = active.parsed;
   const extraWarnings: { message: string; record: string }[] = [];
   if (active.warning !== undefined) {
@@ -429,9 +442,26 @@ export async function describe(root: string, dateStr?: string): Promise<unknown>
     const placedMap = placed?.mapId ?? resolvedMap ?? "";
     const placedAt = placed?.at ?? location.at ?? null;
     const host = resolvedPlace !== undefined ? hostLocationName(world, resolvedPlace, atDate) : "";
-    const eventIds = world.events
-      .filter((event) => event.where?.location === record.id)
-      .map((event) => event.id);
+
+    // The places a vessel has been: every stop of its route, so the
+    // Studio can draw the whole journey and not only where it is today.
+    const routes = (resolvedPlace?.stays ?? []).map((stay) => {
+      const target = resolveLocationAt(world, stay.at, stay.from);
+      return {
+        at: stay.at,
+        name: world.locations.find((entry) => entry.id === stay.at)?.name ?? stay.at,
+        map: target?.mapId ?? "",
+        mapAt: target?.at ?? null,
+        from: stay.from?.raw ?? "",
+        until: stay.until?.raw ?? "",
+      };
+    });
+
+    // The events that happen here - the same ones the Viewer counts on
+    // this place's pin, so the two never disagree.
+    const eventIds = eventsAtPlace(world, record.id, placedMap === "" ? undefined : placedMap, atDate).map(
+      (event) => event.id,
+    );
 
     return {
       id: record.id,
@@ -457,6 +487,7 @@ export async function describe(root: string, dateStr?: string): Promise<unknown>
       resolvedMap: placedMap,
       resolvedAt: placedAt,
       hostLocationName: host,
+      routes,
       eventIds,
       file: record.file,
       index: record.index,
@@ -568,7 +599,16 @@ export async function describe(root: string, dateStr?: string): Promise<unknown>
 function resolveActiveDate(
   world: ResolvedWorld,
   dateStr: string | undefined,
-): { parsed: ParsedDate | undefined; warning?: string } {
+  fraction: number | undefined,
+): { parsed: DateBound | undefined; warning?: string } {
+  // A playhead dragged along the strip asks for its place in the time,
+  // not for a date: the world works out which day that is.
+  if (fraction !== undefined && Number.isFinite(fraction)) {
+    const domain = eventDomain(world, { includeUnplaced: true });
+    if (domain !== undefined) {
+      return { parsed: fractionDate(Math.min(Math.max(fraction, 0), 1), domain) };
+    }
+  }
   const options = { calendar: world.calendar };
   if (dateStr !== undefined && dateStr.trim() !== "") {
     try {
@@ -603,29 +643,52 @@ function defaultActiveDate(world: ResolvedWorld): ParsedDate | undefined {
  * Every event the creator wrote gets a tick, including the ones with no
  * place on a map: the Studio is for authoring, so nothing is hidden from
  * the person doing the authoring.
+ *
+ * The strip is also the thing the playhead moves along, so it carries
+ * the numbers a client needs to turn a fraction of the strip back into a
+ * date without re-reading the world.
  */
 function buildTimeline(
   world: ResolvedWorld,
   atDate: DateBound | undefined,
-): { start: string; end: string; events: unknown[] } {
+): {
+  start: string;
+  end: string;
+  startValue: number;
+  endValue: number;
+  activeFraction: number;
+  activeValue: number;
+  events: unknown[];
+} {
   const domain = eventDomain(world, { includeUnplaced: true });
-  const events = world.events.map((event) => {
-    const place = eventPlace(world, event, atDate);
-    const whereMode =
-      event.where === undefined ? "general" : event.where.location !== undefined ? "location" : "point";
-    return {
-      id: event.id,
-      title: event.title,
-      when: event.when.raw,
-      fraction: domain !== undefined ? dateFraction(event.when, domain) : 0,
-      whereMode,
-      map: place?.mapId ?? "",
-      locationId: place?.location?.id ?? "",
-    };
-  });
+  const events = world.events
+    .map((event) => {
+      const place = eventPlace(world, event);
+      const whereMode =
+        event.where === undefined ? "general" : event.where.location !== undefined ? "location" : "point";
+      return {
+        id: event.id,
+        title: event.title,
+        when: event.when.raw,
+        value: dateValue(event.when),
+        fraction: domain !== undefined ? dateFraction(event.when, domain) : 0,
+        whereMode,
+        map: place?.mapId ?? "",
+        locationId: place?.location?.id ?? "",
+        current:
+          atDate !== undefined && domain !== undefined && compareBounds(atDate, event.when) === 0,
+      };
+    })
+    .sort((a, b) => a.value - b.value);
+
   return {
     start: domain?.from.raw ?? "",
     end: domain?.to.raw ?? "",
+    startValue: domain !== undefined ? dateValue(domain.from) : 0,
+    endValue: domain !== undefined ? dateValue(domain.to) : 0,
+    activeFraction:
+      domain !== undefined && atDate !== undefined ? dateFraction(atDate, domain) : 0,
+    activeValue: atDate !== undefined ? dateValue(atDate) : 0,
     events,
   };
 }
@@ -642,6 +705,10 @@ function hostLocationName(
   location: ResolvedLocation,
   atDate: DateBound | undefined,
 ): string {
+  // A fixed place hosts nothing: it is the thing being hosted.
+  if (location.kind !== "mobile") {
+    return "";
+  }
   const hostId = hostLocationId(world, location.id, atDate, 0);
   if (hostId === undefined) {
     return "";

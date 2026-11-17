@@ -71,6 +71,32 @@
       .ed-pin.selected .ed-dot { box-shadow: 0 0 0 3px rgba(31,79,160,0.38), 0 1px 5px rgba(0,0,0,0.5); }
       .ed-lbl { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,253,248,0.92); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 10px; font-weight: 600; white-space: nowrap; pointer-events: none; }
       .ed-sub { position: absolute; top: -5px; right: -5px; width: 11px; height: 11px; line-height: 11px; text-align: center; border-radius: 50%; background: var(--portal); color: #fff; font-size: 8px; font-weight: 700; pointer-events: auto; cursor: pointer; }
+      /* A vessel: a chip beside the place hosting it, never on top of it. */
+      .ed-pin.mobile .ed-dot { background: var(--portal); border-radius: 3px; width: 11px; height: 11px; }
+      .ed-pin.mobile { transform: translate(12px, -12px); }
+      /* Out of era: shown, but quiet. */
+      .ed-pin.dim { opacity: 0.32; }
+      /* How many things happen at this place. */
+      .ed-badge { position: absolute; top: -6px; left: -6px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--event); color: #fff; font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; pointer-events: auto; cursor: pointer; }
+      .ed-pin.current .ed-dot { box-shadow: 0 0 0 3px rgba(179,84,30,0.42), 0 1px 5px rgba(0,0,0,0.5); }
+      /* The strip of time under the canvas */
+      #editor-timeline { border-top: 1px solid var(--line); background: var(--panel); padding: 0.35rem 0.6rem 0.45rem; }
+      .tl-bar { display: flex; gap: 0.35rem; align-items: center; font-size: 0.78rem; color: var(--muted); }
+      .tl-bar input { width: 7.5rem; padding: 0.2rem 0.4rem; border: 1px solid var(--line); border-radius: 5px; font-size: 0.78rem; }
+      .tl-range { font-size: 0.74rem; }
+      #tl-strip { position: relative; height: 3.1rem; margin-top: 0.25rem; }
+      .tl-axis { position: absolute; left: 0; right: 0; top: 0.5rem; height: 0.7rem; background: #f1ece1; border-top: 2px solid var(--line); }
+      .tl-tick { position: absolute; top: -0.35rem; width: 2px; height: 0.9rem; background: var(--muted); cursor: pointer; }
+      .tl-tick.current { background: var(--event); height: 1.15rem; top: -0.5rem; }
+      .tl-labels { position: absolute; left: 0; right: 0; top: 1.3rem; height: 1.7rem; }
+      .tl-tick-label { position: absolute; transform: translateX(-50%); font-size: 0.68rem; color: var(--muted); white-space: nowrap; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
+      #tl-playhead { position: absolute; top: 0.15rem; width: 2px; height: 1.35rem; background: var(--accent); cursor: ew-resize; }
+      #tl-playhead::after { content: ""; position: absolute; top: -0.35rem; left: -0.3rem; border: 0.35rem solid transparent; border-top-color: var(--accent); }
+      #coord-readout { bottom: 4.3rem; }
+      /* A link to an event, inside a location's form */
+      .ev-link { display: block; width: 100%; text-align: left; padding: 0.22rem 0.35rem; margin-bottom: 0.15rem; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; font-size: 0.79rem; }
+      .ev-link:hover { background: var(--accent-soft); border-color: var(--accent); }
+      .ev-link .when { color: var(--muted); font-size: 0.72rem; }
       /* Modals */
       .modal-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(25,22,18,0.55); display: flex; align-items: center; justify-content: center; padding: 1.2rem; }
       .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(68rem, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.28); }
@@ -98,6 +124,18 @@
       <div id="map-stage">
         <div id="mode-banner" hidden></div>
         <div id="map"></div>
+        <div id="editor-timeline">
+          <div class="tl-bar">
+            <input id="tl-date" type="text" placeholder="Date, e.g. 1815" aria-label="Current date" />
+            <button id="tl-go" class="toolbar-btn" type="button">Go</button>
+            <button id="tl-prev" class="toolbar-btn" type="button" title="Previous event">‹ Prev</button>
+            <button id="tl-next" class="toolbar-btn" type="button" title="Next event">Next ›</button>
+            <span id="tl-range" class="tl-range"></span>
+            <span class="spacer"></span>
+            <button id="tl-mode" class="toolbar-btn" type="button" title="At Date shows the world as it is on this day; All Time shows everything">All Time</button>
+          </div>
+          <div id="tl-strip"><div id="tl-playhead"></div></div>
+        </div>
         <div id="coord-readout">x: —, y: —</div>
       </div>
       <aside>
@@ -180,6 +218,9 @@
         imgW: 1200,
         imgH: 800,
         loadedMapKey: "",
+        date: "",
+        mode: "date", // "date" | "all"
+        fraction: null, // playhead position, when the strip was dragged
       };
 
       const el = (id) => document.getElementById(id);
@@ -296,7 +337,7 @@
         S.mapId = mapObj.id;
         S.imgW = mapObj.size?.[0] || 1200;
         S.imgH = mapObj.size?.[1] || 800;
-        const firstImg = mapObj.images?.[0]?.file || "";
+        const firstImg = (S.mode === "date" ? mapObj.activeImage : mapObj.images?.[0]?.file) || mapObj.images?.[0]?.file || "";
         const mapKey = `${mapObj.id}:${firstImg}:${S.imgW}x${S.imgH}`;
 
         if (mapKey !== S.loadedMapKey || forceFit) {
@@ -319,48 +360,77 @@
 
         S.pins = [];
         for (const loc of S.data.locations) {
-          if (loc.kind === "mobile" || loc.map !== mapId || !Array.isArray(loc.at)) continue;
+          const isMobile = loc.kind === "mobile";
           const isSel = S.tab === "locations" && S.selectedId === loc.id;
           const hasSub = Boolean(loc.opens);
-          const cls = `ed-pin${hasSub ? " portal" : ""}${isSel ? " selected" : ""}`;
-          const icon = L.divIcon({
-            className: "ed-icon",
-            html: `<div class="${cls}"><span class="ed-dot"></span><span class="ed-lbl">${esc(loc.name)}</span>${hasSub ? '<span class="ed-sub" title="Open sub-map">↘</span>' : ""}</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
-          });
-          const m = L.marker(pixelToLatLng(loc.at[0], loc.at[1]), { icon, draggable: true });
-          m.twKind = "locations";
-          m.twId = loc.id;
-          m.bindTooltip(hasSub ? `${esc(loc.name)} (click ↘ to open sub-map · drag to move)` : `${esc(loc.name)} (drag to move)`, { direction: "top", offset: [0, -10] });
-          m.on("click", (e) => {
-            if (hasSub && clickedBadge(e)) { openSubMap(loc.opens); return; }
-            S.tab = "locations"; S.selectedId = loc.id; renderSidebar(); setPinSelection();
-          });
-          m.on("dblclick", (e) => {
-            if (loc.opens) { L.DomEvent.stopPropagation(e); openSubMap(loc.opens); }
-          });
-          m.on("dragend", async () => {
-            const [nx, ny] = latLngToPixel(m.getLatLng());
-            const res = await api("/api/move", { kind: "location", id: loc.id, mapId, x: nx, y: ny });
-            await refresh(res.message, !res.ok);
-          });
-          m.addTo(S.pinLayer);
-          S.pins.push(m);
+          const dim = S.mode === "date" && loc.visibleAtDate === false;
+          const count = (loc.eventIds || []).length;
+
+          // Where this place stands on the canvas. A fixed place has one
+          // spot; a vessel has wherever it is that day, or every stop of
+          // its route when the Studio is showing the whole world.
+          const spots = [];
+          if (isMobile) {
+            if (S.mode === "all") {
+              for (const route of loc.routes || []) {
+                if (route.map && Array.isArray(route.mapAt)) spots.push({ map: route.map, at: route.mapAt });
+              }
+            } else if (loc.resolvedMap && Array.isArray(loc.resolvedAt)) {
+              spots.push({ map: loc.resolvedMap, at: loc.resolvedAt });
+            }
+          } else if (loc.map && Array.isArray(loc.at)) {
+            spots.push({ map: loc.map, at: loc.at });
+          }
+
+          for (const spot of spots) {
+            if (spot.map !== mapId) continue;
+            const cls = `ed-pin${isMobile ? " mobile" : ""}${hasSub ? " portal" : ""}${isSel ? " selected" : ""}${dim ? " dim" : ""}`;
+            const badge = count > 0 ? `<span class="ed-badge" title="${count} event(s) here">${count}</span>` : "";
+            const icon = L.divIcon({
+              className: "ed-icon",
+              html: `<div class="${cls}"><span class="ed-dot"></span><span class="ed-lbl">${esc(loc.name)}</span>${badge}${hasSub ? '<span class="ed-sub" title="Open sub-map">↘</span>' : ""}</div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
+            });
+            const m = L.marker(pixelToLatLng(spot.at[0], spot.at[1]), { icon, draggable: !isMobile });
+            m.twKind = "locations";
+            m.twId = loc.id;
+            const host = loc.hostLocationName ? ` · at ${loc.hostLocationName}` : "";
+            m.bindTooltip(`${esc(loc.name)}${host}${dim ? " · not in this era" : ""}${hasSub ? " (click ↘ to open sub-map · drag to move)" : ""}`, { direction: "top", offset: [0, -10] });
+            m.on("click", (e) => {
+              if (hasSub && clickedBadge(e)) { openSubMap(loc.opens); return; }
+              S.tab = "locations"; S.selectedId = loc.id; renderSidebar(); setPinSelection();
+            });
+            m.on("dblclick", (e) => {
+              if (loc.opens) { L.DomEvent.stopPropagation(e); openSubMap(loc.opens); }
+            });
+            m.on("dragend", async () => {
+              const [nx, ny] = latLngToPixel(m.getLatLng());
+              const res = await api("/api/move", { kind: "location", id: loc.id, mapId, x: nx, y: ny });
+              await refresh(res.message, !res.ok);
+            });
+            m.addTo(S.pinLayer);
+            S.pins.push(m);
+          }
         }
 
         for (const ev of S.data.events) {
+          // An event that happens at a place is counted on that place's
+          // pin, the same as the Viewer counts it. Only a point of its
+          // own keeps a marker of its own.
+          if (ev.whereMode === "location") continue;
           if (ev.map !== mapId || !Array.isArray(ev.at)) continue;
           const isSel = S.tab === "events" && S.selectedId === ev.id;
           const draggable = ev.whereMode === "point";
+          const current = (S.data.timeline?.events || []).some((t) => t.id === ev.id && t.current);
           const icon = L.divIcon({
             className: "ed-icon",
-            html: `<div class="ed-pin event${isSel ? " selected" : ""}"><span class="ed-dot"></span></div>`,
+            html: `<div class="ed-pin event${isSel ? " selected" : ""}${current ? " current" : ""}"><span class="ed-dot"></span></div>`,
             iconSize: [20, 20],
             iconAnchor: [10, 10],
           });
-          const ox = ev.whereMode === "location" ? ev.at[0] + 10 : ev.at[0];
-          const oy = ev.whereMode === "location" ? ev.at[1] - 10 : ev.at[1];
+          const ox = ev.at[0];
+          const oy = ev.at[1];
           const m = L.marker(pixelToLatLng(ox, oy), { icon, draggable, zIndexOffset: 200 });
           m.twKind = "events";
           m.twId = ev.id;
@@ -674,6 +744,123 @@
         };
       }
 
+      // The strip of time under the canvas: a tick for every event, and
+      // a playhead where the day being looked at sits.
+      function renderTimeline() {
+        const timeline = S.data?.timeline;
+        const strip = el("tl-strip");
+        if (!timeline || !strip) return;
+        el("tl-range").textContent = timeline.start ? `${timeline.start} – ${timeline.end}` : "";
+        const dateInput = el("tl-date");
+        if (S.data.activeDate && document.activeElement !== dateInput) dateInput.value = S.data.activeDate;
+        el("tl-mode").textContent = S.mode === "date" ? "All Time" : "At Date";
+        el("tl-mode").classList.toggle("active", S.mode === "date");
+
+        strip.innerHTML = "";
+        const axis = document.createElement("div");
+        axis.className = "tl-axis";
+        const labels = document.createElement("div");
+        labels.className = "tl-labels";
+        for (const ev of timeline.events || []) {
+          const pct = Math.max(0, Math.min(100, ev.fraction * 100));
+          const tick = document.createElement("div");
+          tick.className = "tl-tick" + (ev.current ? " current" : "");
+          tick.style.left = pct + "%";
+          tick.title = `${ev.title} — ${ev.when}`;
+          tick.onclick = () => { S.date = ev.when; S.mode = "date"; refresh(); };
+          axis.appendChild(tick);
+          const label = document.createElement("div");
+          label.className = "tl-tick-label";
+          label.style.left = pct + "%";
+          label.textContent = ev.title;
+          label.title = `${ev.title} — ${ev.when}`;
+          labels.appendChild(label);
+        }
+        strip.appendChild(axis);
+        strip.appendChild(labels);
+        const head = document.createElement("div");
+        head.id = "tl-playhead";
+        head.style.left = Math.max(0, Math.min(100, (timeline.activeFraction || 0) * 100)) + "%";
+        head.title = S.data.activeDate ? `At ${S.data.activeDate}` : "";
+        strip.appendChild(head);
+      }
+
+      // The events at a place, as links the creator can follow.
+      function eventsAtLocation(loc) {
+        const ids = new Set(loc.eventIds || []);
+        const events = (S.data?.events || []).filter((e) => ids.has(e.id));
+        if (events.length === 0) {
+          return `<p class="hint">Nothing happens here yet.</p>`;
+        }
+        return events
+          .map(
+            (e) =>
+              `<button type="button" class="ev-link" data-ev="${esc(e.id)}"><span>${esc(e.title)}</span> <span class="when">${esc(e.when)}</span></button>`,
+          )
+          .join("");
+      }
+
+      function jumpToEvent(id) {
+        const ev = (S.data?.events || []).find((e) => e.id === id);
+        if (!ev) return;
+        S.tab = "events";
+        S.selectedId = id;
+        if (ev.map && ev.map !== S.mapId) { S.mapId = ev.map; syncHeader(); renderMapCanvas(true); }
+        renderSidebar();
+        setPinSelection();
+      }
+
+      // Stepping along the strip: the event before, or the event after.
+      function stepEvent(direction) {
+        const events = S.data?.timeline?.events || [];
+        if (events.length === 0) return;
+        const active = S.data.timeline.activeValue;
+        const target =
+          direction < 0
+            ? [...events].reverse().find((e) => e.value < active - 1e-9)
+            : events.find((e) => e.value > active + 1e-9);
+        if (!target) return say(direction < 0 ? "Nothing earlier." : "Nothing later.", true);
+        S.date = target.when;
+        S.fraction = null;
+        S.mode = "date";
+        refresh("", false).then(() => jumpToEvent(target.id));
+      }
+
+      // The playhead can be dragged along the strip: the world works out
+      // which day that is, rather than the browser guessing.
+      function bindTimelineDrag() {
+        const strip = el("tl-strip");
+        let dragging = false;
+        const fractionAt = (clientX) => {
+          const rect = strip.getBoundingClientRect();
+          if (rect.width <= 0) return null;
+          return Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+        };
+        const show = (fraction) => {
+          S.fraction = fraction;
+          const head = el("tl-playhead");
+          if (head) head.style.left = Math.max(0, Math.min(100, fraction * 100)) + "%";
+        };
+        strip.addEventListener("pointerdown", (e) => {
+          if (e.target.classList && e.target.classList.contains("tl-tick")) return;
+          dragging = true;
+          strip.setPointerCapture(e.pointerId);
+          const fraction = fractionAt(e.clientX);
+          if (fraction !== null) show(fraction);
+        });
+        strip.addEventListener("pointermove", (e) => {
+          if (!dragging) return;
+          const fraction = fractionAt(e.clientX);
+          if (fraction !== null) show(fraction);
+        });
+        strip.addEventListener("pointerup", () => {
+          if (!dragging) return;
+          dragging = false;
+          S.mode = "date";
+          refresh();
+        });
+      }
+
       function renderLocationForm(loc) {
         const wrap = el("form-wrap");
         const isMobile = loc.kind === "mobile";
@@ -729,6 +916,10 @@
             <label class="field">Tags (comma-separated)
               <input name="tags" value="${esc((loc.tags || []).join(", "))}" />
             </label>
+            <div class="box">
+              <div class="box-title">Events at this Location</div>
+              ${eventsAtLocation(loc)}
+            </div>
             <label class="field">Description Card (Markdown)
               <textarea name="card" rows="4">${esc(loc.card)}</textarea>
             </label>
@@ -739,6 +930,9 @@
           </form>
         `;
         bindStaysInteractive(wrap);
+        wrap.querySelectorAll("[data-ev]").forEach((btn) => {
+          btn.onclick = () => jumpToEvent(btn.dataset.ev);
+        });
         wrap.querySelector("#loc-kind").onchange = (e) => {
           const mob = e.target.value === "mobile";
           wrap.querySelector("#loc-coords-row").hidden = mob;
@@ -945,14 +1139,25 @@
         };
       }
 
+      // The world is asked about a day: the day the creator is looking at.
+      function editorQuery() {
+        if (S.mode !== "date") return "";
+        if (S.fraction !== null && S.fraction !== undefined) {
+          return `?fraction=${S.fraction}`;
+        }
+        if (!S.date.trim()) return "";
+        return `?date=${encodeURIComponent(S.date.trim())}`;
+      }
+
       async function refresh(statusMsg = "", isErr = false) {
-        S.data = await api("/api/editor");
+        S.data = await api("/api/editor" + editorQuery());
         if (!S.mapId || !(S.data.maps || []).some((m) => m.id === S.mapId)) {
           S.mapId = S.data.world?.overworld || S.data.maps?.[0]?.id || "";
         }
         syncHeader();
         renderMapCanvas(false);
         renderSidebar();
+        renderTimeline();
         if (statusMsg) say(statusMsg, isErr);
       }
 
@@ -1008,6 +1213,26 @@
         el("place-evt-btn").onclick = () => setPlacing("event");
         el("new-record-btn").onclick = () => handleNewRecord();
         el("list-filter").oninput = (e) => { S.filter = e.target.value; renderSidebar(); };
+        el("tl-go").onclick = () => {
+          S.date = el("tl-date").value.trim();
+          S.fraction = null;
+          S.mode = "date";
+          refresh();
+        };
+        el("tl-date").onkeydown = (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            el("tl-go").click();
+          }
+        };
+        el("tl-prev").onclick = () => stepEvent(-1);
+        el("tl-next").onclick = () => stepEvent(1);
+        el("tl-mode").onclick = () => {
+          S.mode = S.mode === "date" ? "all" : "date";
+          S.fraction = null;
+          refresh();
+        };
+        bindTimelineDrag();
 
         document.querySelectorAll(".tabs button").forEach((btn) => {
           btn.onclick = () => {
