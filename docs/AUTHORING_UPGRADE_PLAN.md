@@ -4,6 +4,8 @@ Baseline committed at `24703cd` (*"Build visual Studio editor, CRS.Simple viewer
 
 This plan breaks the next upgrade into **five small, self-contained phases** so each step stays fast, easy to review, and safe against context/output timeouts. Every phase leaves `npm run build` and `npm test` green.
 
+**Status: all five phases are done** (2026-11-17). Phase 1 `b586c4d` · Phase 2 `8a39486` · Phase 3 `e6402a2` · Phase 4 `03a742d` · Phase 5 `408cbb2`, plus the end-to-end smoke test `966c697`. 201 tests, 200 passing, 1 todo — the todo is the seam (a rename does not yet carry the references that pointed at it), which is deliberately visible rather than silently green.
+
 ---
 
 ## Goals & Decisions Locked In
