@@ -59,22 +59,37 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
   // Module preloads point at files that are no longer separate.
   html = html.replace(/<link[^>]*rel="modulepreload"[^>]*>/g, "");
 
-  // The map images become data URIs, so nothing points at a file that is
-  // not there.
+  // The map images and entity images become data URIs, so nothing points at
+  // a file that is not there.
+  const inlinePath = async (relPath: string | undefined): Promise<string | undefined> => {
+    if (
+      relPath === undefined ||
+      relPath.startsWith("data:") ||
+      relPath.startsWith("http://") ||
+      relPath.startsWith("https://")
+    ) {
+      return relPath;
+    }
+    const file = path.join(outDir, relPath);
+    try {
+      const bytes = await readFile(file);
+      const type = MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+      return `data:${type};base64,${bytes.toString("base64")}`;
+    } catch {
+      return relPath;
+    }
+  };
+
   for (const map of world.maps) {
     for (const image of map.images) {
-      if (image.path === undefined || image.path.startsWith("data:")) {
-        continue;
-      }
-      const file = path.join(outDir, image.path);
-      try {
-        const bytes = await readFile(file);
-        const type = MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
-        image.path = `data:${type};base64,${bytes.toString("base64")}`;
-      } catch {
-        // A missing image is the validator's problem, not ours.
-      }
+      image.path = await inlinePath(image.path);
     }
+  }
+  for (const person of world.people) {
+    person.image = await inlinePath(person.image);
+  }
+  for (const location of world.locations) {
+    location.image = await inlinePath(location.image);
   }
 
   const json = JSON.stringify(world).replace(/</g, "\\u003c");

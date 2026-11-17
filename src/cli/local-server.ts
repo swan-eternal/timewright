@@ -2,7 +2,7 @@
  * A local server for the tools that touch a world by hand.
  *
  * The picker and the editor both want the same things: the page, Leaflet,
- * the map images, and a place to answer API calls. This is that plumbing.
+ * the map images, media assets, and a place to answer API calls.
  *
  * It binds to 127.0.0.1 and is never deployed.
  */
@@ -21,7 +21,12 @@ export interface LocalServerOptions {
   /** The HTML page served at /. */
   page: string;
   /** Handles /api/ calls that are not image requests. */
-  api: (request: IncomingMessage, response: ServerResponse, url: string) => Promise<void>;
+  api: (
+    request: IncomingMessage,
+    response: ServerResponse,
+    url: string,
+    query: URLSearchParams,
+  ) => Promise<void>;
   /** The image file for a map, if it has one. */
   image?: ((mapId: string) => Promise<string | undefined>) | undefined;
 }
@@ -34,20 +39,6 @@ export interface LocalServerAddress {
 
 /**
  * Whether a request may touch the world.
- *
- * The server listens on the loopback address, but a page in the user's
- * browser can still reach it, and a name pointed at 127.0.0.1 can reach
- * it from anywhere. Two headers answer both.
- *
- * The Host header has to name this machine. A rebound name would
- * arrive as some other name, so it is turned away.
- *
- * A request that changes something has to come from the page this
- * server served: its Origin has to be the same origin as its Host. A
- * browser sends an Origin on every request that changes something, so a
- * request without one is a local program rather than a page. An opaque
- * origin is turned away: a sandboxed frame is something any site can
- * hold.
  */
 export function requestIsAllowed(request: IncomingMessage, host: string): boolean {
   const header = request.headers.host;
@@ -63,12 +54,9 @@ export function requestIsAllowed(request: IncomingMessage, host: string): boolea
   }
   const origin = request.headers.origin;
   if (origin === undefined) {
-    // No Origin at all is a local program, not a page: a browser sends
-    // one on every request that changes something, cross-origin or not.
     return true;
   }
   if (origin === "null") {
-    // An opaque origin: a sandboxed frame, which any site may hold.
     return false;
   }
   let originHost: string;
@@ -80,14 +68,12 @@ export function requestIsAllowed(request: IncomingMessage, host: string): boolea
   return originHost.toLowerCase() === header.toLowerCase();
 }
 
-/** The hostname in a host header, without the port. */
 function hostnameOf(host: string): string {
   const trimmed = host.trim().toLowerCase();
   if (trimmed.startsWith("[")) {
     const end = trimmed.indexOf("]");
     return end === -1 ? trimmed : trimmed.slice(1, end);
   }
-  // A bare IPv6 address has several colons and no port to strip.
   if (trimmed.indexOf(":") !== trimmed.lastIndexOf(":")) {
     return trimmed;
   }
@@ -95,7 +81,6 @@ function hostnameOf(host: string): string {
   return colon === -1 ? trimmed : trimmed.slice(0, colon);
 }
 
-/** Whether a hostname names this machine. */
 function isLocalName(hostname: string, host: string): boolean {
   return (
     hostname === "127.0.0.1" ||
@@ -125,7 +110,10 @@ export async function startLocalServer(options: LocalServerOptions): Promise<Loc
   });
 
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    const url = (request.url ?? "/").split("?")[0];
+    const rawUrl = request.url ?? "/";
+    const qIndex = rawUrl.indexOf("?");
+    const url = qIndex === -1 ? rawUrl : rawUrl.slice(0, qIndex);
+    const query = new URLSearchParams(qIndex === -1 ? "" : rawUrl.slice(qIndex + 1));
     if (!requestIsAllowed(request, options.host)) {
       response.statusCode = 403;
       response.end("forbidden");
@@ -155,12 +143,34 @@ export async function startLocalServer(options: LocalServerOptions): Promise<Loc
           response.end("no image for that map");
           return;
         }
+        response.setHeader("Cache-Control", "no-store");
         response.setHeader("Content-Type", MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream");
         response.end(await readFile(file));
         return;
       }
+      if (url.startsWith("/api/world-media/")) {
+        const rel = decodeURIComponent(url.slice("/api/world-media/".length));
+        const rootResolved = path.resolve(options.root);
+        const candidate = path.resolve(rootResolved, rel);
+        const relCheck = path.relative(rootResolved, candidate);
+        if (relCheck.startsWith("..") || path.isAbsolute(relCheck)) {
+          response.statusCode = 403;
+          response.end("forbidden");
+          return;
+        }
+        const ext = path.extname(candidate).toLowerCase();
+        if (MIME[ext] === undefined) {
+          response.statusCode = 404;
+          response.end("unsupported media");
+          return;
+        }
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Content-Type", MIME[ext]);
+        response.end(await readFile(candidate));
+        return;
+      }
       if (url.startsWith("/api/")) {
-        await options.api(request, response, url);
+        await options.api(request, response, url, query);
         return;
       }
       response.statusCode = 404;

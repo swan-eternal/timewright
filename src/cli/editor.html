@@ -3,526 +3,1049 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Timewright editor</title>
+    <title>Timewright Studio</title>
     <link rel="stylesheet" href="/leaflet/leaflet.css" />
     <style>
-      :root { --bg: #f7f4ee; --panel: #fffdf8; --ink: #2b2620; --muted: #6b6155; --line: #ddd4c4; --accent: #1f4fa0; --event: #b3541e; }
+      :root {
+        --bg: #f7f4ee; --panel: #fffdf8; --ink: #2b2620; --muted: #6b6155;
+        --line: #ddd4c4; --accent: #1f4fa0; --accent-soft: #e8eef9;
+        --event: #b3541e; --portal: #6a3fb5; --danger: #a3352f;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
-      header { display: flex; gap: 0.6rem; align-items: center; padding: 0.5rem 0.9rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-      header h1 { font-size: 1rem; margin: 0 1rem 0 0; }
+      [hidden] { display: none !important; }
+      html, body { height: 100%; margin: 0; }
+      body { font: 14px/1.42 system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
       select, input, button, textarea { font: inherit; }
-      select, header button { padding: 0.35rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
-      header button.active { border-color: var(--accent); background: #e8eef9; color: var(--accent); }
-      #status { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
-      main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; height: calc(100vh - 3.4rem); }
-      #map { min-height: 0; background: #ded7c9; }
-      aside { border-left: 1px solid var(--line); background: var(--panel); display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
-      .tabs { display: flex; border-bottom: 1px solid var(--line); }
-      .tabs button { flex: 1; padding: 0.5rem; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; }
-      .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
-      .list-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
-      .list-head button { margin-left: auto; padding: 0.2rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
-      #list { list-style: none; margin: 0; padding: 0.35rem 0.5rem; overflow: auto; max-height: 34vh; }
-      #list li { margin-bottom: 0.2rem; }
-      #list button { width: 100%; text-align: left; padding: 0.4rem 0.6rem; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; }
+      header { display: flex; gap: 0.5rem; align-items: center; padding: 0.45rem 0.8rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      .brand { font-weight: 700; font-size: 0.98rem; margin-right: 0.35rem; }
+      .crumbs { display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
+      .crumbs button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0.1rem 0.2rem; font-weight: 600; }
+      .toolbar-btn, header select { padding: 0.32rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); cursor: pointer; font-size: 0.84rem; }
+      .toolbar-btn:hover { background: #f3ede0; }
+      .toolbar-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+      .toolbar-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      .spacer { flex: 1; }
+      #status { font-size: 0.82rem; color: var(--muted); max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #status.error { color: var(--danger); font-weight: 600; }
+      main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 26rem; }
+      #map-stage { position: relative; min-height: 0; display: flex; flex-direction: column; }
+      #map { flex: 1; min-height: 0; background: #ded7c9; }
+      #mode-banner { position: absolute; top: 0.65rem; left: 50%; transform: translateX(-50%); z-index: 600; padding: 0.35rem 0.8rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.84rem; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+      #coord-readout { position: absolute; left: 0.6rem; bottom: 0.5rem; z-index: 500; padding: 0.18rem 0.5rem; border-radius: 5px; background: rgba(255,253,248,0.88); border: 1px solid var(--line); font-size: 0.76rem; color: var(--muted); pointer-events: none; }
+      aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+      .tabs { display: flex; border-bottom: 1px solid var(--line); background: #f4efe4; }
+      .tabs button { flex: 1; padding: 0.5rem 0.25rem; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; font-size: 0.82rem; color: var(--muted); }
+      .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); background: var(--panel); font-weight: 600; }
+      #list-pane { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); max-height: 36%; min-height: 7rem; }
+      .list-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
+      .list-head input { flex: 1; min-width: 0; padding: 0.22rem 0.45rem; border: 1px solid var(--line); border-radius: 5px; font-size: 0.8rem; }
+      #list { list-style: none; margin: 0; padding: 0.3rem 0.45rem; overflow: auto; flex: 1; }
+      #list li { margin-bottom: 0.15rem; }
+      #list button { width: 100%; text-align: left; padding: 0.36rem 0.55rem; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem; }
       #list button:hover { background: #f3ede0; }
-      #list button.active { border-color: var(--accent); background: #e8eef9; }
-      #list .where { color: var(--muted); font-size: 0.8rem; }
-      #form { padding: 0.75rem 0.9rem 1.5rem; overflow: auto; border-top: 1px solid var(--line); }
-      #form label { display: block; margin-bottom: 0.55rem; font-size: 0.85rem; color: var(--muted); }
-      #form input, #form textarea, #form select { display: block; width: 100%; margin-top: 0.2rem; padding: 0.4rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
-      #form textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
-      .row { display: flex; gap: 0.4rem; }
-      .row label { flex: 1; }
-      .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-      .actions button { padding: 0.4rem 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
-      .actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-      .actions button.danger { color: #a3352f; border-color: #d9b4b1; }
-      p.hint { color: var(--muted); font-size: 0.85rem; }
-      @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+      #list button.active { border-color: var(--accent); background: var(--accent-soft); }
+      .sub { color: var(--muted); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9rem; }
+      #form-wrap { flex: 1; overflow: auto; padding: 0.75rem 0.85rem 1.5rem; }
+      .field { display: block; margin-bottom: 0.55rem; font-size: 0.8rem; color: var(--muted); }
+      .field input, .field textarea, .field select { display: block; width: 100%; margin-top: 0.18rem; padding: 0.36rem 0.48rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+      .field textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; resize: vertical; }
+      .row { display: flex; gap: 0.45rem; }
+      .row > * { flex: 1; min-width: 0; }
+      .box { padding: 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: #faf6ee; margin-bottom: 0.6rem; }
+      .box-title { font-size: 0.78rem; font-weight: 600; color: var(--ink); margin: 0 0 0.4rem; display: flex; justify-content: space-between; align-items: center; }
+      .mini-row { display: flex; gap: 0.3rem; margin-bottom: 0.3rem; align-items: center; }
+      .mini-row input, .mini-row select { padding: 0.25rem 0.38rem; border: 1px solid var(--line); border-radius: 5px; font-size: 0.78rem; min-width: 0; flex: 1; background: #fff; }
+      .icon-btn { padding: 0.2rem 0.45rem; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; font-size: 0.78rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.7rem; }
+      .actions button { padding: 0.38rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.84rem; }
+      .actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      .actions button.danger { color: var(--danger); border-color: #d9b4b1; margin-left: auto; }
+      .hint { color: var(--muted); font-size: 0.8rem; margin: 0.25rem 0 0.55rem; }
+      .issues-bar { padding: 0.35rem 0.75rem; background: #fff4e5; border-top: 1px solid #ebd2b0; font-size: 0.78rem; color: #7a4b12; max-height: 5rem; overflow: auto; }
+      /* Pins */
+      .ed-icon { background: none; border: 0; }
+      .ed-pin { position: relative; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+      .ed-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+      .ed-pin.portal .ed-dot { background: var(--portal); width: 15px; height: 15px; }
+      .ed-pin.event .ed-dot { border-radius: 2px; transform: rotate(45deg); background: var(--event); width: 12px; height: 12px; }
+      .ed-pin.selected .ed-dot { box-shadow: 0 0 0 3px rgba(31,79,160,0.38), 0 1px 5px rgba(0,0,0,0.5); }
+      .ed-lbl { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,253,248,0.92); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 10px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+      /* Modals */
+      .modal-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(25,22,18,0.55); display: flex; align-items: center; justify-content: center; padding: 1.2rem; }
+      .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(68rem, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.28); }
+      .modal.small { width: min(32rem, 95vw); }
+      .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); font-weight: 700; }
+      .modal-body { padding: 1rem; overflow: auto; flex: 1; }
+      #preview-frame { width: 100%; height: 78vh; border: 0; background: var(--bg); }
+      @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 52vh; } aside { border-left: 0; border-top: 1px solid var(--line); } }
     </style>
   </head>
   <body>
     <header>
-      <h1>Timewright editor</h1>
-      <select id="map-select" aria-label="Map"></select>
-      <button id="add-location" type="button">Add a location</button>
-      <button id="add-event" type="button">Add an event</button>
-      <label class="hint">Map image <input id="image-upload" type="file" accept="image/*" style="display:inline-block;width:auto;margin-left:.3rem" /></label>
+      <span class="brand" id="brand-title">Timewright Studio</span>
+      <select id="map-select" aria-label="Active map"></select>
+      <button id="new-map-btn" class="toolbar-btn" type="button" title="Add main map or sub-map">+ Map</button>
+      <nav class="crumbs" id="map-crumbs"></nav>
+      <button id="place-loc-btn" class="toolbar-btn" type="button">+ Place Location</button>
+      <button id="place-evt-btn" class="toolbar-btn" type="button">+ Place Event</button>
+      <span class="spacer"></span>
       <span id="status"></span>
+      <button id="preview-btn" class="toolbar-btn" type="button">Preview</button>
+      <button id="export-btn" class="toolbar-btn primary" type="button">Export Website</button>
     </header>
     <main>
-      <div id="map"></div>
+      <div id="map-stage">
+        <div id="mode-banner" hidden></div>
+        <div id="map"></div>
+        <div id="coord-readout">x: —, y: —</div>
+      </div>
       <aside>
         <nav class="tabs">
           <button type="button" data-tab="locations" class="active">Locations</button>
-          <button type="button" data-tab="people">People</button>
           <button type="button" data-tab="events">Events</button>
+          <button type="button" data-tab="people">People</button>
+          <button type="button" data-tab="maps">Maps</button>
+          <button type="button" data-tab="world">World</button>
         </nav>
-        <div>
-          <div class="list-head"><span id="list-title"></span><button id="new-record" type="button">New</button></div>
+        <div id="list-pane">
+          <div class="list-head">
+            <span id="list-count">0</span>
+            <input id="list-filter" type="search" placeholder="Filter…" />
+            <button id="new-record-btn" class="icon-btn" type="button">+ New</button>
+          </div>
           <ul id="list"></ul>
         </div>
-        <form id="form" hidden></form>
+        <div id="form-wrap"></div>
+        <div id="issues-bar" class="issues-bar" hidden></div>
       </aside>
     </main>
+
+    <div id="preview-modal" class="modal-backdrop" hidden>
+      <div class="modal">
+        <div class="modal-head">
+          <span>Interactive Timeline Preview</span>
+          <div>
+            <a href="/api/preview" target="_blank" class="toolbar-btn" style="text-decoration:none;margin-right:0.4rem">Open in new tab ↗</a>
+            <button type="button" class="toolbar-btn" data-close="preview-modal">Close</button>
+          </div>
+        </div>
+        <iframe id="preview-frame" title="Timeline Preview"></iframe>
+      </div>
+    </div>
+
+    <div id="export-modal" class="modal-backdrop" hidden>
+      <div class="modal small">
+        <div class="modal-head">
+          <span>Export &amp; Publish Timeline</span>
+          <button type="button" class="toolbar-btn" data-close="export-modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label class="field">Base URL path (keep <code>./</code> for most hosts, or <code>/repo-name/</code> for GitHub Pages)
+            <input id="export-base" type="text" value="./" />
+          </label>
+          <div class="box">
+            <div class="box-title">1. Ready-to-Host Website (.zip)</div>
+            <p class="hint">Static bundle (<code>index.html</code>, <code>world.json</code>, maps &amp; media) ready for Netlify, Cloudflare Pages, GitHub Pages, Neocities, or any web server.</p>
+            <button id="dl-zip-btn" type="button" class="toolbar-btn primary">Download Website .zip</button>
+          </div>
+          <div class="box">
+            <div class="box-title">2. Single-File HTML (.html)</div>
+            <p class="hint">Everything packed into a single self-contained HTML file you can open directly, embed in an iframe, or email.</p>
+            <button id="dl-html-btn" type="button" class="toolbar-btn">Download Standalone .html</button>
+          </div>
+          <div class="box">
+            <div class="box-title">3. Build to <code>dist/</code> Folder on Disk</div>
+            <p class="hint">Writes static site + <code>world.html</code> + <code>website.zip</code> into your world's <code>dist/</code> directory.</p>
+            <button id="build-disk-btn" type="button" class="toolbar-btn">Build to dist/</button>
+          </div>
+          <p id="export-msg" class="hint"></p>
+        </div>
+      </div>
+    </div>
+
     <script src="/leaflet/leaflet.js"></script>
-    <script>
-      const state = {
-        world: null,
-        mapId: null,
+    <script id="studio-script">
+      const S = {
+        data: null,
+        mapId: "",
         tab: "locations",
-        editing: null,
-        mode: null,
+        filter: "",
+        selectedId: null,
+        placing: null, // "location" | "event" | null
         map: null,
         overlay: null,
-        markers: [],
+        pinLayer: null,
+        imgW: 1200,
+        imgH: 800,
+        loadedMapKey: "",
       };
 
-      const status = document.getElementById("status");
-      const list = document.getElementById("list");
-      const form = document.getElementById("form");
-      const mapSelect = document.getElementById("map-select");
+      const el = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-      function say(message) {
-        status.textContent = message;
+      function say(msg, isErr = false) {
+        const node = el("status");
+        node.textContent = msg || "";
+        node.classList.toggle("error", Boolean(isErr));
       }
 
-      function escapeHtml(text) {
-        return String(text ?? "")
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
+      async function api(url, body) {
+        const res = await fetch(url, body !== undefined ? {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        } : undefined);
+        return res.json();
+      }
+
+      function fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.onerror = () => reject(new Error("Could not read file"));
+          r.readAsDataURL(file);
+        });
       }
 
       function currentMap() {
-        return state.world.maps.find((m) => m.id === state.mapId);
+        return (S.data?.maps || []).find((m) => m.id === S.mapId) || S.data?.maps?.[0];
       }
 
-      function records() {
-        return state.world[state.tab] ?? [];
+      function pixelToLatLng(x, y) {
+        return L.latLng(S.imgH - y, x);
       }
 
-      // --- the map -------------------------------------------------
+      function latLngToPixel(latlng) {
+        return [Math.round(latlng.lng), Math.round(S.imgH - latlng.lat)];
+      }
 
-      function showMap() {
-        const map = currentMap();
-        if (!map) return;
-        if (state.map) state.map.remove();
-        state.markers = [];
-        state.map = L.map("map", {
+      function initLeaflet() {
+        if (S.map) return;
+        S.map = L.map("map", {
           crs: L.CRS.Simple,
           minZoom: -4,
           maxZoom: 4,
           zoomSnap: 0.25,
           attributionControl: false,
         });
-        // Leaflet holds a layer back until the map has a view, and an image
-        // overlay only creates its image when the layer is added - so the
-        // map needs a view first, or the image is never requested.
-        state.map.setView([map.size[1] / 2, map.size[0] / 2], -1);
-        state.overlay = L.imageOverlay("/api/image/" + encodeURIComponent(map.id), [[0, 0], [map.size[1], map.size[0]]]);
-        state.overlay.on("load", () => {
-          const image = state.overlay.getElement();
-          state.map.fitBounds([[0, 0], [image.naturalHeight, image.naturalWidth]]);
-          state.map.on("click", onMapClick);
-          drawMarkers();
+        S.pinLayer = L.layerGroup().addTo(S.map);
+        S.map.on("mousemove", (ev) => {
+          const [x, y] = latLngToPixel(ev.latlng);
+          el("coord-readout").textContent = `x: ${x}, y: ${y}`;
         });
-        state.overlay.addTo(state.map);
-      }
-
-      function pixelAt(event) {
-        const image = state.overlay && state.overlay.getElement();
-        if (!image) return null;
-        const rect = image.getBoundingClientRect();
-        const containerRect = state.map.getContainer().getBoundingClientRect();
-        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
-        const left = (rect.left - containerRect.left) / scale;
-        const top = (rect.top - containerRect.top) / scale;
-        return {
-          x: Math.round(((event.containerPoint.x - left) / image.clientWidth) * image.naturalWidth),
-          y: Math.round(((event.containerPoint.y - top) / image.clientHeight) * image.naturalHeight),
-        };
-      }
-
-      function drawMarkers() {
-        for (const marker of state.markers) marker.remove();
-        state.markers = [];
-        const image = state.overlay && state.overlay.getElement();
-        if (!image) return;
-
-        for (const location of state.world.locations) {
-          if (location.map !== state.mapId || !location.at) continue;
-          const marker = L.circleMarker(latLngFor(image, location.at[0], location.at[1]), {
-            radius: 7,
-            color: "#1f4fa0",
-            weight: 2,
-            fillColor: "#6f9ad8",
-            fillOpacity: 0.8,
-          });
-          marker.bindTooltip(location.name);
-          marker.on("click", () => editRecord("locations", location.id));
-          marker.on("dragend", async (event) => {
-            const point = latLngForInverse(event.target.getLatLng());
-            const result = await post("/api/move", {
-              id: location.id,
-              mapId: state.mapId,
-              x: point.x,
-              y: point.y,
+        S.map.on("click", async (ev) => {
+          if (!S.placing) return;
+          const [x, y] = latLngToPixel(ev.latlng);
+          const mapObj = currentMap();
+          if (!mapObj) return say("Create a map first.", true);
+          const mode = S.placing;
+          setPlacing(null);
+          if (mode === "location") {
+            const name = prompt("Location name:");
+            if (!name || !name.trim()) return;
+            const res = await api("/api/create", {
+              kind: "location",
+              record: { name: name.trim(), map: mapObj.id, at: [x, y] },
             });
-            say(result.message || "moved");
-            await load();
-          });
-          marker.dragging.enable();
-          state.markers.push(marker);
-          marker.addTo(state.map);
-        }
-
-        for (const event of state.world.events) {
-          if (event.map !== state.mapId || !event.at) continue;
-          const marker = L.circleMarker(latLngFor(image, event.at[0], event.at[1]), {
-            radius: 8,
-            color: "#b3541e",
-            weight: 2,
-            fillColor: "#e08b57",
-            fillOpacity: 0.85,
-          });
-          marker.bindTooltip(event.title);
-          marker.on("click", () => editRecord("events", event.id));
-          state.markers.push(marker);
-          marker.addTo(state.map);
-        }
-      }
-
-      function latLngFor(image, x, y) {
-        const rect = image.getBoundingClientRect();
-        const containerRect = state.map.getContainer().getBoundingClientRect();
-        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
-        const left = (rect.left - containerRect.left) / scale;
-        const top = (rect.top - containerRect.top) / scale;
-        return state.map.containerPointToLatLng(
-          L.point(left + (x / image.naturalWidth) * image.clientWidth, top + (y / image.naturalHeight) * image.clientHeight),
-        );
-      }
-
-      function latLngForInverse(latLng) {
-        const image = state.overlay.getElement();
-        const point = state.map.latLngToContainerPoint(latLng);
-        const rect = image.getBoundingClientRect();
-        const containerRect = state.map.getContainer().getBoundingClientRect();
-        const scale = image.clientWidth > 0 ? rect.width / image.clientWidth : 1;
-        const left = (rect.left - containerRect.left) / scale;
-        const top = (rect.top - containerRect.top) / scale;
-        return {
-          x: Math.round(((point.x - left) / image.clientWidth) * image.naturalWidth),
-          y: Math.round(((point.y - top) / image.clientHeight) * image.naturalHeight),
-        };
-      }
-
-      async function onMapClick(event) {
-        if (!state.mode) return;
-        const point = pixelAt(event);
-        if (!point) return;
-        const kind = state.mode;
-        state.mode = null;
-        document.getElementById("add-location").classList.remove("active");
-        document.getElementById("add-event").classList.remove("active");
-        const record =
-          kind === "location"
-            ? { name: "New place", map: state.mapId, at: [point.x, point.y], tags: [] }
-            : { title: "New event", when: String(state.world.events[0]?.when ?? 1800), tags: [] };
-        const result = await post("/api/create", { kind, record });
-        say(result.message || "created");
-        await load();
-        const created = (state.world[kind === "location" ? "locations" : "events"] ?? []).find((entry) =>
-          kind === "location" ? entry.name === record.name : entry.title === record.title,
-        );
-        if (created) editRecord(kind === "location" ? "locations" : "events", created.id);
-      }
-
-      // --- the list and the form -----------------------------------
-
-      function renderList() {
-        document.querySelectorAll(".tabs button").forEach((button) => {
-          button.classList.toggle("active", button.dataset.tab === state.tab);
-        });
-        document.getElementById("list-title").textContent = state.tab;
-        list.innerHTML = "";
-        for (const record of records()) {
-          const item = document.createElement("li");
-          const button = document.createElement("button");
-          button.type = "button";
-          const label = record.name ?? record.title ?? "";
-          const where = record.map ? `<span class="where">${escapeHtml(record.map)}</span>` : "";
-          button.innerHTML = `${escapeHtml(label)} ${where}`;
-          button.classList.toggle("active", state.editing && state.editing.id === record.id);
-          button.addEventListener("click", () => editRecord(state.tab, record.id));
-          item.appendChild(button);
-          list.appendChild(item);
-        }
-      }
-
-      function editRecord(tab, id) {
-        state.tab = tab;
-        const record = (state.world[tab] ?? []).find((entry) => entry.id === id);
-        if (!record) return;
-        state.editing = record;
-        renderList();
-        form.hidden = false;
-        form.innerHTML = formFor(tab, record);
-        form.querySelector("#save").addEventListener("click", saveRecord);
-        form.querySelector("#cancel").addEventListener("click", () => {
-          state.editing = null;
-          form.hidden = true;
-          renderList();
-        });
-        const remove = form.querySelector("#delete");
-        if (remove) {
-          remove.addEventListener("click", deleteRecord);
-        }
-      }
-
-      function field(label, name, value) {
-        return `<label>${label}<input name="${name}" value="${escapeHtml(value)}" /></label>`;
-      }
-
-      function area(label, name, value) {
-        return `<label>${label}<textarea name="${name}" rows="5">${escapeHtml(value)}</textarea></label>`;
-      }
-
-      function formFor(tab, record) {
-        const actions = `<div class="actions">
-          <button type="button" class="primary" id="save">Save</button>
-          <button type="button" id="cancel">Cancel</button>
-          <button type="button" class="danger" id="delete">Delete</button>
-        </div>`;
-        if (tab === "locations") {
-          return (
-            field("Name", "name", record.name) +
-            field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
-            `<label>Map<select name="map">${mapOptions(record)}</select></label>` +
-            field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
-            area("Card (Markdown)", "card", record.card) +
-            actions
-          );
-        }
-        if (tab === "people") {
-          return (
-            field("Name", "name", record.name) +
-            field("Aliases (comma separated)", "aliases", (record.aliases ?? []).join(", ")) +
-            `<div class="row">${field("Born", "born", record.born)}${field("Died", "died", record.died)}</div>` +
-            field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
-            area("Bio (Markdown)", "bio", record.bio) +
-            actions
-          );
-        }
-        // An event's place can be a raw point on the map, which the editor
-        // has no form for. It is left alone rather than cleared.
-        const whereField = record.whereIsPoint
-          ? `<p class="hint">This event points at a raw spot on the map, which the editor leaves alone.</p>`
-          : `<label>Where<select name="where">${whereOptions(record)}</select></label>`;
-        return (
-          field("Title", "title", record.title) +
-          field("When (1815, 1815-06-18, ~1200, 1805..1807)", "when", record.when) +
-          whereField +
-          field("People (comma separated)", "people", (record.people ?? []).join(", ")) +
-          field("Tags (comma separated)", "tags", (record.tags ?? []).join(", ")) +
-          area("Card (Markdown)", "card", record.card) +
-          actions
-        );
-      }
-
-      /**
-       * The places an event can be at.
-       *
-       * A name the editor does not know is still offered, so that saving
-       * a record does not quietly drop a place it cannot show.
-       */
-      function whereOptions(record) {
-        const current = record.where ?? "";
-        const names = ["", ...state.world.locations.map((location) => location.name)];
-        if (current !== "" && !names.includes(current)) {
-          names.push(current);
-        }
-        return names
-          .map((name) => `<option value="${escapeHtml(name)}"${name === current ? " selected" : ""}>${escapeHtml(name || "(nowhere)")}</option>`)
-          .join("");
-      }
-
-      /**
-       * The maps a location can sit on, the same way: a map the editor
-       * does not know is kept rather than swapped for the first one.
-       */
-      function mapOptions(record) {
-        const current = record.map ?? "";
-        const maps = state.world.maps.map((map) => ({ id: map.id, name: map.name }));
-        if (current !== "" && !maps.some((map) => map.id === current)) {
-          maps.unshift({ id: current, name: current });
-        }
-        return maps
-          .map((map) => `<option value="${escapeHtml(map.id)}"${map.id === current ? " selected" : ""}>${escapeHtml(map.name)}</option>`)
-          .join("");
-      }
-
-      /**
-       * What the person typed, and nothing more.
-       *
-       * The page does not decide what a field means - whether an empty
-       * date is removed or written, whether a blank card is kept. It
-       * sends what was typed; the server works out what it means.
-       */
-      function readForm() {
-        const data = new FormData(form);
-        const text = (name) => String(data.get(name) ?? "");
-        const values = {};
-        if (state.tab === "events") {
-          values.title = text("title");
-          values.when = text("when");
-          if (!state.editing.whereIsPoint) {
-            values.where = text("where");
+            if (!res.ok) return say(res.message, true);
+            S.tab = "locations";
+            S.selectedId = res.id;
+            await refresh(res.message);
+          } else if (mode === "event") {
+            const title = prompt("Event title:");
+            if (!title || !title.trim()) return;
+            const when = prompt("Event date (e.g. 1815, 1815-06-18, ~1200):", S.data?.world?.start || "1900");
+            if (!when || !when.trim()) return;
+            const res = await api("/api/create", {
+              kind: "event",
+              record: { title: title.trim(), when: when.trim(), where: { map: mapObj.id, at: [x, y] } },
+            });
+            if (!res.ok) return say(res.message, true);
+            S.tab = "events";
+            S.selectedId = res.id;
+            await refresh(res.message);
           }
-          values.people = text("people");
-          values.tags = text("tags");
-          values.card = text("card");
-        } else if (state.tab === "locations") {
-          values.name = text("name");
-          values.aliases = text("aliases");
-          values.map = text("map");
-          values.tags = text("tags");
-          values.card = text("card");
-        } else {
-          values.name = text("name");
-          values.aliases = text("aliases");
-          values.born = text("born");
-          values.died = text("died");
-          values.tags = text("tags");
-          values.bio = text("bio");
-        }
-        return values;
+        });
       }
 
-      async function saveRecord() {
-        if (!state.editing) return;
-        const result = await post("/api/record", {
-          kind: state.editing.kind,
-          file: state.editing.file,
-          index: state.editing.index,
-          values: readForm(),
-        });
-        say(result.message || "saved");
-        if (!result.ok) {
-          // The record was not written; keep the form open so the
-          // mistake can be corrected.
+      function setPlacing(mode) {
+        S.placing = S.placing === mode ? null : mode;
+        el("place-loc-btn").classList.toggle("active", S.placing === "location");
+        el("place-evt-btn").classList.toggle("active", S.placing === "event");
+        const banner = el("mode-banner");
+        if (S.placing) {
+          banner.textContent = S.placing === "location"
+            ? "Click anywhere on the map to place a new Location (Esc to cancel)"
+            : "Click anywhere on the map to place a new Event (Esc to cancel)";
+          banner.hidden = false;
+        } else {
+          banner.hidden = true;
+        }
+      }
+
+      function renderMapCanvas(forceFit = false) {
+        initLeaflet();
+        const mapObj = currentMap();
+        if (!mapObj) {
+          if (S.overlay) { S.overlay.remove(); S.overlay = null; }
+          S.pinLayer.clearLayers();
           return;
         }
-        await load();
-        form.hidden = true;
-        state.editing = null;
-      }
+        S.mapId = mapObj.id;
+        S.imgW = mapObj.size?.[0] || 1200;
+        S.imgH = mapObj.size?.[1] || 800;
+        const firstImg = mapObj.images?.[0]?.file || "";
+        const mapKey = `${mapObj.id}:${firstImg}:${S.imgW}x${S.imgH}`;
 
-      async function deleteRecord() {
-        if (!state.editing) return;
-        if (!confirm("Delete " + (state.editing.name ?? state.editing.title) + "?")) return;
-        const result = await post("/api/delete", {
-          kind: state.editing.kind,
-          file: state.editing.file,
-          index: state.editing.index,
-        });
-        say(result.message || "deleted");
-        await load();
-        form.hidden = true;
-        state.editing = null;
-      }
-
-      async function post(url, body) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        return response.json();
-      }
-
-      // --- wiring --------------------------------------------------
-
-      document.querySelectorAll(".tabs button").forEach((button) => {
-        button.addEventListener("click", () => {
-          state.tab = button.dataset.tab;
-          state.editing = null;
-          form.hidden = true;
-          renderList();
-        });
-      });
-
-      document.getElementById("new-record").addEventListener("click", async () => {
-        const kind = state.tab === "locations" ? "location" : state.tab === "people" ? "person" : "event";
-        const record =
-          kind === "location"
-            ? { name: "New place", map: state.mapId, tags: [] }
-            : kind === "person"
-              ? { name: "New person", tags: [] }
-              : { title: "New event", when: "1800", tags: [] };
-        const result = await post("/api/create", { kind, record });
-        say(result.message || "created");
-        await load();
-        const created = (state.world[kind === "location" ? "locations" : kind === "person" ? "people" : "events"] ?? []).find(
-          (entry) => (kind === "event" ? entry.title : entry.name) === (kind === "event" ? record.title : record.name),
-        );
-        if (created) editRecord(state.tab, created.id);
-      });
-
-      document.getElementById("add-location").addEventListener("click", () => {
-        state.mode = state.mode === "location" ? null : "location";
-        document.getElementById("add-location").classList.toggle("active", state.mode === "location");
-        document.getElementById("add-event").classList.remove("active");
-        say(state.mode ? "Click the map to place it." : "");
-      });
-
-      document.getElementById("add-event").addEventListener("click", () => {
-        state.mode = state.mode === "event" ? null : "event";
-        document.getElementById("add-event").classList.toggle("active", state.mode === "event");
-        document.getElementById("add-location").classList.remove("active");
-        say(state.mode ? "Click the map to place the event." : "");
-      });
-
-      document.getElementById("image-upload").addEventListener("change", async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const data = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsDataURL(file);
-        });
-        const result = await post("/api/image", { mapId: state.mapId, fileName: file.name, data });
-        say(result.message || "image saved");
-        await load();
-      });
-
-      mapSelect.addEventListener("change", () => {
-        state.mapId = mapSelect.value;
-        showMap();
-      });
-
-      async function load() {
-        const response = await fetch("/api/editor");
-        state.world = await response.json();
-        if (!state.mapId && state.world.maps.length > 0) {
-          state.mapId = state.world.maps[0].id;
-          mapSelect.innerHTML = state.world.maps
-            .map((map) => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`)
-            .join("");
-          mapSelect.value = state.mapId;
-          showMap();
+        if (mapKey !== S.loadedMapKey || forceFit) {
+          S.loadedMapKey = mapKey;
+          if (S.overlay) { S.overlay.remove(); S.overlay = null; }
+          const bounds = L.latLngBounds([[0, 0], [S.imgH, S.imgW]]);
+          if (firstImg) {
+            const url = `/api/map-file/${encodeURIComponent(mapObj.id)}/${encodeURIComponent(firstImg)}?t=${Date.now()}`;
+            S.overlay = L.imageOverlay(url, bounds).addTo(S.map);
+          }
+          S.map.fitBounds(bounds, { padding: [20, 20], animate: false });
         }
-        for (const record of state.world.locations) record.kind = "location";
-        for (const record of state.world.people) record.kind = "person";
-        for (const record of state.world.events) record.kind = "event";
-        renderList();
+        drawPins();
       }
 
-      load();
+      function drawPins() {
+        if (!S.pinLayer || !S.data) return;
+        S.pinLayer.clearLayers();
+        const mapId = S.mapId;
+
+        for (const loc of S.data.locations) {
+          if (loc.kind === "mobile" || loc.map !== mapId || !Array.isArray(loc.at)) continue;
+          const isSel = S.tab === "locations" && S.selectedId === loc.id;
+          const hasSub = Boolean(loc.opens);
+          const cls = `ed-pin${hasSub ? " portal" : ""}${isSel ? " selected" : ""}`;
+          const icon = L.divIcon({
+            className: "ed-icon",
+            html: `<div class="${cls}"><span class="ed-dot"></span><span class="ed-lbl">${esc(loc.name)}${hasSub ? " ↘" : ""}</span></div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          });
+          const m = L.marker(pixelToLatLng(loc.at[0], loc.at[1]), { icon, draggable: true });
+          m.bindTooltip(hasSub ? `${esc(loc.name)} (double-click to open sub-map · drag to move)` : `${esc(loc.name)} (drag to move)`, { direction: "top", offset: [0, -10] });
+          m.on("click", () => { S.tab = "locations"; S.selectedId = loc.id; renderSidebar(); drawPins(); });
+          m.on("dblclick", (e) => {
+            if (loc.opens) { L.DomEvent.stopPropagation(e); S.mapId = loc.opens; syncHeader(); renderMapCanvas(true); renderSidebar(); }
+          });
+          m.on("dragend", async () => {
+            const [nx, ny] = latLngToPixel(m.getLatLng());
+            const res = await api("/api/move", { kind: "location", id: loc.id, mapId, x: nx, y: ny });
+            await refresh(res.message, !res.ok);
+          });
+          m.addTo(S.pinLayer);
+        }
+
+        for (const ev of S.data.events) {
+          if (ev.map !== mapId || !Array.isArray(ev.at)) continue;
+          const isSel = S.tab === "events" && S.selectedId === ev.id;
+          const draggable = ev.whereMode === "point";
+          const icon = L.divIcon({
+            className: "ed-icon",
+            html: `<div class="ed-pin event${isSel ? " selected" : ""}"><span class="ed-dot"></span></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          });
+          const ox = ev.whereMode === "location" ? ev.at[0] + 10 : ev.at[0];
+          const oy = ev.whereMode === "location" ? ev.at[1] - 10 : ev.at[1];
+          const m = L.marker(pixelToLatLng(ox, oy), { icon, draggable, zIndexOffset: 200 });
+          m.bindTooltip(`${esc(ev.title)} (${esc(ev.when)})${draggable ? " · drag to move" : ""}`, { direction: "top", offset: [0, -8] });
+          m.on("click", () => { S.tab = "events"; S.selectedId = ev.id; renderSidebar(); drawPins(); });
+          if (draggable) {
+            m.on("dragend", async () => {
+              const [nx, ny] = latLngToPixel(m.getLatLng());
+              const res = await api("/api/move", { kind: "event", id: ev.id, mapId, x: nx, y: ny });
+              await refresh(res.message, !res.ok);
+            });
+          }
+          m.addTo(S.pinLayer);
+        }
+      }
+
+      function mapOptions(selectedId, includeBlank = false, blankLabel = "— None —") {
+        const opts = includeBlank ? [`<option value="">${esc(blankLabel)}</option>`] : [];
+        for (const m of S.data?.maps || []) {
+          const sel = m.id === selectedId ? " selected" : "";
+          const prefix = m.parent ? "↳ " : "";
+          opts.push(`<option value="${esc(m.id)}"${sel}>${prefix}${esc(m.name)}</option>`);
+        }
+        return opts.join("");
+      }
+
+      function locationOptions(selectedVal, includeBlank = true, blankLabel = "— Choose location —") {
+        const opts = includeBlank ? [`<option value="">${esc(blankLabel)}</option>`] : [];
+        for (const loc of S.data?.locations || []) {
+          const isMatch = loc.name === selectedVal || loc.id === selectedVal;
+          opts.push(`<option value="${esc(loc.name)}"${isMatch ? " selected" : ""}>${esc(loc.name)}${loc.map ? ` (${esc(loc.map)})` : ""}</option>`);
+        }
+        return opts.join("");
+      }
+
+      function renderStaysEditor(stays) {
+        const rows = (stays || []).map((s, idx) => `
+          <div class="mini-row" data-stay-row="${idx}">
+            <input type="text" data-stay="at" placeholder="Location" value="${esc(s.at)}" list="loc-datalist" />
+            <input type="text" data-stay="from" placeholder="From" value="${esc(s.from)}" style="max-width:5.2rem" />
+            <input type="text" data-stay="until" placeholder="Until" value="${esc(s.until)}" style="max-width:5.2rem" />
+            <button type="button" class="icon-btn" data-del-stay="${idx}" title="Remove">✕</button>
+          </div>
+        `).join("");
+        return `
+          <div class="box">
+            <div class="box-title">Stays / Movement Over Time <button type="button" class="icon-btn" id="add-stay-btn">+ Stay</button></div>
+            <div id="stays-rows">${rows || '<p class="hint" style="margin:0">No stays configured.</p>'}</div>
+          </div>
+        `;
+      }
+
+      function collectStays(formEl) {
+        return Array.from(formEl.querySelectorAll("[data-stay-row]")).map((row) => ({
+          at: row.querySelector('[data-stay="at"]')?.value || "",
+          from: row.querySelector('[data-stay="from"]')?.value || "",
+          until: row.querySelector('[data-stay="until"]')?.value || "",
+        })).filter((s) => s.at.trim() !== "");
+      }
+
+      function syncHeader() {
+        if (!S.data) return;
+        el("brand-title").textContent = S.data.world?.title ? `${S.data.world.title} — Studio` : "Timewright Studio";
+        const mapObj = currentMap();
+        if (mapObj) S.mapId = mapObj.id;
+        const sel = el("map-select");
+        sel.innerHTML = mapOptions(S.mapId, false);
+        const crumbs = el("map-crumbs");
+        const chain = mapObj?.chain || [];
+        crumbs.innerHTML = chain.length > 1
+          ? chain.map((c, idx) => idx === chain.length - 1 ? `<span>${esc(c.name)}</span>` : `<button type="button" data-jump-map="${esc(c.id)}">${esc(c.name)}</button>`).join(" › ")
+          : "";
+        const issuesBar = el("issues-bar");
+        const errs = (S.data.issues || []).filter((i) => i.severity === "error");
+        const warns = (S.data.issues || []).filter((i) => i.severity === "warning");
+        if (errs.length > 0 || warns.length > 0) {
+          const summary = [...errs.map((e) => `Error: ${esc(e.message)}`), ...warns.slice(0, 3).map((w) => `Note: ${esc(w.message)}`)];
+          issuesBar.innerHTML = summary.join("<br/>");
+          issuesBar.hidden = false;
+        } else {
+          issuesBar.hidden = true;
+        }
+      }
+
+      async function createNewMapPrompt(parentMapId = "", linkFromLocationId = "", defaultName = "") {
+        const name = prompt(parentMapId ? "Sub-map name:" : "Map name:", defaultName);
+        if (!name || !name.trim()) return;
+        const res = await api("/api/create", {
+          kind: "map",
+          linkFromLocationId,
+          record: {
+            name: name.trim(),
+            parent: parentMapId || undefined,
+            size: [1200, 800],
+            createPlaceholder: true,
+          },
+        });
+        if (!res.ok) return say(res.message, true);
+        S.mapId = res.id;
+        S.tab = "maps";
+        S.selectedId = res.id;
+        await refresh(res.message);
+        renderMapCanvas(true);
+      }
+
+      function renderSidebar() {
+        if (!S.data) return;
+        document.querySelectorAll(".tabs button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.tab === S.tab);
+        });
+        const listPane = el("list-pane");
+        if (S.tab === "world") {
+          listPane.hidden = true;
+          renderWorldForm();
+          return;
+        }
+        listPane.hidden = false;
+        const items = S.data[S.tab] || [];
+        const q = S.filter.trim().toLowerCase();
+        const filtered = items.filter((it) => {
+          const label = (it.name || it.title || "").toLowerCase();
+          return !q || label.includes(q);
+        });
+        el("list-count").textContent = `${filtered.length} ${S.tab}`;
+        const listEl = el("list");
+        listEl.innerHTML = filtered.map((it) => {
+          const label = it.name || it.title;
+          let sub = "";
+          if (S.tab === "locations") sub = it.kind === "mobile" ? "mobile" : (it.map || "unplaced") + (it.opens ? " ↘" : "");
+          else if (S.tab === "events") sub = `${it.when}${it.whereMode === "general" ? " · timeline" : it.where ? ` · ${it.where}` : it.whereMap ? ` · ${it.whereMap}` : ""}`;
+          else if (S.tab === "people") sub = [it.born, it.died].filter(Boolean).join("–");
+          else if (S.tab === "maps") sub = it.parent ? `in ${it.parent}` : "main map";
+          const active = it.id === S.selectedId ? " active" : "";
+          return `<li><button type="button" class="${active}" data-pick="${esc(it.id)}"><span>${esc(label)}</span><span class="sub">${esc(sub)}</span></button></li>`;
+        }).join("");
+
+        const chosen = items.find((it) => it.id === S.selectedId) || filtered[0] || null;
+        if (chosen && S.selectedId !== chosen.id) S.selectedId = chosen.id;
+        if (!chosen) {
+          el("form-wrap").innerHTML = `<p class="hint">No ${esc(S.tab)} yet. Click <strong>+ New</strong> above to create one.</p>`;
+          return;
+        }
+        if (S.tab === "maps") renderMapForm(chosen);
+        else if (S.tab === "locations") renderLocationForm(chosen);
+        else if (S.tab === "people") renderPersonForm(chosen);
+        else if (S.tab === "events") renderEventForm(chosen);
+      }
+
+      function renderWorldForm() {
+        const w = S.data.world || {};
+        const wrap = el("form-wrap");
+        wrap.innerHTML = `
+          <form id="world-form">
+            <label class="field">World / Project Title
+              <input name="title" required value="${esc(w.title)}" />
+            </label>
+            <label class="field">Opening Map (Overworld)
+              <select name="overworld">${mapOptions(w.overworld, true, "— First map —")}</select>
+            </label>
+            <div class="row">
+              <label class="field">Default Start Date
+                <input name="start" placeholder="e.g. 1815" value="${esc(w.start)}" />
+              </label>
+              <label class="field">End Date (optional)
+                <input name="end" placeholder="e.g. 1900" value="${esc(w.end)}" />
+              </label>
+            </div>
+            <p class="hint">All edits write directly into your YAML files on disk while keeping comments intact.</p>
+            <div class="actions">
+              <button type="submit" class="primary">Save World Settings</button>
+            </div>
+          </form>
+        `;
+        wrap.querySelector("#world-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const res = await api("/api/world", { values: Object.fromEntries(fd.entries()) });
+          await refresh(res.message, !res.ok);
+        };
+      }
+
+      function renderMapForm(m) {
+        const wrap = el("form-wrap");
+        const imgRows = (m.images || []).map((im, idx) => `
+          <div class="mini-row" data-img-row="${idx}">
+            <input type="text" data-img="file" value="${esc(im.file)}" placeholder="file.png" />
+            <input type="text" data-img="from" value="${esc(im.from)}" placeholder="From" style="max-width:4.6rem" />
+            <input type="text" data-img="until" value="${esc(im.until)}" placeholder="Until" style="max-width:4.6rem" />
+            <input type="text" data-img="caption" value="${esc(im.caption)}" placeholder="Caption" />
+            <button type="button" class="icon-btn" data-del-img="${idx}">✕</button>
+          </div>
+        `).join("");
+        wrap.innerHTML = `
+          <form id="rec-form">
+            <label class="field">Map Name
+              <input name="name" required value="${esc(m.name)}" />
+            </label>
+            <div class="row">
+              <label class="field">Parent Map (for sub-maps)
+                <select name="parent">${mapOptions(m.parent, true, "— Top-level main map —")}</select>
+              </label>
+              <label class="field">Width × Height (px)
+                <div class="row">
+                  <input name="width" type="number" value="${esc(m.size?.[0] ?? 1200)}" />
+                  <input name="height" type="number" value="${esc(m.size?.[1] ?? 800)}" />
+                </div>
+              </label>
+            </div>
+            <div class="box">
+              <div class="box-title">Upload Map Image</div>
+              <div class="mini-row">
+                <input type="file" id="map-img-file" accept="image/*" />
+                <select id="map-img-mode" style="max-width:7.5rem">
+                  <option value="replace">Replace main</option>
+                  <option value="add">Add era layer</option>
+                </select>
+              </div>
+              <div class="mini-row">
+                <input type="text" id="map-img-from" placeholder="From date (optional)" />
+                <input type="text" id="map-img-until" placeholder="Until date (optional)" />
+                <button type="button" class="icon-btn" id="upload-map-img-btn">Upload</button>
+              </div>
+            </div>
+            <div class="box">
+              <div class="box-title">Configured Image Layers</div>
+              <div id="img-rows">${imgRows || '<p class="hint" style="margin:0">No images yet.</p>'}</div>
+            </div>
+            <label class="field">Notes
+              <textarea name="notes" rows="2">${esc(m.notes)}</textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Map</button>
+              <button type="button" id="view-this-map">Show on Canvas</button>
+              <button type="button" id="make-child-map">+ Sub-map</button>
+              <button type="button" class="danger" id="del-rec">Delete</button>
+            </div>
+          </form>
+        `;
+        wrap.querySelector("#view-this-map").onclick = () => { S.mapId = m.id; syncHeader(); renderMapCanvas(true); };
+        wrap.querySelector("#make-child-map").onclick = () => createNewMapPrompt(m.id, "", `${m.name} Detail`);
+        wrap.querySelectorAll("[data-del-img]").forEach((btn) => {
+          btn.onclick = () => btn.closest("[data-img-row]")?.remove();
+        });
+        wrap.querySelector("#upload-map-img-btn").onclick = async () => {
+          const input = wrap.querySelector("#map-img-file");
+          const file = input.files?.[0];
+          if (!file) return say("Pick an image file first.", true);
+          say("Uploading map image…");
+          const data = await fileToDataUrl(file);
+          const res = await api("/api/image", {
+            mapId: m.id,
+            fileName: file.name,
+            data,
+            mode: wrap.querySelector("#map-img-mode").value,
+            from: wrap.querySelector("#map-img-from").value,
+            until: wrap.querySelector("#map-img-until").value,
+          });
+          S.mapId = m.id;
+          S.loadedMapKey = "";
+          await refresh(res.message, !res.ok);
+          renderMapCanvas(true);
+        };
+        wrap.querySelector("#del-rec").onclick = async () => {
+          if (!confirm(`Delete map "${m.name}"?`)) return;
+          const res = await api("/api/delete", { kind: "map", file: m.file, index: m.index });
+          S.selectedId = null;
+          await refresh(res.message, !res.ok);
+        };
+        wrap.querySelector("#rec-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const values = Object.fromEntries(fd.entries());
+          values.images = Array.from(wrap.querySelectorAll("[data-img-row]")).map((r) => ({
+            file: r.querySelector('[data-img="file"]').value,
+            from: r.querySelector('[data-img="from"]').value,
+            until: r.querySelector('[data-img="until"]').value,
+            caption: r.querySelector('[data-img="caption"]').value,
+          }));
+          const res = await api("/api/record", { kind: "map", file: m.file, index: m.index, values });
+          S.loadedMapKey = "";
+          await refresh(res.message, !res.ok);
+        };
+      }
+
+      function renderLocationForm(loc) {
+        const wrap = el("form-wrap");
+        const isMobile = loc.kind === "mobile";
+        wrap.innerHTML = `
+          <form id="rec-form">
+            <datalist id="loc-datalist">${(S.data.locations || []).map((l) => `<option value="${esc(l.name)}"></option>`).join("")}</datalist>
+            <label class="field">Location Name
+              <input name="name" required value="${esc(loc.name)}" />
+            </label>
+            <div class="row">
+              <label class="field">Type
+                <select name="kind" id="loc-kind">
+                  <option value="fixed"${!isMobile ? " selected" : ""}>Fixed place on map</option>
+                  <option value="mobile"${isMobile ? " selected" : ""}>Mobile (ship, army, train)</option>
+                </select>
+              </label>
+              <label class="field">Map
+                <select name="map" ${isMobile ? "disabled" : ""}>${mapOptions(loc.map || S.mapId, true, "— Unplaced —")}</select>
+              </label>
+            </div>
+            <div class="row" id="loc-coords-row" ${isMobile ? "hidden" : ""}>
+              <label class="field">X (px)
+                <input name="atX" type="number" value="${esc(loc.at?.[0] ?? "")}" />
+              </label>
+              <label class="field">Y (px)
+                <input name="atY" type="number" value="${esc(loc.at?.[1] ?? "")}" />
+              </label>
+            </div>
+            <div class="box">
+              <div class="box-title">Sub-Map Portal (Zoom-In Map)</div>
+              <div class="mini-row">
+                <select name="opens" id="loc-opens">${mapOptions(loc.opens, true, "— No sub-map —")}</select>
+                ${loc.opens
+                  ? `<button type="button" class="icon-btn" id="enter-submap-btn">Enter ↘</button>`
+                  : `<button type="button" class="icon-btn" id="create-submap-btn">+ Create Sub-map</button>`}
+              </div>
+            </div>
+            <div class="row">
+              <label class="field">Exists From
+                <input name="existsFrom" placeholder="e.g. 1200" value="${esc(loc.existsFrom)}" />
+              </label>
+              <label class="field">Exists Until
+                <input name="existsUntil" placeholder="e.g. 1850" value="${esc(loc.existsUntil)}" />
+              </label>
+            </div>
+            <div id="loc-stays-wrap" ${!isMobile ? "hidden" : ""}>${renderStaysEditor(loc.stays)}</div>
+            <label class="field">Image / Illustration
+              <div class="mini-row">
+                <input name="image" id="loc-img-path" value="${esc(loc.image)}" placeholder="locations/castle.png" />
+                <input type="file" id="loc-img-upload" accept="image/*" style="max-width:9rem" />
+              </div>
+            </label>
+            <label class="field">Tags (comma-separated)
+              <input name="tags" value="${esc((loc.tags || []).join(", "))}" />
+            </label>
+            <label class="field">Description Card (Markdown)
+              <textarea name="card" rows="4">${esc(loc.card)}</textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Location</button>
+              <button type="button" class="danger" id="del-rec">Delete</button>
+            </div>
+          </form>
+        `;
+        bindStaysInteractive(wrap);
+        wrap.querySelector("#loc-kind").onchange = (e) => {
+          const mob = e.target.value === "mobile";
+          wrap.querySelector("#loc-coords-row").hidden = mob;
+          wrap.querySelector("#loc-stays-wrap").hidden = !mob;
+          wrap.querySelector('[name="map"]').disabled = mob;
+        };
+        const enterBtn = wrap.querySelector("#enter-submap-btn");
+        if (enterBtn) enterBtn.onclick = () => { S.mapId = loc.opens; syncHeader(); renderMapCanvas(true); };
+        const createSubBtn = wrap.querySelector("#create-submap-btn");
+        if (createSubBtn) createSubBtn.onclick = () => createNewMapPrompt(loc.map || S.mapId, loc.id, loc.name);
+        wrap.querySelector("#loc-img-upload").onchange = async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const data = await fileToDataUrl(file);
+          const res = await api("/api/asset", { bucket: "locations", fileName: file.name, data });
+          if (res.ok) { wrap.querySelector("#loc-img-path").value = res.fileName; say(res.message); }
+          else say(res.message, true);
+        };
+        wrap.querySelector("#del-rec").onclick = async () => {
+          if (!confirm(`Delete location "${loc.name}"?`)) return;
+          const res = await api("/api/delete", { kind: "location", file: loc.file, index: loc.index });
+          S.selectedId = null;
+          await refresh(res.message, !res.ok);
+        };
+        wrap.querySelector("#rec-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const values = Object.fromEntries(fd.entries());
+          values.stays = collectStays(wrap);
+          const res = await api("/api/record", { kind: "location", file: loc.file, index: loc.index, values });
+          if (res.id) S.selectedId = res.id;
+          await refresh(res.message, !res.ok);
+        };
+      }
+
+      function bindStaysInteractive(wrap) {
+        const addBtn = wrap.querySelector("#add-stay-btn");
+        if (addBtn) {
+          addBtn.onclick = () => {
+            const container = wrap.querySelector("#stays-rows");
+            container.querySelector(".hint")?.remove();
+            const idx = container.querySelectorAll("[data-stay-row]").length;
+            const div = document.createElement("div");
+            div.className = "mini-row";
+            div.dataset.stayRow = String(idx);
+            div.innerHTML = `
+              <input type="text" data-stay="at" placeholder="Location" list="loc-datalist" />
+              <input type="text" data-stay="from" placeholder="From" style="max-width:5.2rem" />
+              <input type="text" data-stay="until" placeholder="Until" style="max-width:5.2rem" />
+              <button type="button" class="icon-btn" title="Remove">✕</button>
+            `;
+            div.querySelector("button").onclick = () => div.remove();
+            container.appendChild(div);
+          };
+        }
+        wrap.querySelectorAll("[data-del-stay]").forEach((btn) => {
+          btn.onclick = () => btn.closest("[data-stay-row]")?.remove();
+        });
+      }
+
+      function renderPersonForm(p) {
+        const wrap = el("form-wrap");
+        wrap.innerHTML = `
+          <form id="rec-form">
+            <datalist id="loc-datalist">${(S.data.locations || []).map((l) => `<option value="${esc(l.name)}"></option>`).join("")}</datalist>
+            <label class="field">Name
+              <input name="name" required value="${esc(p.name)}" />
+            </label>
+            <div class="row">
+              <label class="field">Born
+                <input name="born" placeholder="e.g. 1769" value="${esc(p.born)}" />
+              </label>
+              <label class="field">Died
+                <input name="died" placeholder="e.g. 1821" value="${esc(p.died)}" />
+              </label>
+              <label class="field" style="max-width:5.5rem">Path Color
+                <input name="color" type="color" value="${esc(p.color || "#b3541e")}" style="height:2.15rem;padding:0.15rem" />
+              </label>
+            </div>
+            <label class="field">Aliases (comma-separated)
+              <input name="aliases" value="${esc((p.aliases || []).join(", "))}" />
+            </label>
+            ${renderStaysEditor(p.stays)}
+            <label class="field">Portrait Image
+              <div class="mini-row">
+                <input name="image" id="person-img-path" value="${esc(p.image)}" placeholder="people/portrait.png" />
+                <input type="file" id="person-img-upload" accept="image/*" style="max-width:9rem" />
+              </div>
+            </label>
+            <label class="field">Tags (comma-separated)
+              <input name="tags" value="${esc((p.tags || []).join(", "))}" />
+            </label>
+            <label class="field">Biography (Markdown)
+              <textarea name="bio" rows="4">${esc(p.bio)}</textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Person</button>
+              <button type="button" class="danger" id="del-rec">Delete</button>
+            </div>
+          </form>
+        `;
+        bindStaysInteractive(wrap);
+        wrap.querySelector("#person-img-upload").onchange = async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const data = await fileToDataUrl(file);
+          const res = await api("/api/asset", { bucket: "people", fileName: file.name, data });
+          if (res.ok) { wrap.querySelector("#person-img-path").value = res.fileName; say(res.message); }
+          else say(res.message, true);
+        };
+        wrap.querySelector("#del-rec").onclick = async () => {
+          if (!confirm(`Delete "${p.name}"?`)) return;
+          const res = await api("/api/delete", { kind: "person", file: p.file, index: p.index });
+          S.selectedId = null;
+          await refresh(res.message, !res.ok);
+        };
+        wrap.querySelector("#rec-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const values = Object.fromEntries(fd.entries());
+          values.stays = collectStays(wrap);
+          const res = await api("/api/record", { kind: "person", file: p.file, index: p.index, values });
+          if (res.id) S.selectedId = res.id;
+          await refresh(res.message, !res.ok);
+        };
+      }
+
+      function renderEventForm(ev) {
+        const wrap = el("form-wrap");
+        const mode = ev.whereMode || "location";
+        wrap.innerHTML = `
+          <form id="rec-form">
+            <datalist id="people-datalist">${(S.data.people || []).map((p) => `<option value="${esc(p.name)}"></option>`).join("")}</datalist>
+            <label class="field">Event Title
+              <input name="title" required value="${esc(ev.title)}" />
+            </label>
+            <div class="row">
+              <label class="field">Date / When
+                <input name="when" required placeholder="e.g. 1815-06-18 or ~1200" value="${esc(ev.when)}" />
+              </label>
+              <label class="field" style="max-width:6rem">Order (tie-break)
+                <input name="order" type="number" value="${esc(ev.order)}" placeholder="0" />
+              </label>
+            </div>
+            <div class="box">
+              <div class="box-title">Where It Happens</div>
+              <label class="field" style="margin-bottom:0.4rem">Placement Mode
+                <select name="whereMode" id="ev-where-mode">
+                  <option value="location"${mode === "location" ? " selected" : ""}>At a named Location</option>
+                  <option value="point"${mode === "point" ? " selected" : ""}>At exact Map Coordinates [x, y]</option>
+                  <option value="general"${mode === "general" ? " selected" : ""}>General Timeline Event (no map pin)</option>
+                </select>
+              </label>
+              <div id="ev-loc-box" ${mode !== "location" ? "hidden" : ""}>
+                <select name="whereLocation">${locationOptions(ev.where, true)}</select>
+              </div>
+              <div id="ev-pt-box" ${mode !== "point" ? "hidden" : ""}>
+                <div class="row">
+                  <label class="field">Map
+                    <select name="whereMap">${mapOptions(ev.whereMap || S.mapId, false)}</select>
+                  </label>
+                  <label class="field">X
+                    <input name="whereX" type="number" value="${esc(ev.whereAt?.[0] ?? Math.round(S.imgW / 2))}" />
+                  </label>
+                  <label class="field">Y
+                    <input name="whereY" type="number" value="${esc(ev.whereAt?.[1] ?? Math.round(S.imgH / 2))}" />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <label class="field">People Involved (comma-separated names)
+              <input name="people" list="people-datalist" value="${esc((ev.people || []).join(", "))}" placeholder="Napoleon, Wellington" />
+            </label>
+            <label class="field">Tags (comma-separated)
+              <input name="tags" value="${esc((ev.tags || []).join(", "))}" />
+            </label>
+            <label class="field">Story / Card (Markdown)
+              <textarea name="card" rows="4">${esc(ev.card)}</textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Event</button>
+              <button type="button" class="danger" id="del-rec">Delete</button>
+            </div>
+          </form>
+        `;
+        wrap.querySelector("#ev-where-mode").onchange = (e) => {
+          const m = e.target.value;
+          wrap.querySelector("#ev-loc-box").hidden = m !== "location";
+          wrap.querySelector("#ev-pt-box").hidden = m !== "point";
+        };
+        wrap.querySelector("#del-rec").onclick = async () => {
+          if (!confirm(`Delete event "${ev.title}"?`)) return;
+          const res = await api("/api/delete", { kind: "event", file: ev.file, index: ev.index });
+          S.selectedId = null;
+          await refresh(res.message, !res.ok);
+        };
+        wrap.querySelector("#rec-form").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const values = Object.fromEntries(fd.entries());
+          const res = await api("/api/record", { kind: "event", file: ev.file, index: ev.index, values });
+          if (res.id) S.selectedId = res.id;
+          await refresh(res.message, !res.ok);
+        };
+      }
+
+      async function refresh(statusMsg = "", isErr = false) {
+        S.data = await api("/api/editor");
+        if (!S.mapId || !(S.data.maps || []).some((m) => m.id === S.mapId)) {
+          S.mapId = S.data.world?.overworld || S.data.maps?.[0]?.id || "";
+        }
+        syncHeader();
+        renderMapCanvas(false);
+        renderSidebar();
+        if (statusMsg) say(statusMsg, isErr);
+      }
+
+      async function handleNewRecord() {
+        if (S.tab === "maps") return createNewMapPrompt("", "");
+        if (S.tab === "locations") {
+          const name = prompt("New location name:");
+          if (!name || !name.trim()) return;
+          const mapObj = currentMap();
+          const res = await api("/api/create", {
+            kind: "location",
+            record: {
+              name: name.trim(),
+              map: mapObj?.id,
+              at: mapObj ? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)] : undefined,
+            },
+          });
+          if (!res.ok) return say(res.message, true);
+          S.selectedId = res.id;
+          return refresh(res.message);
+        }
+        if (S.tab === "people") {
+          const name = prompt("Person / character name:");
+          if (!name || !name.trim()) return;
+          const res = await api("/api/create", { kind: "person", record: { name: name.trim() } });
+          if (!res.ok) return say(res.message, true);
+          S.selectedId = res.id;
+          return refresh(res.message);
+        }
+        if (S.tab === "events") {
+          const title = prompt("Event title:");
+          if (!title || !title.trim()) return;
+          const when = prompt("Event date (e.g. 1815, ~1200):", S.data?.world?.start || "1900");
+          if (!when || !when.trim()) return;
+          const res = await api("/api/create", {
+            kind: "event",
+            record: { title: title.trim(), when: when.trim() },
+          });
+          if (!res.ok) return say(res.message, true);
+          S.selectedId = res.id;
+          return refresh(res.message);
+        }
+      }
+
+      function bindGlobalEvents() {
+        el("map-select").onchange = (e) => {
+          S.mapId = e.target.value;
+          syncHeader();
+          renderMapCanvas(true);
+        };
+        el("new-map-btn").onclick = () => createNewMapPrompt(S.mapId || "", "");
+        el("place-loc-btn").onclick = () => setPlacing("location");
+        el("place-evt-btn").onclick = () => setPlacing("event");
+        el("new-record-btn").onclick = () => handleNewRecord();
+        el("list-filter").oninput = (e) => { S.filter = e.target.value; renderSidebar(); };
+
+        document.querySelectorAll(".tabs button").forEach((btn) => {
+          btn.onclick = () => {
+            S.tab = btn.dataset.tab;
+            S.selectedId = null;
+            renderSidebar();
+            drawPins();
+          };
+        });
+
+        document.addEventListener("click", (e) => {
+          const pick = e.target.closest("[data-pick]");
+          if (pick) {
+            S.selectedId = pick.dataset.pick;
+            if (S.tab === "locations") {
+              const loc = S.data.locations.find((l) => l.id === S.selectedId);
+              if (loc?.map && loc.map !== S.mapId) { S.mapId = loc.map; syncHeader(); renderMapCanvas(true); }
+            } else if (S.tab === "events") {
+              const ev = S.data.events.find((x) => x.id === S.selectedId);
+              if (ev?.map && ev.map !== S.mapId) { S.mapId = ev.map; syncHeader(); renderMapCanvas(true); }
+            } else if (S.tab === "maps") {
+              S.mapId = S.selectedId;
+              syncHeader();
+              renderMapCanvas(true);
+            }
+            renderSidebar();
+            drawPins();
+            return;
+          }
+          const jump = e.target.closest("[data-jump-map]");
+          if (jump) {
+            S.mapId = jump.dataset.jumpMap;
+            syncHeader();
+            renderMapCanvas(true);
+            return;
+          }
+          const closeModal = e.target.closest("[data-close]");
+          if (closeModal) {
+            const modalId = closeModal.dataset.close;
+            el(modalId).hidden = true;
+            if (modalId === "preview-modal") el("preview-frame").src = "about:blank";
+          }
+        });
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            if (S.placing) setPlacing(null);
+            el("preview-modal").hidden = true;
+            el("export-modal").hidden = true;
+          }
+        });
+
+        el("preview-btn").onclick = () => {
+          el("preview-frame").src = `/api/preview?t=${Date.now()}`;
+          el("preview-modal").hidden = false;
+        };
+        el("export-btn").onclick = () => {
+          el("export-msg").textContent = "";
+          el("export-modal").hidden = false;
+        };
+        el("dl-zip-btn").onclick = () => {
+          const base = encodeURIComponent(el("export-base").value.trim() || "./");
+          window.location.href = `/api/export?format=zip&base=${base}`;
+        };
+        el("dl-html-btn").onclick = () => {
+          const base = encodeURIComponent(el("export-base").value.trim() || "./");
+          window.location.href = `/api/export?format=single-file&base=${base}`;
+        };
+        el("build-disk-btn").onclick = async () => {
+          el("export-msg").textContent = "Building static site to dist/…";
+          const res = await api("/api/build-disk", { base: el("export-base").value.trim() || "./" });
+          el("export-msg").textContent = res.message || (res.ok ? "Built!" : "Build failed.");
+        };
+      }
+
+      bindGlobalEvents();
+      refresh("Ready");
+
     </script>
   </body>
 </html>

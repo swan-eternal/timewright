@@ -8,25 +8,52 @@
   <body>
     <div id="app">
       <header id="topbar">
-        <nav id="breadcrumb" aria-label="Map"></nav>
-        <form id="date-form">
-          <label class="visually-hidden" for="date-input">Date</label>
-          <input id="date-input" type="text" autocomplete="off" spellcheck="false" placeholder="1815-06-18" />
-          <button type="submit">Go</button>
-        </form>
+        <div class="brand-crumb">
+          <span id="world-title" class="world-title"></span>
+          <span class="crumb-sep" id="crumb-sep" hidden>/</span>
+          <nav id="breadcrumb" aria-label="Map hierarchy"></nav>
+        </div>
+        <div class="topbar-controls">
+          <form id="date-form">
+            <label class="visually-hidden" for="date-input">Date</label>
+            <input id="date-input" type="text" autocomplete="off" spellcheck="false" placeholder="Date (e.g. 1815)" />
+            <button type="submit">Go</button>
+          </form>
+          <input id="search" type="search" placeholder="Search world…" aria-label="Search events, people, and locations" />
+        </div>
       </header>
+
       <div id="stepbar">
-        <button id="prev-step" type="button" aria-label="Previous step">‹</button>
-        <span id="step-label"></span>
-        <button id="next-step" type="button" aria-label="Next step">›</button>
-        <select id="trace-select" aria-label="Trace someone"></select>
-        <input id="search" type="search" placeholder="Search" aria-label="Search" />
+        <div class="step-controls">
+          <button id="prev-step" type="button" title="Previous step (←)" aria-label="Previous step">‹</button>
+          <button id="step-label" type="button" class="step-label-btn" title="Open current step details"></button>
+          <button id="next-step" type="button" title="Next step (→)" aria-label="Next step">›</button>
+        </div>
+        <div class="trace-controls">
+          <label class="trace-label" for="trace-select">Follow:</label>
+          <select id="trace-select" aria-label="Follow a character or vessel"></select>
+          <button id="clear-trace" type="button" class="ghost-btn" hidden title="Return to span view">✕</button>
+        </div>
       </div>
-      <main id="map" aria-label="Map"></main>
+
+      <div id="active-filters" hidden></div>
+
+      <main id="map-wrap">
+        <div id="map" aria-label="Interactive timeline map"></div>
+        <div id="map-caption" class="map-caption" hidden></div>
+        <div id="general-banner" class="general-banner" hidden></div>
+      </main>
+
       <div id="timeline">
-        <div id="context" aria-label="The whole range of the world"></div>
-        <div id="strip" aria-label="Timeline"></div>
+        <div class="timeline-header">
+          <span id="domain-readout" class="timeline-meta"></span>
+          <span id="playhead-readout" class="playhead-readout"></span>
+          <button id="reset-span" type="button" class="mini-link" hidden>Full timeline</button>
+        </div>
+        <div id="context" aria-label="Timeline overview range"></div>
+        <div id="strip" aria-label="Visible timeline"></div>
       </div>
+
       <aside id="card" hidden aria-live="polite"></aside>
       <div id="results" hidden></div>
       <p id="status" role="status"></p>

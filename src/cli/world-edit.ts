@@ -2,13 +2,12 @@
  * Writing to a world.
  *
  * The editor and the picker both change the YAML in place. The files stay
- * the source of truth, so an agent can keep working on a world a person has
- * been editing in the browser.
+ * the source of truth, so an agent or git workflow can keep working on a
+ * world a person has been editing in the browser.
  *
- * A record is edited by editing its YAML document, not by regenerating it,
- * so the comments and the formatting survive. New records go into the
- * kind's list file when there is one, and into their own file when there
- * is not.
+ * Existing YAML documents are edited in place so comments and formatting
+ * survive. New records go into the kind's list file when there is one, and
+ * into their own file when there is not.
  */
 
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
@@ -18,8 +17,9 @@ import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
 
 import { slugify } from "../core/resolve.js";
 import { buildIndex } from "../core/building.js";
+import type { MapImageRecord, StayRecord } from "../core/schema.js";
 
-export type EditableKind = "location" | "person" | "event";
+export type EditableKind = "map" | "location" | "person" | "event";
 
 export interface RecordPlace {
   /** The file the record lives in. */
@@ -32,26 +32,30 @@ export interface EditResult {
   ok: boolean;
   message: string;
   file?: string | undefined;
+  id?: string | undefined;
+  fileName?: string | undefined;
 }
 
 /**
- * The fields each kind of record can change from the editor.
- *
- * `required` cannot be left empty, `optional` is taken away when it is
- * left empty, and `lists` are comma separated.
+ * Standard fields each kind of record can change from the editor form.
  */
 const EDITABLE_FIELDS: Record<
   EditableKind,
   { required: { key: string; label: string }[]; optional: string[]; lists: string[] }
 > = {
+  map: {
+    required: [{ key: "name", label: "a name" }],
+    optional: ["id", "parent", "notes"],
+    lists: ["aliases", "tags"],
+  },
   location: {
     required: [{ key: "name", label: "a name" }],
-    optional: ["map", "card"],
+    optional: ["map", "opens", "kind", "card", "image", "notes"],
     lists: ["aliases", "tags"],
   },
   person: {
     required: [{ key: "name", label: "a name" }],
-    optional: ["born", "died", "bio"],
+    optional: ["born", "died", "color", "bio", "image", "notes"],
     lists: ["aliases", "tags"],
   },
   event: {
@@ -59,17 +63,11 @@ const EDITABLE_FIELDS: Record<
       { key: "title", label: "a title" },
       { key: "when", label: "a date" },
     ],
-    optional: ["where", "card"],
-    lists: ["people", "tags"],
+    optional: ["where", "card", "notes"],
+    lists: ["people", "locations", "tags"],
   },
 };
 
-/**
- * The file a write is allowed to touch.
- *
- * The editor's API takes the path from the browser, so it has to be
- * checked: a path outside the world folder is not ours to write.
- */
 function resolveWithinWorld(root: string, file: string): string | undefined {
   const resolved = path.resolve(file);
   const base = path.resolve(root);
@@ -79,12 +77,6 @@ function resolveWithinWorld(root: string, file: string): string | undefined {
   return resolved;
 }
 
-/**
- * Whether a path names a record in a document.
- *
- * The index comes from the browser too, and a list only goes so far:
- * writing past the end of one would fill it with blanks.
- */
 function isRecordAt(document: { getIn(path: unknown[]): unknown }, index: number): boolean {
   if (!Number.isInteger(index) || index < 0) {
     return false;
@@ -93,22 +85,98 @@ function isRecordAt(document: { getIn(path: unknown[]): unknown }, index: number
   return isMap(node);
 }
 
+function parseOptionalCoord(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  const text = String(raw).trim();
+  if (text === "") {
+    return undefined;
+  }
+  const num = Number(text);
+  return Number.isFinite(num) ? Math.round(num) : undefined;
+}
+
+function sanitizeStays(raw: unknown): StayRecord[] | null | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    return null;
+  }
+  const stays: StayRecord[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object") {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const at = String(entry.at ?? "").trim();
+    if (at === "") {
+      continue;
+    }
+    const stay: StayRecord = { at };
+    const from = String(entry.from ?? "").trim();
+    const until = String(entry.until ?? "").trim();
+    const note = String(entry.note ?? "").trim();
+    if (from !== "") {
+      stay.from = from;
+    }
+    if (until !== "") {
+      stay.until = until;
+    }
+    if (note !== "") {
+      stay.note = note;
+    }
+    stays.push(stay);
+  }
+  return stays.length > 0 ? stays : null;
+}
+
+function sanitizeMapImages(raw: unknown): MapImageRecord[] | null | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    return null;
+  }
+  const images: MapImageRecord[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== "object") {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+    const file = String(entry.file ?? "").trim();
+    if (file === "") {
+      continue;
+    }
+    const img: MapImageRecord = { file };
+    const from = String(entry.from ?? "").trim();
+    const until = String(entry.until ?? "").trim();
+    const caption = String(entry.caption ?? "").trim();
+    if (from !== "") {
+      img.from = from;
+    }
+    if (until !== "") {
+      img.until = until;
+    }
+    if (caption !== "") {
+      img.caption = caption;
+    }
+    images.push(img);
+  }
+  return images.length > 0 ? images : null;
+}
+
 /**
- * The fields to write for a record, from what the editor form collected.
+ * Convert form values from the editor into YAML-ready field updates.
  *
- * Three states, and the difference matters:
- *
- * - a key that is not in `values` is left alone;
- * - a key with a value is written;
- * - a key with an empty value is taken away.
- *
- * An empty optional field is therefore `null` - "remove it" - rather
- * than an empty string. An empty string would leave a date that cannot
- * be read and a card that hides the text underneath it.
+ * - Keys omitted from `values` are left untouched on disk.
+ * - Keys with a value are written.
+ * - Keys with an empty value become `null`, removing the key cleanly.
  */
 export function fieldsFromForm(
   kind: EditableKind,
-  values: Record<string, string>,
+  values: Record<string, unknown>,
 ): { ok: true; fields: Record<string, unknown> } | { ok: false; message: string } {
   const shape = EDITABLE_FIELDS[kind];
   const fields: Record<string, unknown> = {};
@@ -117,7 +185,7 @@ export function fieldsFromForm(
     if (!(key in values)) {
       continue;
     }
-    const value = values[key]?.trim() ?? "";
+    const value = String(values[key] ?? "").trim();
     if (value === "") {
       return { ok: false, message: `this ${kind} needs ${label}` };
     }
@@ -128,7 +196,11 @@ export function fieldsFromForm(
     if (!(key in values)) {
       continue;
     }
-    const value = values[key]?.trim() ?? "";
+    const value = String(values[key] ?? "").trim();
+    if (kind === "location" && key === "kind") {
+      fields.kind = value === "mobile" ? "mobile" : null;
+      continue;
+    }
     fields[key] = value === "" ? null : value;
   }
 
@@ -136,24 +208,121 @@ export function fieldsFromForm(
     if (!(key in values)) {
       continue;
     }
-    const list = (values[key] ?? "")
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part !== "");
-    // An empty list is no list, so the key goes rather than staying as [].
+    const rawVal = values[key];
+    const list = Array.isArray(rawVal)
+      ? rawVal.map((part) => String(part).trim()).filter((part) => part !== "")
+      : String(rawVal ?? "")
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part) => part !== "");
     fields[key] = list.length === 0 ? null : list;
+  }
+
+  // Kind-specific structured fields
+  if (kind === "map") {
+    if ("images" in values) {
+      fields.images = sanitizeMapImages(values.images);
+      if (fields.images !== undefined) {
+        // Normalize single `file` shorthand into `images` list when editing images
+        fields.file = null;
+      }
+    }
+    if ("width" in values || "height" in values) {
+      const w = parseOptionalCoord(values.width);
+      const h = parseOptionalCoord(values.height);
+      if (w !== undefined && h !== undefined && w > 0 && h > 0) {
+        fields.size = [w, h];
+      } else if (String(values.width ?? "").trim() === "" && String(values.height ?? "").trim() === "") {
+        fields.size = null;
+      }
+    }
+  }
+
+  if (kind === "location") {
+    const isMobile = fields.kind === "mobile";
+    if (isMobile) {
+      fields.at = null;
+      fields.map = null;
+    } else if ("atX" in values || "atY" in values) {
+      const x = parseOptionalCoord(values.atX);
+      const y = parseOptionalCoord(values.atY);
+      if (x !== undefined && y !== undefined) {
+        fields.at = [x, y];
+      } else if (String(values.atX ?? "").trim() === "" && String(values.atY ?? "").trim() === "") {
+        fields.at = null;
+      }
+    }
+
+    if ("existsFrom" in values || "existsUntil" in values) {
+      const from = String(values.existsFrom ?? "").trim();
+      const until = String(values.existsUntil ?? "").trim();
+      if (from === "" && until === "") {
+        fields.exists = null;
+      } else {
+        const existsObj: Record<string, string> = {};
+        if (from !== "") existsObj.from = from;
+        if (until !== "") existsObj.until = until;
+        fields.exists = existsObj;
+      }
+    }
+
+    if ("stays" in values) {
+      fields.stays = isMobile ? sanitizeStays(values.stays) : null;
+    }
+  }
+
+  if (kind === "person") {
+    if ("stays" in values) {
+      fields.stays = sanitizeStays(values.stays);
+    }
+  }
+
+  if (kind === "event") {
+    if ("order" in values) {
+      const rawOrder = String(values.order ?? "").trim();
+      if (rawOrder === "") {
+        fields.order = null;
+      } else {
+        const parsedOrder = Number(rawOrder);
+        if (!Number.isFinite(parsedOrder)) {
+          return { ok: false, message: "event order must be a number" };
+        }
+        fields.order = parsedOrder;
+      }
+    }
+
+    // Event placement mode: "general" (timeline only), "location" (named location), or "point" (map + [x,y])
+    if ("whereMode" in values) {
+      const mode = String(values.whereMode ?? "");
+      if (mode === "general" || mode === "none") {
+        fields.where = null;
+      } else if (mode === "location") {
+        const locName = String(values.whereLocation ?? values.where ?? "").trim();
+        fields.where = locName === "" ? null : locName;
+      } else if (mode === "point") {
+        const mapName = String(values.whereMap ?? "").trim();
+        const x = parseOptionalCoord(values.whereX);
+        const y = parseOptionalCoord(values.whereY);
+        if (mapName === "" || x === undefined || y === undefined) {
+          return { ok: false, message: "a map coordinate event needs a map and X/Y coordinates" };
+        }
+        fields.where = { map: mapName, at: [x, y] };
+      }
+    }
   }
 
   return { ok: true, fields };
 }
 
 const DIRECTORIES: Record<EditableKind, string> = {
+  map: "maps",
   location: "locations",
   person: "people",
   event: "events",
 };
 
 const LIST_FILES: Record<EditableKind, string[]> = {
+  map: ["maps.yaml", "maps.yml"],
   location: ["locations.yaml", "locations.yml"],
   person: ["people.yaml", "people.yml"],
   event: ["events.yaml", "events.yml"],
@@ -169,17 +338,27 @@ async function findFirst(root: string, names: string[]): Promise<string | undefi
   return undefined;
 }
 
-/**
- * The list file for a kind, if the world has one.
- *
- * It may sit at the root (`people.yaml`) or inside the kind's own folder
- * (`people/people.yaml`) - both are read, so both are fair game.
- */
 async function findListFile(root: string, kind: EditableKind): Promise<string | undefined> {
   const names = LIST_FILES[kind];
   const inFolder = await findFirst(path.join(root, DIRECTORIES[kind]), names);
   if (inFolder !== undefined) {
     return inFolder;
+  }
+  if (kind === "map") {
+    // Also check if maps/ already has a single YAML list file such as region.yaml or europe.yaml
+    const mapsDir = path.join(root, "maps");
+    if (existsSync(mapsDir)) {
+      const { readdir } = await import("node:fs/promises");
+      const files = (await readdir(mapsDir)).filter((f) => /\.ya?ml$/i.test(f)).sort();
+      if (files.length === 1 && files[0] !== undefined) {
+        const candidate = path.join(mapsDir, files[0]);
+        const text = await readFile(candidate, "utf8");
+        const doc = parseDocument(text);
+        if (isSeq(doc.contents)) {
+          return candidate;
+        }
+      }
+    }
   }
   return findFirst(root, names);
 }
@@ -188,13 +367,56 @@ function documentText(document: ReturnType<typeof parseDocument>): string {
   return document.toString({ collectionStyle: "any" });
 }
 
-/** The document's root, when it is a list of records. */
 function rootSequence(document: ReturnType<typeof parseDocument>): YAMLSeq<unknown> | undefined {
   const contents: unknown = document.contents;
   return isSeq(contents as YAMLSeq<unknown>) ? (contents as YAMLSeq<unknown>) : undefined;
 }
 
-/** Set fields on a record that already exists. */
+function isWorldYaml(root: string, file: string): boolean {
+  const rel = path.relative(path.resolve(root), path.resolve(file));
+  return rel === "world.yaml" || rel === "world.yml";
+}
+
+/** Update world-level metadata in `world.yaml` (title, overworld, start, end). */
+export async function writeWorldSettings(
+  root: string,
+  values: Record<string, unknown>,
+): Promise<EditResult> {
+  const worldFile =
+    (await findFirst(root, ["world.yaml", "world.yml"])) ?? path.join(root, "world.yaml");
+  const resolved = resolveWithinWorld(root, worldFile);
+  if (resolved === undefined) {
+    return { ok: false, message: "world.yaml is outside the world folder" };
+  }
+
+  const title = String(values.title ?? "").trim();
+  if ("title" in values && title === "") {
+    return { ok: false, message: "the world needs a title" };
+  }
+
+  const text = existsSync(resolved) ? await readFile(resolved, "utf8") : "title: My World\n";
+  const document = parseDocument(text);
+
+  if ("title" in values) {
+    document.setIn(["title"], title);
+  }
+  for (const key of ["overworld", "start", "end"] as const) {
+    if (!(key in values)) {
+      continue;
+    }
+    const raw = String(values[key] ?? "").trim();
+    if (raw === "") {
+      document.deleteIn([key]);
+    } else {
+      document.setIn([key], raw);
+    }
+  }
+
+  await writeFile(resolved, documentText(document), "utf8");
+  return { ok: true, message: "saved world settings", file: resolved };
+}
+
+/** Set fields on an existing record in place. */
 export async function writeRecordFields(
   root: string,
   kind: EditableKind,
@@ -210,17 +432,27 @@ export async function writeRecordFields(
   }
   const text = await readFile(file, "utf8");
   const document = parseDocument(text);
-  if (place.index !== undefined && !isRecordAt(document, place.index)) {
-    return { ok: false, message: "that record is not in the file" };
+
+  let prefix: (string | number)[] = [];
+  if (kind === "map" && isWorldYaml(root, file)) {
+    const idx = place.index ?? 0;
+    const node = document.getIn(["maps", idx]);
+    if (!isMap(node)) {
+      return { ok: false, message: "that map is not in world.yaml" };
+    }
+    prefix = ["maps", idx];
+  } else if (place.index !== undefined) {
+    if (!isRecordAt(document, place.index)) {
+      return { ok: false, message: "that record is not in the file" };
+    }
+    prefix = [place.index];
   }
-  const prefix = place.index !== undefined ? [place.index] : [];
+
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) {
       continue;
     }
     if (value === null) {
-      // null means "take this field away", which is how a cleared date
-      // or a cleared location is written.
       document.deleteIn([...prefix, key]);
       continue;
     }
@@ -228,25 +460,35 @@ export async function writeRecordFields(
   }
   await writeFile(file, documentText(document), "utf8");
 
-  // A record that lives in its own file should keep its file named after it.
-  if (place.index === undefined) {
+  let finalFile = file;
+  if (place.index === undefined && !isWorldYaml(root, file)) {
     const name = fields.name ?? fields.title;
     if (typeof name === "string" && name !== "") {
       const folder = path.dirname(file);
       if (folder === path.join(root, DIRECTORIES[kind])) {
         const wanted = `${slugify(name)}.yaml`;
         if (wanted !== path.basename(file)) {
-          try {
-            await rename(file, path.join(folder, wanted));
-          } catch {
-            // A rename is a nicety, not a requirement.
+          const renamed = path.join(folder, wanted);
+          if (!existsSync(renamed)) {
+            try {
+              await rename(file, renamed);
+              finalFile = renamed;
+            } catch {
+              // Rename is best-effort.
+            }
           }
         }
       }
     }
   }
 
-  return { ok: true, message: `saved ${file}`, file };
+  const label = String(fields.id ?? fields.name ?? fields.title ?? "");
+  return {
+    ok: true,
+    message: `saved ${path.basename(finalFile)}`,
+    file: finalFile,
+    id: label !== "" ? slugify(label) : undefined,
+  };
 }
 
 /** Remove a record from the world. */
@@ -255,7 +497,6 @@ export async function deleteRecord(
   kind: EditableKind,
   place: RecordPlace,
 ): Promise<EditResult> {
-  void kind;
   if (place.file === undefined) {
     return { ok: false, message: "that record has no file to delete from" };
   }
@@ -263,9 +504,22 @@ export async function deleteRecord(
   if (resolved === undefined) {
     return { ok: false, message: "that file is outside the world folder" };
   }
+
+  if (kind === "map" && isWorldYaml(root, resolved)) {
+    const idx = place.index ?? -1;
+    const text = await readFile(resolved, "utf8");
+    const document = parseDocument(text);
+    if (!isMap(document.getIn(["maps", idx]))) {
+      return { ok: false, message: "that map is not in world.yaml" };
+    }
+    document.deleteIn(["maps", idx]);
+    await writeFile(resolved, documentText(document), "utf8");
+    return { ok: true, message: "deleted map from world.yaml", file: resolved };
+  }
+
   if (place.index === undefined) {
     await unlink(resolved);
-    return { ok: true, message: `deleted ${resolved}` };
+    return { ok: true, message: `deleted ${path.basename(resolved)}` };
   }
   const text = await readFile(resolved, "utf8");
   const document = parseDocument(text);
@@ -274,35 +528,57 @@ export async function deleteRecord(
   }
   document.deleteIn([place.index]);
   await writeFile(resolved, documentText(document), "utf8");
-  return { ok: true, message: `deleted a record from ${resolved}`, file: resolved };
+  return { ok: true, message: `deleted record from ${path.basename(resolved)}`, file: resolved };
 }
 
-/** Add a record to the world. */
+/** Add a new record to the world. */
 export async function createRecord(
   root: string,
   kind: EditableKind,
   record: Record<string, unknown>,
 ): Promise<EditResult> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (Array.isArray(value) && value.length === 0) {
+      continue;
+    }
+    if (typeof value === "string" && value.trim() === "") {
+      continue;
+    }
+    cleaned[key] = value;
+  }
+
+  const rawName = String(cleaned.id ?? cleaned.name ?? cleaned.title ?? "record");
+  const id = slugify(rawName) || "record";
+
   const listFile = await findListFile(root, kind);
   if (listFile !== undefined) {
     const text = await readFile(listFile, "utf8");
     const document = parseDocument(text);
     const sequence = rootSequence(document);
     if (sequence !== undefined) {
-      sequence.add(record);
+      sequence.add(cleaned);
       await writeFile(listFile, documentText(document), "utf8");
-      return { ok: true, message: `added to ${listFile}`, file: listFile };
+      return { ok: true, message: `added to ${listFile}`, file: listFile, id };
     }
   }
 
-  const name = String(record.name ?? record.title ?? "record");
-  const file = path.join(root, DIRECTORIES[kind], `${slugify(name)}.yaml`);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, stringify(record, { lineWidth: 100 }), "utf8");
-  return { ok: true, message: `created ${file}`, file };
+  const dir = path.join(root, DIRECTORIES[kind]);
+  await mkdir(dir, { recursive: true });
+  let candidate = path.join(dir, `${id}.yaml`);
+  let suffix = 2;
+  while (existsSync(candidate)) {
+    candidate = path.join(dir, `${id}-${suffix}.yaml`);
+    suffix += 1;
+  }
+  await writeFile(candidate, stringify(cleaned, { lineWidth: 100 }), "utf8");
+  return { ok: true, message: `created ${candidate}`, file: candidate, id };
 }
 
-/** Move a location to a new spot on its map. */
+/** Move a location to a new pixel coordinate on a map. */
 export async function moveLocation(
   root: string,
   id: string,
@@ -315,7 +591,6 @@ export async function moveLocation(
   const index = buildIndex(loaded.data);
   for (const record of index.locations) {
     const location = record.data;
-    // The editor sends the id the core uses; the picker sends the name.
     if (record.id !== id && record.name !== id) {
       continue;
     }
@@ -333,41 +608,148 @@ export async function moveLocation(
   return { ok: false, message: `no location called "${id}"` };
 }
 
-/** Save an image for a map, and reference it in the map's YAML. */
+/** Move a raw-coordinate event marker on its map. */
+export async function moveEventPoint(
+  root: string,
+  id: string,
+  mapId: string,
+  x: number,
+  y: number,
+): Promise<EditResult> {
+  const { loadWorld } = await import("./load.js");
+  const loaded = await loadWorld(root);
+  const index = buildIndex(loaded.data);
+  for (const record of index.events) {
+    if (record.id !== id && record.name !== id) {
+      continue;
+    }
+    if (record.file === undefined) {
+      return { ok: false, message: "that event has no file to write to" };
+    }
+    const text = await readFile(record.file, "utf8");
+    const document = parseDocument(text);
+    const prefix = record.index !== undefined ? [record.index] : [];
+    document.setIn([...prefix, "where"], {
+      map: mapId,
+      at: [Math.round(x), Math.round(y)],
+    });
+    await writeFile(record.file, documentText(document), "utf8");
+    return {
+      ok: true,
+      message: `moved "${record.data.title}" to [${Math.round(x)}, ${Math.round(y)}]`,
+    };
+  }
+  return { ok: false, message: `no event called "${id}"` };
+}
+
+/**
+ * Save an uploaded image for a map, and reference it in the map's YAML.
+ *
+ * By default (`mode = "replace"` when the map only has a starter/single image,
+ * or explicit `mode = "add"` for time-varying map layers), updates `images`
+ * and updates `size` when the uploaded image dimensions differ from an
+ * existing declared `size` (avoiding size-mismatch errors when replacing
+ * starter placeholder graphics).
+ */
 export async function saveMapImage(
   root: string,
   mapId: string,
   fileName: string,
   bytes: Buffer,
+  options: { mode?: "add" | "replace"; from?: string; until?: string; caption?: string } = {},
 ): Promise<EditResult> {
   const { loadWorld } = await import("./load.js");
+  const { readImageSize } = await import("../core/images.js");
   const loaded = await loadWorld(root);
   const index = buildIndex(loaded.data);
-  for (const record of index.maps) {
-    // The editor sends the id the core uses; the picker sends the name.
+
+  const detectedSize = readImageSize(bytes);
+
+  for (let mapPos = 0; mapPos < index.maps.length; mapPos += 1) {
+    const record = index.maps[mapPos];
+    if (record === undefined) continue;
     if (record.id !== mapId && record.name !== mapId) {
       continue;
     }
-    const safeName = path.basename(fileName).replace(/[^\w.\-]+/g, "-");
-    const folder = record.file !== undefined ? path.dirname(record.file) : path.join(root, "maps");
+    const safeName = path.basename(fileName).replace(/[^\w.\-]+/g, "-") || "map.png";
+    const inWorldYaml = record.file !== undefined && isWorldYaml(root, record.file);
+    const folder =
+      record.file !== undefined && !inWorldYaml
+        ? path.dirname(record.file)
+        : path.join(root, "maps");
     const target = path.join(folder, safeName);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, bytes);
 
+    const entry: Record<string, string> = { file: safeName };
+    if (options.from !== undefined && options.from.trim() !== "") {
+      entry.from = options.from.trim();
+    }
+    if (options.until !== undefined && options.until.trim() !== "") {
+      entry.until = options.until.trim();
+    }
+    if (options.caption !== undefined && options.caption.trim() !== "") {
+      entry.caption = options.caption.trim();
+    }
+
     if (record.file !== undefined) {
       const text = await readFile(record.file, "utf8");
       const document = parseDocument(text);
-      const prefix = record.index !== undefined ? [record.index] : [];
-      const images = document.getIn([...prefix, "images"]) as YAMLSeq<unknown> | undefined;
-      const entry = { file: safeName };
-      if (images !== undefined && isSeq(images as YAMLSeq<unknown>)) {
-        images.add(entry);
-      } else {
+      let prefix: (string | number)[] = [];
+      if (inWorldYaml) {
+        // Locate its index inside world.yaml `maps`
+        const inlineIndex = (loaded.data.world.data.maps ?? []).findIndex(
+          (m) => (m.id ?? slugify(m.name)) === record.id,
+        );
+        prefix = ["maps", inlineIndex >= 0 ? inlineIndex : 0];
+      } else if (record.index !== undefined) {
+        prefix = [record.index];
+      }
+
+      const mode = options.mode ?? "add";
+      if (mode === "replace") {
+        document.deleteIn([...prefix, "file"]);
         document.setIn([...prefix, "images"], [entry]);
+        if (detectedSize !== undefined) {
+          document.setIn([...prefix, "size"], [detectedSize.width, detectedSize.height]);
+        }
+      } else {
+        const existingImages = document.getIn([...prefix, "images"]) as YAMLSeq<unknown> | undefined;
+        const singleFile = document.getIn([...prefix, "file"]);
+        if (existingImages !== undefined && isSeq(existingImages)) {
+          existingImages.add(entry);
+        } else if (typeof singleFile === "string" && singleFile !== "") {
+          document.deleteIn([...prefix, "file"]);
+          document.setIn([...prefix, "images"], [{ file: singleFile }, entry]);
+        } else {
+          document.setIn([...prefix, "images"], [entry]);
+          if (detectedSize !== undefined) {
+            document.setIn([...prefix, "size"], [detectedSize.width, detectedSize.height]);
+          }
+        }
       }
       await writeFile(record.file, documentText(document), "utf8");
     }
-    return { ok: true, message: `saved ${target}` };
+    return { ok: true, message: `saved ${safeName}`, file: target, fileName: safeName };
   }
   return { ok: false, message: `no map called "${mapId}"` };
+}
+
+/** Save a portrait/card asset file inside the world folder (e.g. `assets/portrait.png`). */
+export async function saveAssetImage(
+  root: string,
+  subdir: "people" | "locations" | "assets",
+  fileName: string,
+  bytes: Buffer,
+): Promise<EditResult> {
+  const safeName = path.basename(fileName).replace(/[^\w.\-]+/g, "-") || "image.png";
+  const relPath = `${subdir}/${safeName}`;
+  const target = path.join(root, subdir, safeName);
+  const checked = resolveWithinWorld(root, target);
+  if (checked === undefined) {
+    return { ok: false, message: "asset path is outside the world folder" };
+  }
+  await mkdir(path.dirname(checked), { recursive: true });
+  await writeFile(checked, bytes);
+  return { ok: true, message: `uploaded ${relPath}`, file: checked, fileName: relPath };
 }

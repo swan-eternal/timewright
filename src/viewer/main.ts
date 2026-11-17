@@ -6,29 +6,38 @@ import "./styles.css";
 
 import { parseDate, type DateBound } from "../core/dates.js";
 import { eventDomain } from "../core/scale.js";
-import { eventPlace, mapChain, sortedEvents } from "../core/derive.js";
+import { eventHasPosition, eventPlace, mapChain, sortedEvents } from "../core/derive.js";
 import { findStep, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
 import { debugOn, installDebug } from "./debug.js";
 import { readLink, writeLink } from "./link.js";
-import { MapView } from "./map.js";
+import { assetUrl, MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
 import { Store, type AppState, type Changed } from "./state.js";
 import { Timeline } from "./timeline.js";
 
 const statusElement = document.querySelector<HTMLElement>("#status");
 const cardElement = document.querySelector<HTMLElement>("#card");
+const worldTitleElement = document.querySelector<HTMLElement>("#world-title");
+const crumbSepElement = document.querySelector<HTMLElement>("#crumb-sep");
 const breadcrumbElement = document.querySelector<HTMLElement>("#breadcrumb");
 const mapElement = document.querySelector<HTMLElement>("#map");
+const mapCaptionElement = document.querySelector<HTMLElement>("#map-caption");
+const generalBannerElement = document.querySelector<HTMLElement>("#general-banner");
+const activeFiltersElement = document.querySelector<HTMLElement>("#active-filters");
 const dateForm = document.querySelector<HTMLFormElement>("#date-form");
 const dateInput = document.querySelector<HTMLInputElement>("#date-input");
 const prevButton = document.querySelector<HTMLButtonElement>("#prev-step");
 const nextButton = document.querySelector<HTMLButtonElement>("#next-step");
 const stepLabel = document.querySelector<HTMLElement>("#step-label");
 const traceSelect = document.querySelector<HTMLSelectElement>("#trace-select");
+const clearTraceButton = document.querySelector<HTMLButtonElement>("#clear-trace");
 const searchInput = document.querySelector<HTMLInputElement>("#search");
 const resultsElement = document.querySelector<HTMLElement>("#results");
+const domainReadoutElement = document.querySelector<HTMLElement>("#domain-readout");
+const playheadReadoutElement = document.querySelector<HTMLElement>("#playhead-readout");
+const resetSpanButton = document.querySelector<HTMLButtonElement>("#reset-span");
 const contextElement = document.querySelector<HTMLElement>("#context");
 const stripElement = document.querySelector<HTMLElement>("#strip");
 
@@ -52,9 +61,24 @@ function tagChips(tags: string[]): string {
     .join(" ")}</p>`;
 }
 
+function portraitHtml(rawPath: string | undefined, alt: string): string {
+  const src = assetUrl(rawPath);
+  if (src === undefined) {
+    return "";
+  }
+  return `<div class="card-media"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" /></div>`;
+}
+
 function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
   const place = world.locations.find((location) => event.where?.location === location.id);
-  const where = place !== undefined ? place.name : event.where?.map !== undefined ? `on ${event.where.map}` : "";
+  const mapObj =
+    event.where?.map !== undefined ? world.maps.find((m) => m.id === event.where?.map) : undefined;
+  const whereHtml =
+    place !== undefined
+      ? `<a href="#" data-kind="location" data-id="${escapeHtml(place.id)}">${escapeHtml(place.name)}</a>`
+      : mapObj !== undefined
+        ? `<a href="#" data-map="${escapeHtml(mapObj.id)}">${escapeHtml(mapObj.name)}</a>`
+        : "Timeline event";
   const people = event.people
     .map((id) => world.people.find((person) => person.id === id))
     .filter((person): person is ResolvedPerson => person !== undefined)
@@ -62,8 +86,8 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
     .join(", ");
   return [
     `<h2>${escapeHtml(event.title)}</h2>`,
-    `<p class="meta">${escapeHtml(event.when.raw)}${where !== "" ? ` · ${escapeHtml(where)}` : ""}</p>`,
-    people !== "" ? `<p class="people">${people}</p>` : "",
+    `<p class="meta">${escapeHtml(event.when.raw)} · ${whereHtml}</p>`,
+    people !== "" ? `<p class="people"><strong>People:</strong> ${people}</p>` : "",
     tagChips(event.tags),
     renderMarkdown(event.card),
   ].join("\n");
@@ -73,20 +97,46 @@ function locationCard(world: ResolvedWorld, location: ResolvedLocation): string 
   const people = world.people
     .filter((person) => person.stays.some((stay) => stay.at === location.id))
     .map((person) => personLink(person));
+  const submap =
+    location.opens !== undefined ? world.maps.find((m) => m.id === location.opens) : undefined;
+  const enterSubmapBtn =
+    submap !== undefined
+      ? `<p class="card-actions"><button type="button" class="action-btn" data-map="${escapeHtml(submap.id)}">Enter ${escapeHtml(submap.name)} ↘</button></p>`
+      : location.opens !== undefined
+        ? `<p class="card-actions"><button type="button" class="action-btn" data-map="${escapeHtml(location.opens)}">Enter sub-map ↘</button></p>`
+        : "";
+  const existsMeta =
+    location.exists !== undefined
+      ? [location.exists.from?.raw, location.exists.until?.raw].filter(Boolean).join(" – ")
+      : "";
+  const metaParts = [location.kind === "mobile" ? "Mobile" : "", existsMeta].filter((p) => p !== "");
   return [
+    portraitHtml(location.image, location.name),
     `<h2>${escapeHtml(location.name)}</h2>`,
-    location.kind === "mobile" ? `<p class="meta">mobile</p>` : "",
-    people.length > 0 ? `<p class="people">${people.join(", ")}</p>` : "",
+    metaParts.length > 0 ? `<p class="meta">${escapeHtml(metaParts.join(" · "))}</p>` : "",
+    enterSubmapBtn,
+    people.length > 0 ? `<p class="people"><strong>People:</strong> ${people.join(", ")}</p>` : "",
     tagChips(location.tags),
     renderMarkdown(location.card ?? location.bio),
   ].join("\n");
 }
 
-function personCard(person: ResolvedPerson): string {
+function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
   const life = [person.born?.raw, person.died?.raw].filter((part) => part !== undefined).join(" – ");
+  const staysList = person.stays
+    .map((s) => {
+      const loc = world.locations.find((l) => l.id === s.at);
+      const label = loc?.name ?? s.at;
+      const dates = [s.from?.raw, s.until?.raw].filter(Boolean).join("–");
+      return dates !== "" ? `${escapeHtml(label)} (${escapeHtml(dates)})` : escapeHtml(label);
+    })
+    .join(", ");
   return [
+    portraitHtml(person.image, person.name),
     `<h2>${escapeHtml(person.name)}</h2>`,
     life !== "" ? `<p class="meta">${escapeHtml(life)}</p>` : "",
+    `<p class="card-actions"><button type="button" class="action-btn" data-person="${escapeHtml(person.id)}">Follow path on timeline</button></p>`,
+    staysList !== "" ? `<p class="people"><strong>Stays:</strong> ${staysList}</p>` : "",
     tagChips(person.tags),
     renderMarkdown(person.bio),
   ].join("\n");
@@ -111,10 +161,36 @@ function renderCard(state: AppState): void {
     html = location !== undefined ? locationCard(state.world, location) : "";
   } else {
     const person = state.world.people.find((entry) => entry.id === selection.id);
-    html = person !== undefined ? personCard(person) : "";
+    html = person !== undefined ? personCard(state.world, person) : "";
   }
-  cardElement.innerHTML = `${html}<p><a href="#" id="close-card">Close</a></p>`;
+  cardElement.innerHTML = `<div class="card-header-close"><button type="button" id="close-card" class="ghost-btn" aria-label="Close card">✕ Close</button></div>${html}`;
   cardElement.hidden = false;
+}
+
+function renderActiveFilters(state: AppState): void {
+  if (activeFiltersElement === null) {
+    return;
+  }
+  const tags = state.tags ?? [];
+  const query = (state.query ?? "").trim();
+  if (tags.length === 0 && query === "") {
+    activeFiltersElement.hidden = true;
+    activeFiltersElement.innerHTML = "";
+    return;
+  }
+  const chips: string[] = [];
+  for (const tag of tags) {
+    chips.push(
+      `<button type="button" class="filter-chip" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)} ✕</button>`,
+    );
+  }
+  if (query !== "") {
+    chips.push(
+      `<button type="button" class="filter-chip" id="clear-query-chip">Search: "${escapeHtml(query)}" ✕</button>`,
+    );
+  }
+  activeFiltersElement.innerHTML = `<span class="filter-label">Active filters:</span> ${chips.join(" ")}`;
+  activeFiltersElement.hidden = false;
 }
 
 function renderBreadcrumb(state: AppState): void {
@@ -203,8 +279,15 @@ async function boot(): Promise<void> {
     return;
   }
 
+  document.title = `${world.title} — Timewright`;
+  if (worldTitleElement !== null) {
+    worldTitleElement.textContent = world.title;
+  }
+  if (crumbSepElement !== null) {
+    crumbSepElement.hidden = world.maps.length === 0;
+  }
+
   const link = readLink(window.location.hash);
-  const domain = eventDomain(world);
   const firstEvent = sortedEvents(world)[0];
 
   // The world's calendar, so a date written in its eras reads the same
@@ -245,17 +328,21 @@ async function boot(): Promise<void> {
   const mapView = new MapView({
     element: mapElement,
     onLocation: (id) => {
-      const location = world.locations.find((entry) => entry.id === id);
-      if (location?.opens !== undefined) {
-        store.set({ mapId: location.opens, selection: { kind: "location", id } });
-        return;
-      }
       store.set({ selection: { kind: "location", id } });
     },
     onEvent: (id) => {
       store.set({ selection: { kind: "event", id } });
     },
-    onImageMissing: (message) => setStatus(message, true),
+    onJumpMap: (mapId) => {
+      store.set({ mapId });
+    },
+    onImageMissing: (message) => setStatus(message, message !== ""),
+    onCaptionChange: (caption) => {
+      if (mapCaptionElement !== null) {
+        mapCaptionElement.textContent = caption ?? "";
+        mapCaptionElement.hidden = caption === undefined || caption === "";
+      }
+    },
   });
 
   if (debugOn) {
@@ -263,31 +350,40 @@ async function boot(): Promise<void> {
     (window as unknown as { __timewright?: unknown }).__timewright = { mapView };
   }
 
+  const selectStepAtIndex = (index: number, openCard = true): void => {
+    const state = store.get();
+    const currentDom = eventDomain(state.world);
+    const span =
+      state.span ?? (currentDom !== undefined ? { from: currentDom.from, to: currentDom.to } : undefined);
+    const steps = viewSteps(state.world, {
+      mode: state.mode,
+      traceId: state.traceId,
+      span,
+      query: state.query,
+      tags: state.tags,
+    });
+    const step = steps[index];
+    if (step === undefined) {
+      return;
+    }
+    store.set({
+      date: step.date,
+      stepKey: step.key,
+      mapId: step.mapId ?? state.mapId,
+      selection:
+        openCard && step.eventId !== undefined ? { kind: "event", id: step.eventId } : state.selection,
+    });
+    if (step.mapId === (step.mapId ?? state.mapId) && step.at !== undefined) {
+      mapView.panToPixel(step.at[0], step.at[1]);
+    }
+  };
+
   const stepBar = new StepBar({
     prev: prevButton,
     next: nextButton,
     label: stepLabel,
-    onStep: (index) => {
-      const state = store.get();
-      const span = state.span ?? (domain !== undefined ? { from: domain.from, to: domain.to } : undefined);
-      const steps = viewSteps(state.world, {
-        mode: state.mode,
-        traceId: state.traceId,
-        span,
-        query: state.query,
-        tags: state.tags,
-      });
-      const step = steps[index];
-      if (step === undefined) {
-        return;
-      }
-      store.set({
-        date: step.date,
-        stepKey: step.key,
-        mapId: step.mapId ?? state.mapId,
-        selection: step.eventId !== undefined ? { kind: "event", id: step.eventId } : undefined,
-      });
-    },
+    onStep: (index) => selectStepAtIndex(index, true),
+    onSelectCurrent: (index) => selectStepAtIndex(index, true),
   });
 
   const timeline = new Timeline({
@@ -359,27 +455,74 @@ async function boot(): Promise<void> {
         tickIds.add(step.eventId);
       }
     }
-    timeline.render(state.world, currentDomain, span, state.date, tickIds);
+    const activeEventId =
+      state.selection?.kind === "event" ? state.selection.id : focused?.eventId;
+    timeline.render(state.world, currentDomain, span, state.date, tickIds, activeEventId);
     stepBar.render(
-      steps.map((step) => step.label),
+      steps.map((step) => ({ label: step.label, date: step.date.raw })),
       index,
     );
 
-    mapView.render(
-      state.world,
-      state.mapId,
-      state.date,
-      state.mode === "trace" ? focused?.eventId : undefined,
-    );
+    if (traceSelect.value !== (state.traceId ?? "")) {
+      traceSelect.value = state.traceId ?? "";
+    }
+    if (clearTraceButton !== null) {
+      clearTraceButton.hidden = state.mode !== "trace";
+    }
+    if (domainReadoutElement !== null) {
+      domainReadoutElement.textContent =
+        currentDomain !== undefined ? `${currentDomain.from.raw} – ${currentDomain.to.raw}` : "";
+    }
+    if (playheadReadoutElement !== null) {
+      playheadReadoutElement.textContent = state.date !== undefined ? `At: ${state.date.raw}` : "";
+    }
+    if (dateInput !== null && state.date !== undefined && document.activeElement !== dateInput) {
+      dateInput.value = state.date.raw;
+    }
+    if (resetSpanButton !== null) {
+      resetSpanButton.hidden = state.span === undefined || state.mode === "trace";
+    }
+
+    // Show floating banner when the focused/selected event is a general timeline-only event
+    if (generalBannerElement !== null) {
+      const activeEvent =
+        activeEventId !== undefined
+          ? state.world.events.find((e) => e.id === activeEventId)
+          : undefined;
+      if (activeEvent !== undefined && !eventHasPosition(state.world, activeEvent, state.date)) {
+        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(activeEvent.when.raw)}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
+        generalBannerElement.hidden = false;
+      } else {
+        generalBannerElement.hidden = true;
+        generalBannerElement.innerHTML = "";
+      }
+    }
+
+    const tracedPerson =
+      state.mode === "trace" && state.traceId !== undefined
+        ? state.world.people.find((p) => p.id === state.traceId)
+        : undefined;
+
+    mapView.render({
+      world: state.world,
+      mapId: state.mapId,
+      date: state.date,
+      span,
+      focusEventId: state.mode === "trace" ? focused?.eventId : undefined,
+      selectedId: state.selection?.id,
+      visibleEventIds: tickIds,
+    });
     mapView.setPath(
       state.mode === "trace" && state.traceId !== undefined
         ? tracePath(state.world, state.traceId, state.date)
         : [],
+      tracedPerson?.color,
     );
 
     if (everything || changed.has("mapId")) {
       renderBreadcrumb(state);
     }
+    renderActiveFilters(state);
     renderCard(state);
     renderResults(state);
     updateLink(state);
@@ -427,8 +570,45 @@ async function boot(): Promise<void> {
       store.set({ tags: next });
       return;
     }
+    if (target.closest("#clear-query-chip") !== null) {
+      event.preventDefault();
+      if (searchInput !== null) {
+        searchInput.value = "";
+      }
+      store.set({ query: undefined });
+      return;
+    }
     if (target.closest("#close-card") !== null) {
       event.preventDefault();
+      store.set({ selection: undefined });
+    }
+  });
+
+  clearTraceButton?.addEventListener("click", () => {
+    traceSelect.value = "";
+    store.set({ mode: "span", traceId: undefined });
+  });
+
+  resetSpanButton?.addEventListener("click", () => {
+    store.set({ span: undefined });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement
+    ) {
+      return;
+    }
+    if (event.key === "ArrowLeft" && !prevButton.disabled) {
+      event.preventDefault();
+      prevButton.click();
+    } else if (event.key === "ArrowRight" && !nextButton.disabled) {
+      event.preventDefault();
+      nextButton.click();
+    } else if (event.key === "Escape" && store.get().selection !== undefined) {
       store.set({ selection: undefined });
     }
   });

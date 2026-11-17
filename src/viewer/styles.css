@@ -5,11 +5,17 @@
   --muted: #6b6155;
   --line: #ddd4c4;
   --accent: #1f4fa0;
+  --accent-soft: #e8eef9;
   --event: #b3541e;
+  --portal: #6a3fb5;
 }
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -40,21 +46,18 @@ select {
 }
 
 #app {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto auto;
-  /* One column that can never be pushed wider than the window. Without an
-     explicit track, the implicit one is sized by its content, and one wide
-     child stretches the whole app - the timeline included. */
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  width: 100%;
+  overflow: hidden;
 }
 
-/* A grid item's default min-width is its content's, which lets it push a
-   track wider than the track was meant to be. */
 #topbar,
 #stepbar,
-#map,
+#active-filters,
+#map-wrap,
 #timeline,
 #card,
 #results,
@@ -62,17 +65,38 @@ select {
   min-width: 0;
 }
 
+/* --- Topbar --- */
+
 #topbar {
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.9rem;
   align-items: center;
-  padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.5rem max(0.75rem, env(safe-area-inset-left));
+  justify-content: space-between;
+  padding: 0.45rem max(0.75rem, env(safe-area-inset-right)) 0.45rem max(0.75rem, env(safe-area-inset-left));
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 
+.brand-crumb {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.world-title {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.crumb-sep {
+  color: var(--muted);
+}
+
 #breadcrumb {
-  flex: 1;
   min-width: 0;
   font-weight: 600;
   overflow: hidden;
@@ -83,27 +107,38 @@ select {
 #breadcrumb button {
   background: none;
   border: 0;
-  padding: 0.25rem 0;
+  padding: 0.2rem 0;
   font: inherit;
   color: var(--accent);
   cursor: pointer;
 }
 
+#breadcrumb button:hover {
+  text-decoration: underline;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
 #date-form {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 #date-input {
   width: 8.5rem;
-  padding: 0.4rem 0.5rem;
+  padding: 0.35rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
 }
 
 #date-form button {
-  padding: 0.4rem 0.8rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: var(--accent);
@@ -111,83 +146,375 @@ select {
   cursor: pointer;
 }
 
+#search {
+  width: 9.5rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* --- Stepbar --- */
+
 #stepbar {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   align-items: center;
+  justify-content: space-between;
   padding: 0.35rem max(0.75rem, env(safe-area-inset-right)) 0.35rem max(0.75rem, env(safe-area-inset-left));
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 
-#stepbar button {
-  min-width: 2.25rem;
-  min-height: 2.25rem;
+.step-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+#prev-step,
+#next-step {
+  min-width: 2.2rem;
+  min-height: 2.1rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
 }
 
-#stepbar button:disabled {
+#prev-step:disabled,
+#next-step:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-#step-label {
+.step-label-btn {
   flex: 1;
   min-width: 0;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.9rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.step-label-btn:hover {
+  background: #f2ece0;
+  border-color: var(--line);
+}
+
+.trace-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.trace-label {
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 #trace-select {
-  max-width: 10rem;
-  padding: 0.3rem;
+  max-width: 11rem;
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
 }
 
-#search {
-  width: 7rem;
-  padding: 0.35rem 0.5rem;
+.ghost-btn {
+  padding: 0.25rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  color: var(--ink);
+  background: #f3ede0;
+}
+
+/* --- Active Filters Bar --- */
+
+#active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  background: #f2ece0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8rem;
+}
+
+.filter-label {
+  color: var(--muted);
+  margin-right: 0.2rem;
+}
+
+.filter-chip {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+/* --- Map Area & Overlays --- */
+
+#map-wrap {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 #map {
+  flex: 1 1 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   background: #ded7c9;
-  /* Dragging the map must not scroll the page under it. */
   touch-action: none;
 }
+
+.map-caption {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.65rem;
+  z-index: 500;
+  max-width: min(26rem, calc(100% - 1.5rem));
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.general-banner {
+  position: absolute;
+  top: 0.65rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 550;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-pill {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #efe7f9;
+  color: var(--portal);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.banner-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-link:hover {
+  text-decoration: underline;
+}
+
+/* --- Custom Leaflet Pins (CRS.Simple) --- */
+
+.tw-div-icon {
+  background: none;
+  border: 0;
+}
+
+.tw-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.tw-pin-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+
+.tw-pin-location.has-submap .tw-pin-dot {
+  width: 14px;
+  height: 14px;
+  background: var(--portal);
+}
+
+.tw-pin-location.is-mobile .tw-pin-dot {
+  border-radius: 3px;
+  background: #1f7a5c;
+}
+
+.tw-pin.is-selected .tw-pin-dot,
+.tw-pin.is-selected .tw-pin-diamond {
+  transform: scale(1.35);
+  box-shadow: 0 0 0 3px rgba(31, 79, 160, 0.32), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.tw-pin-badge,
+.tw-pin-portal {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--portal);
+  color: #fff;
+  border: 1.5px solid #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+}
+
+.tw-pin-label {
+  position: absolute;
+  top: 21px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(221, 212, 196, 0.85);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.tw-pin-diamond {
+  width: 12px;
+  height: 12px;
+  background: var(--event);
+  border: 2px solid #fff;
+  transform: rotate(45deg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+
+.tw-pin-event.is-selected .tw-pin-diamond {
+  transform: rotate(45deg) scale(1.35);
+}
+
+.tip-sub {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* --- Timeline --- */
 
 #timeline {
   background: var(--panel);
   border-top: 1px solid var(--line);
-  padding: 0.4rem 0.75rem 0.6rem;
-  /* Nothing in the timeline may reach past the window. */
+  padding: 0.35rem 0.75rem 0.55rem;
   overflow: hidden;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.playhead-readout {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mini-link {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.mini-link:hover {
+  text-decoration: underline;
 }
 
 #context {
   position: relative;
-  height: 0.85rem;
+  height: 0.9rem;
   margin-bottom: 0.25rem;
   background: #ece5d6;
   border-radius: 4px;
   touch-action: none;
+  cursor: pointer;
+}
+
+.context-pip {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(107, 97, 85, 0.45);
+  pointer-events: none;
 }
 
 .context-window {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(31, 79, 160, 0.28);
+  background: rgba(31, 79, 160, 0.26);
   border: 1px solid var(--accent);
   border-radius: 3px;
   cursor: grab;
@@ -197,7 +524,7 @@ select {
   position: absolute;
   top: -2px;
   bottom: -2px;
-  width: 8px;
+  width: 9px;
   cursor: ew-resize;
 }
 
@@ -211,7 +538,7 @@ select {
 
 #strip {
   position: relative;
-  height: 2.6rem;
+  height: 2.75rem;
   touch-action: none;
   cursor: crosshair;
 }
@@ -220,26 +547,40 @@ select {
   position: absolute;
   left: 0;
   right: 0;
-  top: 1.1rem;
+  top: 1.2rem;
   height: 2px;
   background: var(--line);
 }
 
 .tick {
   position: absolute;
-  top: 0.75rem;
-  width: 0.7rem;
-  height: 0.7rem;
-  margin-left: -0.35rem;
+  top: 0.85rem;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-left: -0.36rem;
   padding: 0;
   border: 2px solid var(--event);
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
+  z-index: 2;
 }
 
-.tick:hover {
+.tick:hover,
+.tick.active {
   background: var(--event);
+  transform: scale(1.25);
+  z-index: 4;
+}
+
+.tick.general {
+  border-color: var(--portal);
+  border-radius: 2px;
+}
+
+.tick.general:hover,
+.tick.general.active {
+  background: var(--portal);
 }
 
 .tick.pinned {
@@ -249,12 +590,24 @@ select {
 
 .playhead {
   position: absolute;
-  top: 0.35rem;
-  bottom: 0.35rem;
+  top: 0.25rem;
+  bottom: 0.2rem;
   width: 2px;
   margin-left: -1px;
   background: var(--accent);
   pointer-events: none;
+  z-index: 3;
+}
+
+.playhead-knob {
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
 }
 
 .strip-end {
@@ -273,21 +626,40 @@ select {
   right: 0;
 }
 
+/* --- Detail Card --- */
+
 #card {
   background: var(--panel);
   border-top: 1px solid var(--line);
   padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   max-height: 38vh;
   overflow: auto;
-  /* Scrolling the card should not scroll the page behind it. */
   overscroll-behavior: contain;
-  /* A long word in a card must not widen the card. */
   overflow-wrap: anywhere;
+}
+
+.card-header-close {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.card-media {
+  margin-bottom: 0.6rem;
+}
+
+.card-media img {
+  display: block;
+  max-width: 100%;
+  max-height: 12rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  object-fit: cover;
 }
 
 #card h2 {
   margin: 0 0 0.2rem;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 #card .meta {
@@ -296,9 +668,30 @@ select {
   font-size: 0.85rem;
 }
 
+.card-actions {
+  margin: 0 0 0.6rem;
+}
+
+.action-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 #card .people,
 #card .tags {
   margin: 0 0 0.5rem;
+  font-size: 0.9rem;
 }
 
 #card a {
@@ -308,14 +701,20 @@ select {
 .tag {
   display: inline-flex;
   align-items: center;
-  min-height: 2.25rem;
-  padding: 0.1rem 0.6rem;
+  min-height: 1.9rem;
+  padding: 0.1rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #f3ede0;
   font-size: 0.75rem;
   cursor: pointer;
 }
+
+.tag:hover {
+  border-color: var(--accent);
+}
+
+/* --- Search Results & Status --- */
 
 #results {
   display: flex;
@@ -324,17 +723,25 @@ select {
   padding: 0.4rem 0.75rem;
   background: var(--panel);
   border-top: 1px solid var(--line);
+  max-height: 24vh;
+  overflow: auto;
 }
 
 .result {
   display: inline-flex;
   align-items: center;
-  min-height: 2.25rem;
+  min-height: 2rem;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
+  font-size: 0.85rem;
   cursor: pointer;
+}
+
+.result:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .embed-link {
@@ -354,7 +761,6 @@ select {
   display: none;
 }
 
-/* A failed map image must not be a quiet grey line at the bottom. */
 #status.error {
   color: #a3352f;
   font-weight: 600;
@@ -362,33 +768,56 @@ select {
   border-top: 1px solid #e5c3c0;
 }
 
+/* --- Desktop Layout --- */
+
 @media (min-width: 900px) {
   #app {
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
-    grid-template-columns: minmax(0, 1fr) 26rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto auto;
   }
 
-  #topbar,
-  #stepbar,
-  #timeline,
-  #status {
+  #topbar {
+    grid-row: 1;
     grid-column: 1 / -1;
   }
 
-  #map {
+  #stepbar {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  #active-filters {
     grid-row: 3;
+    grid-column: 1 / -1;
+  }
+
+  #map-wrap {
+    grid-row: 4;
     grid-column: 1;
   }
 
   #card {
-    grid-row: 3;
+    grid-row: 4;
     grid-column: 2;
+    width: 25rem;
     border-top: 0;
     border-left: 1px solid var(--line);
     max-height: none;
   }
 
+  #timeline {
+    grid-row: 5;
+    grid-column: 1 / -1;
+  }
+
   #results {
+    grid-row: 6;
+    grid-column: 1 / -1;
+  }
+
+  #status {
+    grid-row: 7;
     grid-column: 1 / -1;
   }
 }

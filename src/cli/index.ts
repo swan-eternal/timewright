@@ -35,6 +35,7 @@ Options:
   -o, --out <path>    Output folder (build) or file (schema)
       --base <path>   Base path the site is served from (build), e.g. /repo/
       --single-file   Also write one self-contained HTML file (build)
+      --zip           Also write a website .zip bundle ready to upload (build)
       --port <n>      Port for the dev server (5173), the picker (5174) or the
                       editor (5175)
       --force         Write into a folder that already has something in it (init)
@@ -58,6 +59,7 @@ interface ParsedArgs {
   json: boolean;
   strict: boolean;
   singleFile: boolean;
+  zip: boolean;
   force: boolean;
   help: boolean;
 }
@@ -69,6 +71,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     json: false,
     strict: false,
     singleFile: false,
+    zip: false,
     force: false,
     help: false,
   };
@@ -127,6 +130,10 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.singleFile = true;
       continue;
     }
+    if (argument === "--zip") {
+      parsed.zip = true;
+      continue;
+    }
     if (argument === "--force") {
       parsed.force = true;
       continue;
@@ -182,6 +189,7 @@ async function main(argv: string[]): Promise<number> {
         out: args.out,
         base: args.base,
         singleFile: args.singleFile,
+        zip: args.zip,
       });
     case "dev":
       return runDev({ world: args.world, port: args.port });
