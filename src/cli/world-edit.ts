@@ -17,6 +17,7 @@ import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from "yaml";
 
 import { slugify } from "../core/resolve.js";
 import { buildIndex } from "../core/building.js";
+import { canonicalReference, type RefKind } from "../core/references.js";
 import type { MapImageRecord, StayRecord } from "../core/schema.js";
 
 export type EditableKind = "map" | "location" | "person" | "event";
@@ -448,6 +449,33 @@ export async function writeRecordFields(
     prefix = [place.index];
   }
 
+  // A rename: the record's name changed, so the references that pointed at
+  // the old name have to follow it.
+  const nameKey = kind === "event" ? "title" : "name";
+  const oldName = document.getIn([...prefix, nameKey]);
+  const newName = fields[nameKey];
+  const isRename =
+    kind !== "event" &&
+    typeof oldName === "string" &&
+    typeof newName === "string" &&
+    oldName.trim() !== "" &&
+    newName.trim() !== "" &&
+    oldName.trim() !== newName.trim();
+  const writtenId = document.getIn([...prefix, "id"]);
+  const oldId =
+    typeof writtenId === "string" && writtenId !== ""
+      ? writtenId
+      : slugify(String(oldName ?? "").trim());
+  const nextId = fields.id;
+  const newId =
+    typeof nextId === "string" && nextId !== ""
+      ? nextId
+      : nextId === null
+        ? slugify(String(newName ?? oldName ?? "").trim())
+        : typeof writtenId === "string" && writtenId !== ""
+          ? writtenId
+          : slugify(String(newName ?? oldName ?? "").trim());
+
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) {
       continue;
@@ -482,12 +510,28 @@ export async function writeRecordFields(
     }
   }
 
-  const label = String(fields.id ?? fields.name ?? fields.title ?? "");
+  // The references that pointed at the old name follow the record.
+  let carried = 0;
+  if (isRename) {
+    const { carryRename } = await import("./rename.js");
+    const result = await carryRename(root, {
+      kind: kind as RefKind,
+      oldId,
+      oldName: oldName.trim(),
+      newId,
+      newName: newName.trim(),
+    });
+    carried = result.updated;
+  }
+
   return {
     ok: true,
-    message: `saved ${path.basename(finalFile)}`,
+    message:
+      carried > 0
+        ? `saved ${path.basename(finalFile)} - ${carried} reference${carried === 1 ? "" : "s"} followed`
+        : `saved ${path.basename(finalFile)}`,
     file: finalFile,
-    id: label !== "" ? slugify(label) : undefined,
+    id: newId !== "" ? newId : undefined,
   };
 }
 
@@ -531,6 +575,42 @@ export async function deleteRecord(
   return { ok: true, message: `deleted record from ${path.basename(resolved)}`, file: resolved };
 }
 
+/**
+ * An id that nothing else in the world answers to.
+ *
+ * Ids are permanent, so a new record needs one that is free. People and
+ * locations share a namespace - the trace is looked up by id - while a map
+ * and a place may share a name.
+ */
+async function uniqueId(root: string, kind: EditableKind, wanted: string): Promise<string> {
+  const taken = new Set<string>();
+  try {
+    const { loadWorld } = await import("./load.js");
+    const loaded = await loadWorld(root);
+    const index = buildIndex(loaded.data);
+    for (const record of index.maps) taken.add(record.id);
+    for (const record of index.people) taken.add(record.id);
+    for (const record of index.locations) taken.add(record.id);
+    for (const record of index.events) taken.add(record.id);
+    if (kind === "map" || kind === "event") {
+      // A map and a place may share a name; they live apart.
+      for (const record of index.locations) taken.delete(record.id);
+      for (const record of index.people) taken.delete(record.id);
+    }
+  } catch {
+    // A world that cannot be read yet still gets the id it asked for.
+    return wanted;
+  }
+  if (!taken.has(wanted)) {
+    return wanted;
+  }
+  let suffix = 2;
+  while (taken.has(`${wanted}-${suffix}`)) {
+    suffix += 1;
+  }
+  return `${wanted}-${suffix}`;
+}
+
 /** Add a new record to the world. */
 export async function createRecord(
   root: string,
@@ -551,8 +631,12 @@ export async function createRecord(
     cleaned[key] = value;
   }
 
-  const rawName = String(cleaned.id ?? cleaned.name ?? cleaned.title ?? "record");
-  const id = slugify(rawName) || "record";
+  const given = typeof cleaned.id === "string" && cleaned.id.trim() !== "" ? cleaned.id.trim() : undefined;
+  const rawName = String(given ?? cleaned.name ?? cleaned.title ?? "record");
+  // An id is permanent, so it is written down - and it answers to nothing
+  // else in the world.
+  const id = await uniqueId(root, kind, given ?? (slugify(rawName) || "record"));
+  cleaned.id = id;
 
   const listFile = await findListFile(root, kind);
   if (listFile !== undefined) {
@@ -589,6 +673,8 @@ export async function moveLocation(
   const { loadWorld } = await import("./load.js");
   const loaded = await loadWorld(root);
   const index = buildIndex(loaded.data);
+  // A map is referenced by its id, whatever spelling the caller used.
+  const canonicalMap = canonicalReference("map", index, mapId) ?? mapId;
   for (const record of index.locations) {
     const location = record.data;
     if (record.id !== id && record.name !== id) {
@@ -601,7 +687,7 @@ export async function moveLocation(
     const document = parseDocument(text);
     const prefix = record.index !== undefined ? [record.index] : [];
     document.setIn([...prefix, "at"], [Math.round(x), Math.round(y)]);
-    document.setIn([...prefix, "map"], mapId);
+    document.setIn([...prefix, "map"], canonicalMap);
     await writeFile(record.file, documentText(document), "utf8");
     return { ok: true, message: `placed ${location.name} at ${Math.round(x)}, ${Math.round(y)}` };
   }
@@ -619,6 +705,7 @@ export async function moveEventPoint(
   const { loadWorld } = await import("./load.js");
   const loaded = await loadWorld(root);
   const index = buildIndex(loaded.data);
+  const canonicalMap = canonicalReference("map", index, mapId) ?? mapId;
   for (const record of index.events) {
     if (record.id !== id && record.name !== id) {
       continue;
@@ -630,7 +717,7 @@ export async function moveEventPoint(
     const document = parseDocument(text);
     const prefix = record.index !== undefined ? [record.index] : [];
     document.setIn([...prefix, "where"], {
-      map: mapId,
+      map: canonicalMap,
       at: [Math.round(x), Math.round(y)],
     });
     await writeFile(record.file, documentText(document), "utf8");

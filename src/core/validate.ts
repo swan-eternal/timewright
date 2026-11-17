@@ -13,7 +13,7 @@ import {
   type WorldIndex,
 } from "./building.js";
 import { compareDates, dateValue, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
-import { levenshtein } from "./resolve.js";
+import { levenshtein, type NameIndex } from "./resolve.js";
 import {
   EventSchema,
   ExistsSchema,
@@ -68,6 +68,7 @@ export function validateWorld(data: WorldData, options: ValidateOptions = {}): I
 
   checkUnknownFields(issues, index);
   checkDuplicateIds(issues, index);
+  checkNameCollisions(issues, index);
   checkWorldDates(issues, index, parseOptions);
   checkMaps(issues, index);
   checkLocations(issues, index, parseOptions);
@@ -235,6 +236,36 @@ function checkDuplicateIds(issues: Issue[], index: WorldIndex): void {
         record: record.name,
         field: "id",
         suggestion: `The other one is "${existing.name}"${existing.file !== undefined ? ` in ${existing.file}` : ""}. Give one of them an explicit id.`,
+      });
+    }
+  }
+}
+
+/**
+ * Two records answering to one name.
+ *
+ * A reference is resolved by name, so when two records answer to the same
+ * name the reference is ambiguous - and nothing used to say so. It is a
+ * warning, not an error: the world still reads, but the reader cannot be
+ * sure which record a reference meant.
+ */
+function checkNameCollisions(issues: Issue[], index: WorldIndex): void {
+  const groups: { label: string; names: NameIndex; records: { id: string; name: string }[] }[] = [
+    { label: "map", names: index.mapNames, records: index.maps },
+    { label: "person", names: index.peopleNames, records: index.people },
+    { label: "location", names: index.locationNames, records: index.locations },
+  ];
+  for (const group of groups) {
+    for (const collision of group.names.collisions) {
+      const first = group.records.find((record) => record.id === collision.first);
+      const second = group.records.find((record) => record.id === collision.second);
+      issues.push({
+        severity: "warning",
+        code: "name-collision",
+        message: `two ${group.label}s answer to the name "${second?.name ?? collision.key}"`,
+        record: second?.name,
+        field: "name",
+        suggestion: `The other one is "${first?.name ?? collision.first}". Give one of them an explicit id so a reference can tell them apart.`,
       });
     }
   }

@@ -152,7 +152,52 @@ describe("the Studio, end to end", () => {
     assert.equal(built.ok, true, built.message);
   });
 
-  it.todo("a renamed place carries the references that pointed at it");
+  it("carries the references that pointed at a renamed place", async () => {
+    const root = await world();
+    const map = (
+      await ask(root, "/api/create", {
+        kind: "map",
+        record: { name: "The Region", size: [400, 300], createPlaceholder: true },
+      })
+    ).json();
+    const place = (
+      await ask(root, "/api/create", {
+        kind: "location",
+        record: { name: "Waterloo", map: map.id, at: [10, 20] },
+      })
+    ).json();
+    const event = (
+      await ask(root, "/api/create", {
+        kind: "event",
+        record: { title: "The battle", when: "1815", where: "Waterloo" },
+      })
+    ).json();
+
+    // The place, as the Studio sees it.
+    const before = (await ask(root, "/api/editor")).json();
+    const target = before.locations.find((l: { id: string }) => l.id === place.id);
+
+    // Rename it.
+    const renamed = (
+      await ask(root, "/api/record", {
+        kind: "location",
+        file: target.file,
+        index: target.index,
+        values: { name: "Waterloo Field" },
+      })
+    ).json();
+    assert.equal(renamed.ok, true, renamed.message);
+
+    // The event still points at the place, and the place still counts it.
+    const after = (await ask(root, "/api/editor")).json();
+    const located = after.locations.find((l: { id: string }) => l.id === place.id);
+    assert.equal(located.name, "Waterloo Field");
+    assert.deepEqual(located.eventIds, [event.id]);
+
+    // And the file on disk says so.
+    const written = await readFile(path.join(root, "events", `${event.id}.yaml`), "utf8");
+    assert.match(written, /where: Waterloo Field/);
+  });
 
   it("keeps the world's own spelling when it reads a name", async () => {
     const root = await world();

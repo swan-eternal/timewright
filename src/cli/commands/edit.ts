@@ -189,7 +189,7 @@ export function createEditorApi(root: string): (
             root,
             "location",
             { file: opener.file, index: opener.index },
-            { opens: String(record.id ?? record.name ?? created.id ?? "") },
+            { opens: created.id ?? String(record.id ?? record.name ?? "") },
           );
         }
       }

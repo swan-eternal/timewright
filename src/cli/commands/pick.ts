@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadWorld, resolveImagePath } from "../load.js";
+import { buildIndex } from "../../core/building.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
 import { moveLocation } from "../world-edit.js";
 
@@ -65,23 +66,22 @@ export async function runPick(options: PickOptions = {}): Promise<number> {
 
 async function describe(root: string): Promise<unknown> {
   const loaded = await loadWorld(root);
-  const maps = loaded.data.maps.map((source) => {
-    const map = source.data;
-    return {
-      id: map.id ?? map.name,
-      name: map.name,
-      width: map.size?.[0] ?? 1000,
-      height: map.size?.[1] ?? 700,
-    };
-  });
+  const index = buildIndex(loaded.data);
+  // A map is referenced by its id, so the picker hands out ids.
+  const maps = index.maps.map((record) => ({
+    id: record.id,
+    name: record.name,
+    width: record.data.size?.[0] ?? 1000,
+    height: record.data.size?.[1] ?? 700,
+  }));
 
-  const needsPlacing = loaded.data.locations
-    .filter((source) => source.data.kind !== "mobile" && source.data.at === undefined)
-    .map((source) => ({
-      id: source.data.id ?? source.data.name,
-      name: source.data.name,
-      file: source.file,
-      index: source.index,
+  const needsPlacing = index.locations
+    .filter((record) => record.data.kind !== "mobile" && record.data.at === undefined)
+    .map((record) => ({
+      id: record.id,
+      name: record.name,
+      file: record.file,
+      index: record.index,
     }));
 
   return { root, maps, needsPlacing };
@@ -89,17 +89,18 @@ async function describe(root: string): Promise<unknown> {
 
 async function imagePath(root: string, mapId: string): Promise<string | undefined> {
   const loaded = await loadWorld(root);
-  for (const source of loaded.data.maps) {
-    const map = source.data;
-    if ((map.id ?? map.name) !== mapId) {
+  const index = buildIndex(loaded.data);
+  for (const record of index.maps) {
+    if (record.id !== mapId) {
       continue;
     }
-    const images = map.images ?? (map.file !== undefined ? [{ file: map.file }] : []);
+    const images =
+      record.data.images ?? (record.data.file !== undefined ? [{ file: record.data.file }] : []);
     const image = images[0];
     if (image === undefined) {
       return undefined;
     }
-    return resolveImagePath(root, source.file, image.file);
+    return resolveImagePath(root, record.file, image.file);
   }
   return undefined;
 }
