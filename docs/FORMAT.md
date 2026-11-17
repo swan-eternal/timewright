@@ -23,6 +23,30 @@ Records are found by *name*, not by file: `where: Waterloo` finds the
 location called Waterloo, and its aliases answer too. Ids are accepted as
 well, and are used as the slug when a record has no explicit `id`.
 
+### Ids and references
+
+An `id` is permanent. Once a record has one, it keeps it — the Studio
+writes an `id:` into every record it makes, and a rename leaves it alone. A
+record with no `id` gets one from its name, so renaming it moves the id
+too.
+
+How a reference is written:
+
+| Reference | Written as | Example |
+|---|---|---|
+| a map | its id | `map: europe` |
+| a place | its name | `where: Waterloo` |
+| a person | its name | `people: [Napoleon Bonaparte]` |
+
+Both spellings are read, so a world written by hand is never wrong. The
+writers follow the table, so the Studio, the picker and the agent guide
+all write the same way.
+
+Renaming a record in the Studio carries the references that pointed at it:
+the events at the place, the stays of the people who were there, the maps
+that sit inside a renamed map. When the new name answers to another record
+as well, the references are left alone and `timewright validate` says so.
+
 ## world.yaml
 
 | Field | Type | Meaning |
@@ -194,7 +218,8 @@ A person's path is derived, never stored:
   whose images have different sizes, a date that cannot be read, a loop in
   the map parents.
 - **Warnings** — the build continues. A location with no position yet, an
-  unknown field, a person born after they died.
+  unknown field, a person born after they died, two records answering to
+  one name.
 
 Unknown fields are kept, not rejected: agents add extras, and the world still
 builds. `--strict` turns warnings into errors.

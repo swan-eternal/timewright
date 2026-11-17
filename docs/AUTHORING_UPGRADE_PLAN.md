@@ -4,7 +4,7 @@ Baseline committed at `24703cd` (*"Build visual Studio editor, CRS.Simple viewer
 
 This plan breaks the next upgrade into **five small, self-contained phases** so each step stays fast, easy to review, and safe against context/output timeouts. Every phase leaves `npm run build` and `npm test` green.
 
-**Status: all five phases are done** (2026-11-17). Phase 1 `b586c4d` · Phase 2 `8a39486` · Phase 3 `e6402a2` · Phase 4 `03a742d` · Phase 5 `408cbb2`, plus the end-to-end smoke test `966c697` and the doc sync `90d109a`. 201 tests, 200 passing, 1 todo — the todo is the seam (a rename does not yet carry the references that pointed at it), which is deliberately visible rather than silently green. **Phase 6 below is written up but not started** — it needs Jason's go.
+**Status: all five phases are done** (2026-11-17). Phase 1 `b586c4d` · Phase 2 `8a39486` · Phase 3 `e6402a2` · Phase 4 `03a742d` · Phase 5 `408cbb2`, plus the end-to-end smoke test `966c697` and the doc sync `90d109a`. **Phase 6 (the reference seam) is done too** — `c0eda93`: a rename carries the references that pointed at it, ids are permanent, one canonical way to write a reference, and the validator says when two records answer to one name. 201 tests, 201 passing, 0 todo.
 
 ---
 
@@ -92,7 +92,7 @@ This plan breaks the next upgrade into **five small, self-contained phases** so 
 
 ---
 
-### Phase 6 — The Reference Seam (PROPOSED, not started — needs Jason's go)
+### Phase 6 — The Reference Seam (DONE — `c0eda93`)
 *Scope: Make a rename carry the references that pointed at the record, so the Studio can no longer lose an event's place. This is the one remaining issue that loses data today.*
 
 **Why it is not more than this.** `normalizeName` lowercases and strips punctuation, so `slugify("The Old Mill")` → `the-old-mill` normalizes to the same key as the name itself. The spelling difference between `map: the-region` and `map: The Region` is therefore **not** the problem — both resolve to the same record. The problem is only two things: **what gets written**, and **what survives a rename**. Everything below follows from that.

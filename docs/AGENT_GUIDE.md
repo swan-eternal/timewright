@@ -135,6 +135,10 @@ Write `"where: Waterloo"`, not an id. Names, aliases and ids all resolve, and
 an unknown name is reported with a suggestion of what was meant. So write
 `people: [Napoleon]` and it finds Napoleon Bonaparte.
 
+A map is the exception: it is referenced by its id, as in `map: europe`. Give
+a map an explicit `id:` when you write it, and the id stays put whatever the
+map is renamed to.
+
 ## Working with an agent
 
 The loop is: **write → validate → fix**. `timewright validate --json` returns
@@ -205,7 +209,8 @@ with `timewright pick`, and the coordinates are written into the YAML.
 ## What not to do
 
 - Do not invent pixel coordinates. Names first; the creator places.
-- Do not write ids. Names and aliases are what a human can read.
+- Do not write ids for places and people. Names and aliases are what a human
+  can read. (Maps carry an id — give those one.)
 - Do not put secrets in the world. It is published with the site.
 - Do not repeat a place as two records. Aliases exist for that.
 

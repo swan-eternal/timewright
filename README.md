@@ -132,9 +132,14 @@ click.
 - Upload a new map image.
 - Delete a record you no longer want.
 
+Rename a record and the references that pointed at it follow it: the events
+at the place, the stays of the people who were there, the maps that sit
+inside a renamed map.
+
 Everything is written into the same YAML files, in place, comments and all.
 The files stay the source of truth, so an agent can keep working on a world
-you have been editing by hand.
+you have been editing by hand. Every record the Studio writes gets a
+permanent `id:`, so a rename never breaks a reference.
 
 ### The Studio keeps a clock
 
