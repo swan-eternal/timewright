@@ -97,6 +97,20 @@
       .ev-link { display: block; width: 100%; text-align: left; padding: 0.22rem 0.35rem; margin-bottom: 0.15rem; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; font-size: 0.79rem; }
       .ev-link:hover { background: var(--accent-soft); border-color: var(--accent); }
       .ev-link .when { color: var(--muted); font-size: 0.72rem; }
+      /* Tabs carry a count of what is inside them. */
+      .tab-count { display: inline-block; margin-left: 0.25rem; padding: 0 0.32rem; border-radius: 999px; background: #ece5d7; color: var(--muted); font-size: 0.66rem; font-weight: 700; }
+      .tabs button.active .tab-count { background: var(--accent); color: #fff; }
+      /* The callout that asks for a real map. */
+      #placeholder-callout { display: flex; gap: 0.5rem; align-items: center; padding: 0.4rem 0.75rem; background: #fff4e5; border-bottom: 1px solid #ebd2b0; font-size: 0.78rem; color: #7a4b12; }
+      #placeholder-callout button { padding: 0.22rem 0.55rem; border: 1px solid #d9b98a; border-radius: 5px; background: #fff; cursor: pointer; font-size: 0.78rem; white-space: nowrap; }
+      /* A record being written, before it is a record. */
+      .draft-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.35rem; }
+      .draft-hint { font-size: 0.78rem; color: var(--muted); margin: 0 0 0.55rem; }
+      /* People, as pills you can click. */
+      .pills { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.2rem; }
+      .pill { padding: 0.16rem 0.5rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; cursor: pointer; font-size: 0.78rem; }
+      .pill.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+      .ed-pin.draft .ed-dot { background: var(--accent); opacity: 0.55; }
       /* Modals */
       .modal-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(25,22,18,0.55); display: flex; align-items: center; justify-content: center; padding: 1.2rem; }
       .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(68rem, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.28); }
@@ -131,6 +145,7 @@
             <button id="tl-prev" class="toolbar-btn" type="button" title="Previous event">‹ Prev</button>
             <button id="tl-next" class="toolbar-btn" type="button" title="Next event">Next ›</button>
             <span id="tl-range" class="tl-range"></span>
+            <button id="tl-add-event" class="toolbar-btn" type="button" title="Add an event on this day">+ Event at Current Date</button>
             <span class="spacer"></span>
             <button id="tl-mode" class="toolbar-btn" type="button" title="At Date shows the world as it is on this day; All Time shows everything">All Time</button>
           </div>
@@ -140,12 +155,17 @@
       </div>
       <aside>
         <nav class="tabs">
-          <button type="button" data-tab="locations" class="active">Locations</button>
-          <button type="button" data-tab="events">Events</button>
-          <button type="button" data-tab="people">People</button>
-          <button type="button" data-tab="maps">Maps</button>
+          <button type="button" data-tab="maps" class="active">Maps <span class="tab-count" data-count="maps"></span></button>
+          <button type="button" data-tab="people">People <span class="tab-count" data-count="people"></span></button>
+          <button type="button" data-tab="locations">Locations <span class="tab-count" data-count="locations"></span></button>
+          <button type="button" data-tab="events">Events <span class="tab-count" data-count="events"></span></button>
           <button type="button" data-tab="world">World</button>
         </nav>
+        <div id="placeholder-callout" hidden>
+          <span>This world is still using the placeholder map image.</span>
+          <button type="button" id="upload-main-map">Upload Main Map</button>
+          <input type="file" id="callout-file" accept="image/*" hidden />
+        </div>
         <div id="list-pane">
           <div class="list-head">
             <span id="list-count">0</span>
@@ -207,7 +227,7 @@
       const S = {
         data: null,
         mapId: "",
-        tab: "locations",
+        tab: "maps",
         filter: "",
         selectedId: null,
         placing: null, // "location" | "event" | null
@@ -221,6 +241,8 @@
         date: "",
         mode: "date", // "date" | "all"
         fraction: null, // playhead position, when the strip was dragged
+        draft: null, // a record being written, before it is a record
+        peoplePicked: { id: null, names: [] }, // characters added but not yet saved
       };
 
       const el = (id) => document.getElementById(id);
@@ -284,29 +306,11 @@
           const mode = S.placing;
           setPlacing(null);
           if (mode === "location") {
-            const name = prompt("Location name:");
-            if (!name || !name.trim()) return;
-            const res = await api("/api/create", {
-              kind: "location",
-              record: { name: name.trim(), map: mapObj.id, at: [x, y] },
-            });
-            if (!res.ok) return say(res.message, true);
-            S.tab = "locations";
-            S.selectedId = res.id;
-            await refresh(res.message);
+            // The pin is not placed yet: it waits in the draft, and the
+            // creator names it before anything is written.
+            startDraft("location", { map: mapObj.id, at: [x, y] });
           } else if (mode === "event") {
-            const title = prompt("Event title:");
-            if (!title || !title.trim()) return;
-            const when = prompt("Event date (e.g. 1815, 1815-06-18, ~1200):", S.data?.world?.start || "1900");
-            if (!when || !when.trim()) return;
-            const res = await api("/api/create", {
-              kind: "event",
-              record: { title: title.trim(), when: when.trim(), where: { map: mapObj.id, at: [x, y] } },
-            });
-            if (!res.ok) return say(res.message, true);
-            S.tab = "events";
-            S.selectedId = res.id;
-            await refresh(res.message);
+            startDraft("event", { whereMode: "point", whereMap: mapObj.id, whereAt: [x, y] });
           }
         });
       }
@@ -324,6 +328,252 @@
         } else {
           banner.hidden = true;
         }
+      }
+
+      // A record being written, before it is a record.
+      //
+      // The browser's own prompt boxes were the last of the Studio's
+      // rough edges: they take the eye off the work and they cannot hold
+      // anything but one line of text. A draft lives in the sidebar
+      // instead, with the fields that record actually has.
+      function startDraft(kind, fields = {}) {
+        S.draft = { kind, ...fields };
+        S.tab = { map: "maps", location: "locations", event: "events", person: "people" }[kind] || S.tab;
+        renderSidebar();
+        drawPins();
+        const first = el("form-wrap").querySelector("[data-draft-focus]");
+        if (first) first.focus();
+      }
+
+      function cancelDraft() {
+        S.draft = null;
+        drawPins();
+        renderSidebar();
+      }
+
+      // The day the Studio is looking at, as a date the creator can type.
+      function currentDate() {
+        return S.data?.activeDate || S.date || S.data?.world?.start || "";
+      }
+
+      // The draft form: a record being written, before it is a record.
+      //
+      // Every record gets a form of its own, filled in with what is
+      // already known, and the creator types the rest. Nothing is
+      // written to disk until the form is submitted.
+      function renderDraft() {
+        const wrap = el("form-wrap");
+        const d = S.draft;
+        if (!d) return;
+
+        if (d.kind === "map") {
+          wrap.innerHTML = `
+            <form id="draft-form">
+              <div class="draft-title">New Map</div>
+              <p class="draft-hint">A map is the picture the world is drawn on. Upload its image next.</p>
+              <label class="field">Map Name
+                <input name="name" required data-draft-focus value="${esc(d.name || "")}" placeholder="The Local Neighbourhood" />
+              </label>
+              <label class="field">Parent Map (for a sub-map)
+                <select name="parent">${mapOptions(d.parent || "", true, "— Top-level main map —")}</select>
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Create Map</button>
+                <button type="button" id="draft-cancel">Cancel</button>
+              </div>
+            </form>`;
+        } else if (d.kind === "location") {
+          wrap.innerHTML = `
+            <form id="draft-form">
+              <div class="draft-title">New Location</div>
+              <label class="field">Location Name
+                <input name="name" required data-draft-focus placeholder="The Old Mill" />
+              </label>
+              <label class="field">Type
+                <select name="kind">
+                  <option value="fixed">Fixed place on a map</option>
+                  <option value="mobile">Mobile (ship, army, train)</option>
+                </select>
+              </label>
+              <label class="field">Map
+                <select name="map">${mapOptions(d.map || S.mapId, true, "— Unplaced —")}</select>
+              </label>
+              <div class="row">
+                <label class="field">X (px)
+                  <input name="atX" type="number" value="${esc(d.at?.[0] ?? "")}" />
+                </label>
+                <label class="field">Y (px)
+                  <input name="atY" type="number" value="${esc(d.at?.[1] ?? "")}" />
+                </label>
+              </div>
+              <div class="actions">
+                <button type="submit" class="primary">Create Location</button>
+                <button type="button" id="draft-cancel">Cancel</button>
+              </div>
+            </form>`;
+        } else if (d.kind === "event") {
+          const mode = d.whereMode || "general";
+          wrap.innerHTML = `
+            <form id="draft-form">
+              <div class="draft-title">New Event</div>
+              <label class="field">Event Title
+                <input name="title" required data-draft-focus placeholder="The Battle of Waterloo" />
+              </label>
+              <label class="field">Date (e.g. 1815, 1815-06-18, ~1200)
+                <input name="when" required value="${esc(d.when || currentDate())}" />
+              </label>
+              <label class="field">Where It Happens
+                <select name="whereMode" id="draft-where-mode">
+                  <option value="location"${mode === "location" ? " selected" : ""}>At a named Location</option>
+                  <option value="point"${mode === "point" ? " selected" : ""}>At exact Map Coordinates</option>
+                  <option value="general"${mode === "general" ? " selected" : ""}>General Timeline Event</option>
+                </select>
+              </label>
+              <div id="draft-loc-box" ${mode !== "location" ? "hidden" : ""}>
+                <label class="field">Location
+                  <select name="whereLocation">${locationOptions(d.whereLocation || "", true)}</select>
+                </label>
+              </div>
+              <div id="draft-pt-box" ${mode !== "point" ? "hidden" : ""}>
+                <div class="row">
+                  <label class="field">Map
+                    <select name="whereMap">${mapOptions(d.whereMap || S.mapId, false)}</select>
+                  </label>
+                  <label class="field">X
+                    <input name="whereX" type="number" value="${esc(d.whereAt?.[0] ?? Math.round(S.imgW / 2))}" />
+                  </label>
+                  <label class="field">Y
+                    <input name="whereY" type="number" value="${esc(d.whereAt?.[1] ?? Math.round(S.imgH / 2))}" />
+                  </label>
+                </div>
+              </div>
+              <div class="actions">
+                <button type="submit" class="primary">Create Event</button>
+                <button type="button" id="draft-cancel">Cancel</button>
+              </div>
+            </form>`;
+        } else {
+          wrap.innerHTML = `
+            <form id="draft-form">
+              <div class="draft-title">New Character</div>
+              <label class="field">Name
+                <input name="name" required data-draft-focus placeholder="Napoleon Bonaparte" />
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Create Character</button>
+                <button type="button" id="draft-cancel">Cancel</button>
+              </div>
+            </form>`;
+        }
+
+        const form = wrap.querySelector("#draft-form");
+        form.querySelector("#draft-cancel").onclick = cancelDraft;
+        const modeSel = form.querySelector("#draft-where-mode");
+        if (modeSel) {
+          modeSel.onchange = (e) => {
+            const m = e.target.value;
+            form.querySelector("#draft-loc-box").hidden = m !== "location";
+            form.querySelector("#draft-pt-box").hidden = m !== "point";
+          };
+        }
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(form);
+          const values = Object.fromEntries(fd.entries());
+          const kind = d.kind;
+          let record;
+          if (kind === "map") {
+            record = {
+              name: String(values.name || "").trim(),
+              parent: values.parent || undefined,
+              size: [1200, 800],
+              createPlaceholder: true,
+            };
+          } else if (kind === "location") {
+            const x = Number(values.atX);
+            const y = Number(values.atY);
+            record = {
+              name: String(values.name || "").trim(),
+              kind: values.kind === "mobile" ? "mobile" : undefined,
+              map: values.kind === "mobile" ? undefined : values.map || undefined,
+              at:
+                values.kind === "mobile" || !Number.isFinite(x) || !Number.isFinite(y)
+                  ? undefined
+                  : [x, y],
+            };
+          } else if (kind === "event") {
+            const mode = String(values.whereMode || "general");
+            const when = String(values.when || "").trim();
+            record = {
+              title: String(values.title || "").trim(),
+              when,
+              where:
+                mode === "location"
+                  ? String(values.whereLocation || "").trim()
+                  : mode === "point"
+                    ? {
+                        map: String(values.whereMap || ""),
+                        at: [Number(values.whereX), Number(values.whereY)],
+                      }
+                    : undefined,
+            };
+          } else {
+            record = { name: String(values.name || "").trim() };
+          }
+          if (!record.title && !record.name) return say("A record needs a name.", true);
+
+          const res = await api("/api/create", {
+            kind,
+            linkFromLocationId: d.linkFromLocationId || "",
+            record,
+          });
+          if (!res.ok) return say(res.message, true);
+          S.draft = null;
+          S.selectedId = res.id;
+          S.tab = { map: "maps", location: "locations", event: "events", person: "people" }[kind];
+          if (kind === "map") S.mapId = res.id;
+          // A new event moves the Studio's own clock to that event, so
+          // the next one is written after it.
+          if (kind === "event" && record.when) {
+            S.date = record.when;
+            S.mode = "date";
+            S.fraction = null;
+          }
+          await refresh(res.message);
+          if (kind === "map") renderMapCanvas(true);
+        };
+      }
+
+      // The characters an event names, as pills you can click.
+      function peoplePillsHtml(current) {
+        const picked = current.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+        const people = S.data?.people || [];
+        if (people.length === 0) {
+          return `<p class="hint" style="margin:0">No characters yet. Add one below.</p>`;
+        }
+        return people
+          .map((p) => {
+            const keys = [p.name, p.id, ...(p.aliases || [])].map((s) => String(s).trim().toLowerCase());
+            const on = keys.some((k) => picked.includes(k));
+            return `<button type="button" class="pill${on ? " on" : ""}" data-person="${esc(p.name)}" data-keys="${esc(keys.join("|"))}">${esc(p.name)}</button>`;
+          })
+          .join("");
+      }
+
+      // Clicking a pill takes the character in or out of the event.
+      function togglePerson(wrap, btn) {
+        const hidden = wrap.querySelector("#ev-people-value");
+        const raw = (hidden?.value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const keys = String(btn.dataset.keys || "").split("|").filter(Boolean);
+        const at = raw.findIndex((v) => keys.includes(v.toLowerCase()));
+        if (at >= 0) {
+          raw.splice(at, 1);
+        } else {
+          raw.push(btn.dataset.person || "");
+        }
+        hidden.value = raw.join(", ");
+        const holder = wrap.querySelector("#ev-people-pills");
+        if (holder) holder.innerHTML = peoplePillsHtml(raw);
       }
 
       function renderMapCanvas(forceFit = false) {
@@ -409,6 +659,24 @@
               const res = await api("/api/move", { kind: "location", id: loc.id, mapId, x: nx, y: ny });
               await refresh(res.message, !res.ok);
             });
+            m.addTo(S.pinLayer);
+            S.pins.push(m);
+          }
+        }
+
+        // A place being written waits on the map as a hollow pin, so the
+        // creator can see where they are putting it.
+        if (S.draft && S.draft.kind === "location" && Array.isArray(S.draft.at)) {
+          const at = S.draft.at;
+          const draftMap = S.draft.map || mapId;
+          if (draftMap === mapId) {
+            const icon = L.divIcon({
+              className: "ed-icon",
+              html: `<div class="ed-pin draft"><span class="ed-dot"></span></div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
+            });
+            const m = L.marker(pixelToLatLng(at[0], at[1]), { icon });
             m.addTo(S.pinLayer);
             S.pins.push(m);
           }
@@ -544,25 +812,8 @@
         }
       }
 
-      async function createNewMapPrompt(parentMapId = "", linkFromLocationId = "", defaultName = "") {
-        const name = prompt(parentMapId ? "Sub-map name:" : "Map name:", defaultName);
-        if (!name || !name.trim()) return;
-        const res = await api("/api/create", {
-          kind: "map",
-          linkFromLocationId,
-          record: {
-            name: name.trim(),
-            parent: parentMapId || undefined,
-            size: [1200, 800],
-            createPlaceholder: true,
-          },
-        });
-        if (!res.ok) return say(res.message, true);
-        S.mapId = res.id;
-        S.tab = "maps";
-        S.selectedId = res.id;
-        await refresh(res.message);
-        renderMapCanvas(true);
+      function createNewMapPrompt(parentMapId = "", linkFromLocationId = "", defaultName = "") {
+        startDraft("map", { parent: parentMapId, linkFromLocationId, name: defaultName });
       }
 
       function renderSidebar() {
@@ -570,6 +821,11 @@
         document.querySelectorAll(".tabs button").forEach((b) => {
           b.classList.toggle("active", b.dataset.tab === S.tab);
         });
+        for (const kind of ["maps", "people", "locations", "events"]) {
+          const badge = document.querySelector(`.tab-count[data-count="${kind}"]`);
+          if (badge) badge.textContent = String((S.data[kind] || []).length);
+        }
+        el("placeholder-callout").hidden = !(S.data.maps || []).some((m) => m.placeholder);
         const listPane = el("list-pane");
         if (S.tab === "world") {
           listPane.hidden = true;
@@ -595,6 +851,11 @@
           const active = it.id === S.selectedId ? " active" : "";
           return `<li><button type="button" class="${active}" data-pick="${esc(it.id)}"><span>${esc(label)}</span><span class="sub">${esc(sub)}</span></button></li>`;
         }).join("");
+
+        if (S.draft) {
+          renderDraft();
+          return;
+        }
 
         const chosen = items.find((it) => it.id === S.selectedId) || filtered[0] || null;
         if (chosen && S.selectedId !== chosen.id) S.selectedId = chosen.id;
@@ -925,6 +1186,7 @@
             </label>
             <div class="actions">
               <button type="submit" class="primary">Save Location</button>
+              <button type="button" id="add-event-here">+ Event Here</button>
               <button type="button" class="danger" id="del-rec">Delete</button>
             </div>
           </form>
@@ -933,6 +1195,11 @@
         wrap.querySelectorAll("[data-ev]").forEach((btn) => {
           btn.onclick = () => jumpToEvent(btn.dataset.ev);
         });
+        const addEventHere = wrap.querySelector("#add-event-here");
+        if (addEventHere) {
+          addEventHere.onclick = () =>
+            startDraft("event", { whereMode: "location", whereLocation: loc.name, when: currentDate() });
+        }
         wrap.querySelector("#loc-kind").onchange = (e) => {
           const mob = e.target.value === "mobile";
           wrap.querySelector("#loc-coords-row").hidden = mob;
@@ -1063,6 +1330,10 @@
       function renderEventForm(ev) {
         const wrap = el("form-wrap");
         const mode = ev.whereMode || "location";
+        // Characters added through the quick-add box are not in the
+        // record yet, so they are carried alongside it until it is saved.
+        const added = S.peoplePicked.id === ev.id ? S.peoplePicked.names : [];
+        const pickedPeople = [...new Set([...(ev.people || []), ...added])];
         wrap.innerHTML = `
           <form id="rec-form">
             <datalist id="people-datalist">${(S.data.people || []).map((p) => `<option value="${esc(p.name)}"></option>`).join("")}</datalist>
@@ -1103,8 +1374,13 @@
                 </div>
               </div>
             </div>
-            <label class="field">People Involved (comma-separated names)
-              <input name="people" list="people-datalist" value="${esc((ev.people || []).join(", "))}" placeholder="Napoleon, Wellington" />
+            <label class="field">People Involved
+              <input type="hidden" name="people" id="ev-people-value" value="${esc(pickedPeople.join(", "))}" />
+              <div class="pills" id="ev-people-pills">${peoplePillsHtml(pickedPeople)}</div>
+              <div class="mini-row" style="margin-top:0.3rem">
+                <input type="text" id="ev-quick-person" placeholder="New character…" />
+                <button type="button" class="icon-btn" id="ev-quick-person-add">+ Add</button>
+              </div>
             </label>
             <label class="field">Tags (comma-separated)
               <input name="tags" value="${esc((ev.tags || []).join(", "))}" />
@@ -1123,6 +1399,20 @@
           wrap.querySelector("#ev-loc-box").hidden = m !== "location";
           wrap.querySelector("#ev-pt-box").hidden = m !== "point";
         };
+        wrap.querySelectorAll("#ev-people-pills .pill").forEach((pill) => {
+          pill.onclick = () => togglePerson(wrap, pill);
+        });
+        wrap.querySelector("#ev-quick-person-add").onclick = async () => {
+          const input = wrap.querySelector("#ev-quick-person");
+          const name = (input.value || "").trim();
+          if (!name) return;
+          const res = await api("/api/create", { kind: "person", record: { name } });
+          if (!res.ok) return say(res.message, true);
+          const names = S.peoplePicked.id === ev.id ? S.peoplePicked.names : [];
+          S.peoplePicked = { id: ev.id, names: [...new Set([...names, name])] };
+          input.value = "";
+          await refresh(res.message);
+        };
         wrap.querySelector("#del-rec").onclick = async () => {
           if (!confirm(`Delete event "${ev.title}"?`)) return;
           const res = await api("/api/delete", { kind: "event", file: ev.file, index: ev.index });
@@ -1135,6 +1425,13 @@
           const values = Object.fromEntries(fd.entries());
           const res = await api("/api/record", { kind: "event", file: ev.file, index: ev.index, values });
           if (res.id) S.selectedId = res.id;
+          // The Studio's own clock follows the story: a new date moves it.
+          if (values.when) {
+            S.date = String(values.when);
+            S.mode = "date";
+            S.fraction = null;
+          }
+          S.peoplePicked = { id: null, names: [] };
           await refresh(res.message, !res.ok);
         };
       }
@@ -1164,41 +1461,15 @@
       async function handleNewRecord() {
         if (S.tab === "maps") return createNewMapPrompt("", "");
         if (S.tab === "locations") {
-          const name = prompt("New location name:");
-          if (!name || !name.trim()) return;
           const mapObj = currentMap();
-          const res = await api("/api/create", {
-            kind: "location",
-            record: {
-              name: name.trim(),
-              map: mapObj?.id,
-              at: mapObj ? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)] : undefined,
-            },
+          return startDraft("location", {
+            map: mapObj?.id,
+            at: mapObj ? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)] : undefined,
           });
-          if (!res.ok) return say(res.message, true);
-          S.selectedId = res.id;
-          return refresh(res.message);
         }
-        if (S.tab === "people") {
-          const name = prompt("Person / character name:");
-          if (!name || !name.trim()) return;
-          const res = await api("/api/create", { kind: "person", record: { name: name.trim() } });
-          if (!res.ok) return say(res.message, true);
-          S.selectedId = res.id;
-          return refresh(res.message);
-        }
+        if (S.tab === "people") return startDraft("person", {});
         if (S.tab === "events") {
-          const title = prompt("Event title:");
-          if (!title || !title.trim()) return;
-          const when = prompt("Event date (e.g. 1815, ~1200):", S.data?.world?.start || "1900");
-          if (!when || !when.trim()) return;
-          const res = await api("/api/create", {
-            kind: "event",
-            record: { title: title.trim(), when: when.trim() },
-          });
-          if (!res.ok) return say(res.message, true);
-          S.selectedId = res.id;
-          return refresh(res.message);
+          return startDraft("event", { whereMode: "general", when: currentDate() });
         }
       }
 
@@ -1232,12 +1503,31 @@
           S.fraction = null;
           refresh();
         };
+        el("tl-add-event").onclick = () =>
+          startDraft("event", { whereMode: "general", when: currentDate() });
+        el("upload-main-map").onclick = () => el("callout-file").click();
+        el("callout-file").onchange = async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const map = (S.data?.maps || []).find((m) => m.placeholder) || (S.data?.maps || [])[0];
+          if (!map) return say("There is no map to upload into.", true);
+          const data = await fileToDataUrl(file);
+          const res = await api("/api/image", {
+            mapId: map.id,
+            fileName: file.name,
+            data,
+            mode: "replace",
+          });
+          if (!res.ok) return say(res.message, true);
+          await refresh(res.message);
+        };
         bindTimelineDrag();
 
         document.querySelectorAll(".tabs button").forEach((btn) => {
           btn.onclick = () => {
             S.tab = btn.dataset.tab;
             S.selectedId = null;
+            if (S.draft) cancelDraft();
             renderSidebar();
             drawPins();
           };
@@ -1246,6 +1536,8 @@
         document.addEventListener("click", (e) => {
           const pick = e.target.closest("[data-pick]");
           if (pick) {
+            // Picking a record means the draft is over, one way or another.
+            if (S.draft) cancelDraft();
             S.selectedId = pick.dataset.pick;
             if (S.tab === "locations") {
               const loc = S.data.locations.find((l) => l.id === S.selectedId);
@@ -1280,6 +1572,7 @@
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape") {
             if (S.placing) setPlacing(null);
+            if (S.draft) cancelDraft();
             el("preview-modal").hidden = true;
             el("export-modal").hidden = true;
           }

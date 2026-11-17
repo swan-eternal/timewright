@@ -8,7 +8,7 @@
  * website `.zip` or standalone `.html` file.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -392,6 +392,14 @@ export async function describe(
   const worldFile = loaded.data.world.file;
   let inlineCounter = 0;
 
+  // Which maps are still the placeholder the Studio draws: the creator
+  // asked for a map, and got a note asking for a map.
+  const placeholderMaps = new Map<string, boolean>();
+  for (const record of index.maps) {
+    const images = record.data.images ?? (record.data.file !== undefined ? [{ file: record.data.file }] : []);
+    placeholderMaps.set(record.id, await isPlaceholderMap(root, record.file, images));
+  }
+
   const maps = index.maps.map((record) => {
     const map = record.data;
     const isInline = worldFile !== undefined && record.file === worldFile && record.index === undefined;
@@ -417,6 +425,7 @@ export async function describe(
       chain,
       openedBy,
       activeImage: activeImage?.file ?? sourceImages[0]?.file ?? "",
+      placeholder: placeholderMaps.get(record.id) === true,
       file: record.file,
       index: recordIndex,
       images: sourceImages.map((image) => ({
@@ -588,6 +597,46 @@ export async function describe(
       ...extraWarnings,
     ],
   };
+}
+
+/**
+ * Whether a map's image is a placeholder rather than a real map.
+ *
+ * Both placeholders say so in their own text: the one the Studio draws
+ * ("Upload a map image in the Map tab") and the sketch the starter
+ * world ships ("replace it with your own map"). Any other SVG is the
+ * creator's own work.
+ *
+ * Only a small file is read: a map picture can be enormous, and none
+ * of them carry a note.
+ */
+async function isPlaceholderMap(
+  root: string,
+  sourceFile: string | undefined,
+  images: { file: string }[],
+): Promise<boolean> {
+  const notes = ["Upload a map image in the Map tab", "replace it with your own map"];
+  for (const image of images) {
+    if (!image.file.toLowerCase().endsWith(".svg")) {
+      continue;
+    }
+    const file = await resolveImagePath(root, sourceFile, image.file);
+    if (file === undefined) {
+      continue;
+    }
+    try {
+      if (statSync(file).size > 64 * 1024) {
+        continue;
+      }
+      const text = await readFile(file, "utf8");
+      if (notes.some((note) => text.includes(note))) {
+        return true;
+      }
+    } catch {
+      // A file that cannot be read is not a placeholder.
+    }
+  }
+  return false;
 }
 
 /**
