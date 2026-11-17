@@ -30,7 +30,7 @@ timewright/
 │   │   ├── resolve.ts         # Slug generation, case-insensitive name/alias lookup, Levenshtein suggestions
 │   │   ├── building.ts        # Builds lookup indices (maps, locations, people, events) from raw records
 │   │   ├── validate.ts        # Cross-record validation (broken refs, unknown fields, image dimension mismatches)
-│   │   ├── derive.ts          # Raw WorldData -> ResolvedWorld; resolves mobile stays, sub-map projections & era images
+│   │   ├── derive.ts          # Raw WorldData -> ResolvedWorld; resolves mobile stays, sub-map projections & era images; placeMap / landingPlace / eventsAtPlace answer "which place owns this event"
 │   │   ├── steps.ts           # Timeline step lists (`span` mode vs `trace` mode) and traced movement paths
 │   │   ├── scale.ts           # Maps dates <-> [0..1] timeline fractions for scrubbing & zoom windows
 │   │   ├── images.ts          # Zero-dependency PNG/JPEG/GIF/WebP/BMP/SVG dimension reader
@@ -56,9 +56,9 @@ timewright/
 │   │
 │   └── viewer/                # Interactive reader UI (built by Vite into static assets)
 │       ├── index.html         # Viewer DOM shell (topbar, stepbar, map stage, timeline, card drawer)
-│       ├── main.ts            # App bootstrap, URL hash deep-linking, cards, search/tag filters, keyboard nav
+│       ├── main.ts            # App bootstrap, URL hash deep-linking, cards (with the "Events here" list), search/tag filters, keyboard nav
 │       ├── state.ts           # Reactive `Store<AppState>` with changed-key tracking
-│       ├── map.ts             # Leaflet `CRS.Simple` map, portal badges, spiral co-located pins, projected paths
+│       ├── map.ts             # Leaflet `CRS.Simple` map, portal badges, location event-count badges (a place's events are counted on its own pin), exact `[x, y]` raw-point markers, projected paths
 │       ├── timeline.ts        # Two-tier timeline: full-domain overview window + interactive event strip
 │       ├── stepbar.ts         # Prev / Next stepper & step readout
 │       ├── cards.ts           # Markdown (`marked`) + `DOMPurify` HTML sanitization
@@ -91,8 +91,8 @@ Every command follows the same four-stage pipeline:
    - **Sub-maps & upward projection:** A location with `opens: london` acts as a portal from `europe` into `london`. `projectToMap()` walks upward through `opens` anchors so events or character journeys inside sub-maps still show activity counts and continuous paths on parent maps.
    - **Mobile locations & nested stays:** Ships, armies, or trains (`kind: mobile`) resolve their position at `date` through `stays`. People aboard a mobile location automatically inherit the vessel's coordinates at that date (`resolveLocationAt`).
    - **Three event placement modes:**
-     1. *Named location* (`where: Waterloo`) — follows fixed or mobile locations.
-     2. *Exact map point* (`where: { map: europe, at: [420, 310] }`) — pinned directly to map pixels without needing a location record.
+     1. *Named location* (`where: Waterloo`) — follows fixed or mobile locations. The event is **counted on that place's pin** rather than floating beside it, and the place's card lists its events in order.
+     2. *Exact map point* (`where: { map: europe, at: [420, 310] }`) — pinned directly to map pixels without needing a location record, at exactly `[x, y]` with no offset.
      3. *General timeline event* (`where` omitted) — appears on the timeline strip (styled as a square timeline tick) and displays a floating banner on the map when stepped onto.
 
 ---
@@ -101,7 +101,7 @@ Every command follows the same four-stage pipeline:
 
 - **Local Security (`src/cli/local-server.ts`):** Binds strictly to `127.0.0.1` and validates `Host` and `Origin` headers on every request to block DNS-rebinding or cross-origin POSTs from other browser tabs.
 - **Studio Endpoints (`src/cli/commands/edit.ts`):**
-  - `GET /api/editor` — returns world metadata, maps (with breadcrumb chains), locations, people, events, and live validation issues.
+  - `GET /api/editor` — returns world metadata, maps (with breadcrumb chains), locations, people, events, and live validation issues. Takes an optional `?date=` (or `?fraction=`) and answers the world **at that moment**: `activeDate` plus a `timeline` of every event with its fraction and a `current` flag; the era-correct `activeImage` per map; per location `visibleAtDate`, `resolvedMap`/`resolvedAt` (where a mobile place actually was), `hostLocationName` (what was hosting it), `routes` (every stop of its journey) and `eventIds`; per person `activeLocationId`; and per map a `placeholder` flag while its image is still the drawn-in placeholder.
   - `POST /api/world` — updates `world.yaml` (`title`, `overworld`, `start`, `end`).
   - `POST /api/create` — appends to the kind's list file (e.g. `locations/locations.yaml`) or creates a new `.yaml` file; for sub-maps, can auto-generate a starter SVG canvas and link `opens` on the parent location.
   - `POST /api/record` & `POST /api/delete` — updates or deletes a specific `{ file, index }` YAML node in place.

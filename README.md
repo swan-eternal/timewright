@@ -136,6 +136,30 @@ Everything is written into the same YAML files, in place, comments and all.
 The files stay the source of truth, so an agent can keep working on a world
 you have been editing by hand.
 
+### The Studio keeps a clock
+
+The Studio draws the world *at a moment*, not all at once. A bar under the
+canvas holds the current date: type one, step through the events with
+‹ Prev / Next ›, drag the playhead, or click a tick. Switch between **At
+Date** and **All Time**.
+
+- The map image follows the date — a world with a different map for each era
+  shows the right one.
+- A ship or an army (a mobile place) appears wherever it was that day, and
+  the people aboard it are found there too.
+- A place that did not exist yet is dimmed until it does.
+- Saving an event moves the Studio's own clock to that event's date.
+
+### The tabs run in the order you work
+
+**Maps → People → Locations → Events → World**, each carrying a count.
+
+- Making a place or an event opens a form of its own, filled in with what you
+  already know — the map, the spot you clicked, the day on the clock.
+- An event's characters are pills you click, so a name cannot be misspelled.
+- A location carries the count of the events that happened there, and its form
+  lists them.
+
 ## Checking on a phone
 
 The viewer is built for a phone first. When you publish, look at it on one:
