@@ -126,6 +126,25 @@ YAML — comments and all. It binds to 127.0.0.1 and is never deployed.
 it, a list of locations, people and events, and a form for whichever one you
 click.
 
+### Starting it
+
+Double-click `start-studio.sh` — or `start-studio.cmd` on Windows. It builds
+the tool if it needs building, starts the editor and opens it in your
+browser:
+
+```bash
+./start-studio.sh                 # a world in this folder, or the example
+./start-studio.sh ~/my-world      # a world folder
+```
+
+The same thing from an installed package, without the script:
+
+```bash
+npx timewright edit --world ~/my-world
+```
+
+### What you can do in it
+
 - Click the map to make a location or an event there.
 - Drag a marker to move it.
 - Edit names, dates, tags and cards in the form.
