@@ -159,12 +159,53 @@ describe("the single-file build", () => {
     const result = await writeSingleFile(dir, world);
     const html = await readFile(result.file, "utf8");
 
-    const scriptEnd = html.indexOf("</script>");
     const dataStart = html.indexOf('id="world-data"');
-    assert.ok(dataStart > scriptEnd, "the world should come after the script, not inside it");
+    const dataEnd = html.indexOf("</script>", dataStart);
+    const scriptStart = html.indexOf("<script>", dataEnd);
+    assert.ok(dataStart > -1, "the world should be in the page");
+    assert.ok(dataEnd > dataStart, "the world should be a script of its own");
+    assert.ok(scriptStart > dataEnd, "the viewer should come after the world's data");
     // The script is whole.
     assert.ok(html.includes(source), "the asset should be inlined verbatim");
     // And the page still ends where it should.
-    assert.ok(html.lastIndexOf("</body>") > dataStart);
+    assert.ok(html.lastIndexOf("</body>") > scriptStart);
+  });
+
+  it("puts the world and the viewer at the end of the body, the world first", async () => {
+    // The viewer is a script: it runs the moment the parser reaches it.
+    // In the head it ran before the page had a body, found no map, and
+    // the preview was a blank page. The world's data has to be in the
+    // document before the viewer looks for it.
+    const dir = await scratch();
+    await mkdir(path.join(dir, "assets"), { recursive: true });
+    await writeFile(
+      path.join(dir, "index.html"),
+      '<!doctype html><html><head><script type="module" crossorigin src="./assets/a.js"></script></head><body><div id="app"><div id="map"></div></div></body></html>',
+    );
+    await writeFile(path.join(dir, "assets", "a.js"), "console.log('hello');");
+
+    const world = {
+      title: "One file",
+      maps: [],
+      locations: [],
+      people: [],
+      events: [],
+    } as unknown as ResolvedWorld;
+
+    const result = await writeSingleFile(dir, world);
+    const html = await readFile(result.file, "utf8");
+
+    const appAt = html.indexOf('<div id="app">');
+    const dataAt = html.indexOf('id="world-data"');
+    const dataEnd = html.indexOf("</script>", dataAt);
+    const viewerAt = html.indexOf("<script>", dataEnd);
+    const bodyEnd = html.lastIndexOf("</body>");
+
+    assert.ok(appAt >= 0, "the page should have an app");
+    assert.ok(dataAt > appAt, "the world should come after the app's markup");
+    assert.ok(dataEnd > dataAt, "the world should be a script of its own");
+    assert.ok(viewerAt > dataEnd, "the viewer should come after the world, not before it");
+    assert.ok(bodyEnd > viewerAt, "both should be inside the body");
+    assert.equal(html.includes('src="./assets'), false, "nothing should point at a file");
   });
 });

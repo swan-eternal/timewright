@@ -70,6 +70,7 @@
       .ed-pin.event .ed-dot { border-radius: 2px; transform: rotate(45deg); background: var(--event); width: 12px; height: 12px; }
       .ed-pin.selected .ed-dot { box-shadow: 0 0 0 3px rgba(31,79,160,0.38), 0 1px 5px rgba(0,0,0,0.5); }
       .ed-lbl { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,253,248,0.92); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 10px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+      .ed-sub { position: absolute; top: -5px; right: -5px; width: 11px; height: 11px; line-height: 11px; text-align: center; border-radius: 50%; background: var(--portal); color: #fff; font-size: 8px; font-weight: 700; pointer-events: auto; cursor: pointer; }
       /* Modals */
       .modal-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(25,22,18,0.55); display: flex; align-items: center; justify-content: center; padding: 1.2rem; }
       .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(68rem, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.28); }
@@ -175,6 +176,7 @@
         map: null,
         overlay: null,
         pinLayer: null,
+        pins: [],
         imgW: 1200,
         imgH: 800,
         loadedMapKey: "",
@@ -315,6 +317,7 @@
         S.pinLayer.clearLayers();
         const mapId = S.mapId;
 
+        S.pins = [];
         for (const loc of S.data.locations) {
           if (loc.kind === "mobile" || loc.map !== mapId || !Array.isArray(loc.at)) continue;
           const isSel = S.tab === "locations" && S.selectedId === loc.id;
@@ -322,15 +325,20 @@
           const cls = `ed-pin${hasSub ? " portal" : ""}${isSel ? " selected" : ""}`;
           const icon = L.divIcon({
             className: "ed-icon",
-            html: `<div class="${cls}"><span class="ed-dot"></span><span class="ed-lbl">${esc(loc.name)}${hasSub ? " ↘" : ""}</span></div>`,
+            html: `<div class="${cls}"><span class="ed-dot"></span><span class="ed-lbl">${esc(loc.name)}</span>${hasSub ? '<span class="ed-sub" title="Open sub-map">↘</span>' : ""}</div>`,
             iconSize: [22, 22],
             iconAnchor: [11, 11],
           });
           const m = L.marker(pixelToLatLng(loc.at[0], loc.at[1]), { icon, draggable: true });
-          m.bindTooltip(hasSub ? `${esc(loc.name)} (double-click to open sub-map · drag to move)` : `${esc(loc.name)} (drag to move)`, { direction: "top", offset: [0, -10] });
-          m.on("click", () => { S.tab = "locations"; S.selectedId = loc.id; renderSidebar(); drawPins(); });
+          m.twKind = "locations";
+          m.twId = loc.id;
+          m.bindTooltip(hasSub ? `${esc(loc.name)} (click ↘ to open sub-map · drag to move)` : `${esc(loc.name)} (drag to move)`, { direction: "top", offset: [0, -10] });
+          m.on("click", (e) => {
+            if (hasSub && clickedBadge(e)) { openSubMap(loc.opens); return; }
+            S.tab = "locations"; S.selectedId = loc.id; renderSidebar(); setPinSelection();
+          });
           m.on("dblclick", (e) => {
-            if (loc.opens) { L.DomEvent.stopPropagation(e); S.mapId = loc.opens; syncHeader(); renderMapCanvas(true); renderSidebar(); }
+            if (loc.opens) { L.DomEvent.stopPropagation(e); openSubMap(loc.opens); }
           });
           m.on("dragend", async () => {
             const [nx, ny] = latLngToPixel(m.getLatLng());
@@ -338,6 +346,7 @@
             await refresh(res.message, !res.ok);
           });
           m.addTo(S.pinLayer);
+          S.pins.push(m);
         }
 
         for (const ev of S.data.events) {
@@ -353,8 +362,10 @@
           const ox = ev.whereMode === "location" ? ev.at[0] + 10 : ev.at[0];
           const oy = ev.whereMode === "location" ? ev.at[1] - 10 : ev.at[1];
           const m = L.marker(pixelToLatLng(ox, oy), { icon, draggable, zIndexOffset: 200 });
+          m.twKind = "events";
+          m.twId = ev.id;
           m.bindTooltip(`${esc(ev.title)} (${esc(ev.when)})${draggable ? " · drag to move" : ""}`, { direction: "top", offset: [0, -8] });
-          m.on("click", () => { S.tab = "events"; S.selectedId = ev.id; renderSidebar(); drawPins(); });
+          m.on("click", () => { S.tab = "events"; S.selectedId = ev.id; renderSidebar(); setPinSelection(); });
           if (draggable) {
             m.on("dragend", async () => {
               const [nx, ny] = latLngToPixel(m.getLatLng());
@@ -363,7 +374,36 @@
             });
           }
           m.addTo(S.pinLayer);
+          S.pins.push(m);
         }
+      }
+
+      // Selecting a record changes which pin is marked, and nothing else.
+      // The pins are not rebuilt for it: a rebuild takes the marker's own
+      // DOM away, and a double click never reaches a marker whose
+      // element has been replaced.
+      function setPinSelection() {
+        for (const marker of S.pins) {
+          const isSel = marker.twKind === S.tab && marker.twId === S.selectedId;
+          const element = marker.getElement();
+          const pin = element && element.querySelector(".ed-pin");
+          if (pin) pin.classList.toggle("selected", isSel);
+        }
+      }
+
+      // The badge on a portal pin is a button of its own: one click
+      // opens the sub-map, where a double click was supposed to.
+      function clickedBadge(event) {
+        const target = event && event.originalEvent && event.originalEvent.target;
+        return Boolean(target && target.classList && target.classList.contains("ed-sub"));
+      }
+
+      function openSubMap(mapId) {
+        if (!mapId) return;
+        S.mapId = mapId;
+        syncHeader();
+        renderMapCanvas(true);
+        renderSidebar();
       }
 
       function mapOptions(selectedId, includeBlank = false, blankLabel = "— None —") {

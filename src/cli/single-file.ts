@@ -34,17 +34,28 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
   const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"[^>]*><\/script>/g)].map((match) => match[1]);
   const styles = [...html.matchAll(/<link[^>]*href="([^"]+\.css)"[^>]*>/g)].map((match) => match[1]);
 
-  // The replacement is a function, not a string: a string replacement would
-  // expand `$&`, `` $` `` and `$'` inside the asset. The bundle has all
-  // three - Zod's own regex-escape helper is where they come from - and
-  // expanding them spliced the script tag into the middle of the
+  // The scripts come out of the document and go to the end of it.
+  //
+  // A script runs as soon as the parser reaches it. The built page keeps
+  // the viewer in the head, so inlined there it ran before the page had
+  // a body - it looked for its map, found nothing, and stopped. It also
+  // ran before the world's data was in the document, and the viewer
+  // reads the data before it looks for anything else.
+  //
+  // The replacement is a function, not a string: a string replacement
+  // would expand `$&`, `` $` `` and `$'` inside the asset. The bundle has
+  // all three - Zod's own regex-escape helper is where they come from -
+  // and expanding them spliced the script tag into the middle of the
   // JavaScript and cut the file in half.
+  const scriptBodies: string[] = [];
   for (const reference of scripts) {
     const file = path.join(outDir, reference.replace(/^\.?\//, ""));
-    const source = await readFile(file, "utf8");
+    scriptBodies.push(await readFile(file, "utf8"));
+  }
+  for (const reference of scripts) {
     html = html.replace(
       new RegExp(`<script[^>]*src="${reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*></script>`),
-      () => `<script>\n${source}\n</script>`,
+      "",
     );
   }
   for (const reference of styles) {
@@ -94,15 +105,21 @@ export async function writeSingleFile(outDir: string, world: ResolvedWorld): Pro
 
   const json = JSON.stringify(world).replace(/</g, "\\u003c");
   const dataScript = `<script id="world-data" type="application/json">${json}</script>`;
+  // The world's data first, then the viewer that reads it: the viewer
+  // runs the moment the parser reaches it, and it looks for the data
+  // before anything else.
+  const viewerScripts = scriptBodies.map((source) => `<script>\n${source}\n</script>`).join("\n");
+  const tail = `${dataScript}\n${viewerScripts}\n`;
+
   // The last `</body>` in the document, not the first: the bundle holds
-  // one of its own - DOMPurify builds an empty document - and after the
-  // assets are inlined, the first one is in the middle of the
-  // JavaScript. The world's data has to go at the end of the page.
+  // one of its own - DOMPurify builds an empty document - and the first
+  // one is in the middle of the JavaScript. The world's data has to go
+  // at the end of the page.
   const body = html.lastIndexOf("</body>");
   if (body !== -1) {
-    html = html.slice(0, body) + `${dataScript}\n` + html.slice(body);
+    html = html.slice(0, body) + tail + html.slice(body);
   } else {
-    html += `\n${dataScript}\n`;
+    html += `\n${tail}`;
   }
 
   const target = path.join(outDir, "world.html");
