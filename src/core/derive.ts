@@ -399,3 +399,79 @@ export function eventHasPosition(
   const place = eventPlace(world, event, atDate);
   return place !== undefined && place.at !== undefined;
 }
+
+/**
+ * The map a place's pin sits on.
+ *
+ * A fixed place sits on the map it names. A vessel sits wherever it is
+ * at the date asked about.
+ */
+export function placeMap(
+  world: ResolvedWorld,
+  place: ResolvedLocation,
+  atDate?: DateBound,
+): string | undefined {
+  if (place.kind === "mobile") {
+    return resolveLocationAt(world, place.id, atDate)?.mapId;
+  }
+  return place.map;
+}
+
+/**
+ * The place whose pin an event lands on, when the reader is looking at
+ * `mapId`.
+ *
+ * An event that names a place lands on that place's pin. An event that
+ * lives on another map lands on the pin of the place that opens the way
+ * to it - a sub-map's events land on the portal that opens the sub-map.
+ * An event with a point of its own, or one that cannot be reached from
+ * this map, lands on no pin at all.
+ */
+export function landingPlace(
+  world: ResolvedWorld,
+  event: ResolvedEvent,
+  mapId: string,
+  atDate?: DateBound,
+): ResolvedLocation | undefined {
+  const place = eventPlace(world, event, atDate);
+  if (place === undefined || place.mapId === undefined) {
+    return undefined;
+  }
+  if (place.mapId === mapId) {
+    return place.location;
+  }
+  if (place.at === undefined) {
+    return undefined;
+  }
+  const projected = projectToMap(world, place.mapId, place.at, mapId, atDate);
+  return projected?.viaLocation;
+}
+
+/**
+ * The events tied to a place: the ones that name it, and the ones that
+ * land on its pin when the reader is looking at the map it sits on.
+ *
+ * This is the list behind the number on the pin.
+ */
+export function eventsAtPlace(
+  world: ResolvedWorld,
+  placeId: string,
+  mapId: string | undefined,
+  atDate?: DateBound,
+): ResolvedEvent[] {
+  const events: ResolvedEvent[] = [];
+  for (const event of world.events) {
+    if (event.where?.location === placeId) {
+      events.push(event);
+      continue;
+    }
+    if (mapId === undefined) {
+      continue;
+    }
+    const land = landingPlace(world, event, mapId, atDate);
+    if (land !== undefined && land.id === placeId) {
+      events.push(event);
+    }
+  }
+  return events;
+}

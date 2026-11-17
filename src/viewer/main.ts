@@ -6,7 +6,14 @@ import "./styles.css";
 
 import { parseDate, type DateBound } from "../core/dates.js";
 import { eventDomain } from "../core/scale.js";
-import { eventHasPosition, eventPlace, mapChain, sortedEvents } from "../core/derive.js";
+import {
+  eventHasPosition,
+  eventPlace,
+  eventsAtPlace,
+  mapChain,
+  placeMap,
+  sortedEvents,
+} from "../core/derive.js";
 import { findStep, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
@@ -93,7 +100,12 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
   ].join("\n");
 }
 
-function locationCard(world: ResolvedWorld, location: ResolvedLocation): string {
+function locationCard(
+  state: AppState,
+  location: ResolvedLocation,
+  visibleEventIds: Set<string>,
+): string {
+  const world = state.world;
   const people = world.people
     .filter((person) => person.stays.some((stay) => stay.at === location.id))
     .map((person) => personLink(person));
@@ -110,11 +122,30 @@ function locationCard(world: ResolvedWorld, location: ResolvedLocation): string 
       ? [location.exists.from?.raw, location.exists.until?.raw].filter(Boolean).join(" – ")
       : "";
   const metaParts = [location.kind === "mobile" ? "Mobile" : "", existsMeta].filter((p) => p !== "");
+  // The events that happen here, oldest first. The ones the reader can
+  // see now are marked, so a place with a long history reads as the
+  // reader's window and what lies outside it.
+  const hereIds = new Set(
+    eventsAtPlace(world, location.id, placeMap(world, location, state.date), state.date).map(
+      (event) => event.id,
+    ),
+  );
+  const eventsHere = sortedEvents(world).filter((event) => hereIds.has(event.id));
+  const eventsHtml =
+    eventsHere.length === 0
+      ? ""
+      : `<div class="events-here"><h3>Events here</h3><ul>${eventsHere
+          .map(
+            (event) =>
+              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(event.when.raw)}</span></li>`,
+          )
+          .join("")}</ul></div>`;
   return [
     portraitHtml(location.image, location.name),
     `<h2>${escapeHtml(location.name)}</h2>`,
     metaParts.length > 0 ? `<p class="meta">${escapeHtml(metaParts.join(" · "))}</p>` : "",
     enterSubmapBtn,
+    eventsHtml,
     people.length > 0 ? `<p class="people"><strong>People:</strong> ${people.join(", ")}</p>` : "",
     tagChips(location.tags),
     renderMarkdown(location.card ?? location.bio),
@@ -142,7 +173,7 @@ function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
   ].join("\n");
 }
 
-function renderCard(state: AppState): void {
+function renderCard(state: AppState, visibleEventIds: Set<string>): void {
   if (cardElement === null) {
     return;
   }
@@ -158,7 +189,7 @@ function renderCard(state: AppState): void {
     html = event !== undefined ? eventCard(state.world, event) : "";
   } else if (selection.kind === "location") {
     const location = state.world.locations.find((entry) => entry.id === selection.id);
-    html = location !== undefined ? locationCard(state.world, location) : "";
+    html = location !== undefined ? locationCard(state, location, visibleEventIds) : "";
   } else {
     const person = state.world.people.find((entry) => entry.id === selection.id);
     html = person !== undefined ? personCard(state.world, person) : "";
@@ -509,7 +540,8 @@ async function boot(): Promise<void> {
       date: state.date,
       span,
       focusEventId: state.mode === "trace" ? focused?.eventId : undefined,
-      selectedId: state.selection?.id,
+      selectedId: state.selection?.kind === "location" ? state.selection.id : undefined,
+      selectedEventId: state.selection?.kind === "event" ? state.selection.id : undefined,
       visibleEventIds: tickIds,
     });
     mapView.setPath(
@@ -523,7 +555,7 @@ async function boot(): Promise<void> {
       renderBreadcrumb(state);
     }
     renderActiveFilters(state);
-    renderCard(state);
+    renderCard(state, tickIds);
     renderResults(state);
     updateLink(state);
   };
@@ -557,7 +589,22 @@ async function boot(): Promise<void> {
       } else if (kind === "location") {
         store.set({ selection: { kind: "location", id } });
       } else {
-        store.set({ selection: { kind: "event", id } });
+        // An event. The links in a place's card ask to jump to it: the
+        // reader clicked a line in a list and wants to land on it, not
+        // just read about it.
+        const found = world.events.find((entry) => entry.id === id);
+        const wants = resultElement.dataset.jump !== undefined && found !== undefined;
+        const place = wants && found !== undefined ? eventPlace(world, found) : undefined;
+        store.set({
+          ...(wants && found !== undefined
+            ? {
+                date: found.when,
+                stepKey: `event:${id}`,
+                ...(place?.mapId !== undefined ? { mapId: place.mapId } : {}),
+              }
+            : {}),
+          selection: { kind: "event", id },
+        });
       }
       return;
     }

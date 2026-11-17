@@ -18,6 +18,7 @@ import { compareBounds } from "../core/dates.js";
 import {
   eventPlace,
   imageForDate,
+  landingPlace,
   locationVisibleAt,
   projectToMap,
   resolveLocationAt,
@@ -52,6 +53,8 @@ export interface RenderMapOptions {
   span?: Span | undefined;
   focusEventId?: string | undefined;
   selectedId?: string | undefined;
+  /** The selected event, when the reader has one open. */
+  selectedEventId?: string | undefined;
   visibleEventIds?: Set<string> | undefined;
 }
 
@@ -208,12 +211,23 @@ export class MapView {
     if (opts === undefined) {
       return;
     }
-    const { world, mapId, date, span, focusEventId, selectedId, visibleEventIds } = opts;
+    const { world, mapId, date, span, focusEventId, selectedId, selectedEventId, visibleEventIds } = opts;
 
-    // Count sub-map events inside visible span so parent locations can show activity counts
-    const submapEventCounts = new Map<string, number>();
+    // The events that land on a place's pin. An event that happens at a
+    // place is counted on that place's badge instead of floating beside
+    // it as a diamond of its own.
+    const eventsAtPin = new Map<string, ResolvedEvent[]>();
+    const countOn = (locationId: string, event: ResolvedEvent): void => {
+      const list = eventsAtPin.get(locationId);
+      if (list === undefined) {
+        eventsAtPin.set(locationId, [event]);
+      } else {
+        list.push(event);
+      }
+    };
 
-    // Collect events to draw on this map
+    // The events that need a pin of their own: a point the creator typed
+    // on the map, or the one being traced.
     const eventsToDraw: {
       event: ResolvedEvent;
       x: number;
@@ -242,15 +256,18 @@ export class MapView {
         continue;
       }
       if (place.mapId === mapId) {
-        eventsToDraw.push({ event, x: place.at[0], y: place.at[1] });
+        if (place.location !== undefined && focusEventId === undefined) {
+          // It happens at a place on this map: it belongs on that place's
+          // badge, not beside it as a diamond.
+          countOn(place.location.id, event);
+        } else {
+          eventsToDraw.push({ event, x: place.at[0], y: place.at[1] });
+        }
       } else {
         // Check if this event sits inside a sub-map anchored on the current map
         const projected = projectToMap(world, place.mapId, place.at, mapId, date ?? event.when);
         if (projected?.viaLocation !== undefined) {
-          submapEventCounts.set(
-            projected.viaLocation.id,
-            (submapEventCounts.get(projected.viaLocation.id) ?? 0) + 1,
-          );
+          countOn(projected.viaLocation.id, event);
           if (focusEventId === event.id) {
             eventsToDraw.push({
               event,
@@ -262,6 +279,14 @@ export class MapView {
         }
       }
     }
+
+    // The place the reader has open, so its pin can be marked.
+    const activeEvent =
+      selectedEventId !== undefined
+        ? world.events.find((entry) => entry.id === selectedEventId)
+        : undefined;
+    const activePlace =
+      activeEvent !== undefined ? landingPlace(world, activeEvent, mapId, date) : undefined;
 
     // 1. Draw Fixed + Active Mobile Locations on this map
     if (focusEventId === undefined) {
@@ -286,8 +311,10 @@ export class MapView {
 
         const isSubmapPortal = location.opens !== undefined;
         const isMobile = location.kind === "mobile";
-        const isSelected = selectedId === location.id;
-        const nestedCount = submapEventCounts.get(location.id) ?? 0;
+        const eventsHere = eventsAtPin.get(location.id) ?? [];
+        // The pin is marked when the place itself is selected, and when
+        // the place the reader has open is this one.
+        const isSelected = selectedId === location.id || activePlace?.id === location.id;
 
         const classes = [
           "tw-pin",
@@ -299,16 +326,20 @@ export class MapView {
           .filter(Boolean)
           .join(" ");
 
+        // The count of events at this place, and the way into the sub-map
+        // it opens. Both can be true at once, so they sit on opposite
+        // corners of the pin.
         const badgeHtml =
-          isSubmapPortal && nestedCount > 0
-            ? `<span class="tw-pin-badge">${nestedCount}</span>`
-            : isSubmapPortal
-              ? `<span class="tw-pin-portal" title="Opens sub-map">↘</span>`
-              : "";
+          eventsHere.length > 0
+            ? `<span class="tw-pin-badge" title="${eventsHere.length} event${eventsHere.length === 1 ? "" : "s"} here">${eventsHere.length}</span>`
+            : "";
+        const portalHtml = isSubmapPortal
+          ? `<span class="tw-pin-portal" title="Opens sub-map">↘</span>`
+          : "";
 
         const icon = L.divIcon({
           className: "tw-div-icon",
-          html: `<div class="${classes}"><span class="tw-pin-dot"></span>${badgeHtml}<span class="tw-pin-label">${escapeHtml(location.name)}</span></div>`,
+          html: `<div class="${classes}"><span class="tw-pin-dot"></span>${badgeHtml}${portalHtml}<span class="tw-pin-label">${escapeHtml(location.name)}</span></div>`,
           iconSize: [24, 24],
           iconAnchor: [12, 12],
         });
@@ -335,28 +366,26 @@ export class MapView {
       }
     }
 
-    // 2. Draw Event markers (Slightly offset if multiple events share identical coordinates)
+    // 2. Draw the events that have a pin of their own. A point is drawn
+    // exactly where it was put - no offset, so it never drifts as the
+    // reader zooms. Two events on the same point would sit on top of
+    // each other, so they are nudged apart by a few screen pixels.
     const coordCounts = new Map<string, number>();
     for (const item of eventsToDraw) {
       const key = `${Math.round(item.x)}:${Math.round(item.y)}`;
       const seenIndex = coordCounts.get(key) ?? 0;
       coordCounts.set(key, seenIndex + 1);
 
-      // Gentle spiral offset in screen/image space when several events happen at the same place
-      const angle = seenIndex * 1.15;
-      const radius = seenIndex === 0 ? 0 : 12 + seenIndex * 3;
-      const ox = item.x + Math.cos(angle) * radius;
-      const oy = item.y + Math.sin(angle) * radius;
-
-      const isFocused = selectedId === item.event.id || focusEventId === item.event.id;
+      const isFocused = selectedEventId === item.event.id || focusEventId === item.event.id;
+      const offsetClass = seenIndex === 0 ? "" : ` tw-pin-offset-${Math.min(seenIndex, 4)}`;
       const icon = L.divIcon({
         className: "tw-div-icon",
-        html: `<div class="tw-pin tw-pin-event${isFocused ? " is-selected" : ""}"><span class="tw-pin-diamond"></span></div>`,
+        html: `<div class="tw-pin tw-pin-event${isFocused ? " is-selected" : ""}${offsetClass}"><span class="tw-pin-diamond"></span></div>`,
         iconSize: [22, 22],
         iconAnchor: [11, 11],
       });
 
-      const marker = L.marker(this.pixelToLatLng(ox, oy), {
+      const marker = L.marker(this.pixelToLatLng(item.x, item.y), {
         icon,
         zIndexOffset: isFocused ? 500 : 200,
       });

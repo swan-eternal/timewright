@@ -5,6 +5,9 @@ import { parseDate, type ParsedDate } from "../src/core/dates.js";
 import {
   anchorForMap,
   eventPlace,
+  eventsAtPlace,
+  landingPlace,
+  placeMap,
   projectToMap,
   resolveLocationAt,
 } from "../src/core/derive.js";
@@ -329,6 +332,134 @@ describe("where an event happens", () => {
     });
     const later = eventPlace(w, w.events[0]!, parseDate("1816-06-18"));
     assert.deepEqual(later?.at, [30, 30]);
+  });
+});
+
+describe("which place an event lands on", () => {
+  it("is the place the event names", () => {
+    const w = world({
+      locations: [location({ id: "elba", name: "Elba", map: "europe", at: [15, 20] })],
+      events: [
+        event({
+          id: "e1",
+          title: "Landing",
+          when: parseDate("1814-06-18"),
+          where: { location: "elba" },
+        }),
+      ],
+    });
+    assert.equal(landingPlace(w, w.events[0]!, "europe")?.id, "elba");
+  });
+
+  it("is nobody's, for an event with a point of its own", () => {
+    const w = world({
+      events: [
+        event({
+          id: "e1",
+          title: "Treaty",
+          when: parseDate("1802-03-25"),
+          where: { map: "europe", at: [12, 12] },
+        }),
+      ],
+    });
+    assert.equal(landingPlace(w, w.events[0]!, "europe"), undefined);
+  });
+
+  it("is the portal that opens the sub-map the event is in", () => {
+    const w = world({
+      locations: [
+        location({ id: "london", name: "London", map: "europe", at: [20, 15], opens: "london-map" }),
+        location({ id: "paris", name: "Paris", map: "london-map", at: [5, 5] }),
+      ],
+      events: [
+        event({
+          id: "e1",
+          title: "Revolt",
+          when: parseDate("1848-06-18"),
+          where: { location: "paris" },
+        }),
+      ],
+    });
+    // Seen from Europe, the event lands on the portal that opens the way.
+    assert.equal(landingPlace(w, w.events[0]!, "europe")?.id, "london");
+    // Seen from its own map, it lands on the place it names.
+    assert.equal(landingPlace(w, w.events[0]!, "london-map")?.id, "paris");
+  });
+
+  it("is nobody's, when the event cannot be reached from this map", () => {
+    const w = world({
+      locations: [location({ id: "paris", name: "Paris", map: "london-map", at: [5, 5] })],
+      events: [
+        event({
+          id: "e1",
+          title: "Revolt",
+          when: parseDate("1848-06-18"),
+          where: { location: "paris" },
+        }),
+      ],
+    });
+    assert.equal(landingPlace(w, w.events[0]!, "atlantis"), undefined);
+  });
+});
+
+describe("the events at a place", () => {
+  const w = world({
+    locations: [
+      location({ id: "elba", name: "Elba", map: "europe", at: [15, 20] }),
+      location({ id: "london", name: "London", map: "europe", at: [20, 15], opens: "london-map" }),
+      location({ id: "paris", name: "Paris", map: "london-map", at: [5, 5] }),
+    ],
+    events: [
+      event({
+        id: "e1",
+        title: "Landing",
+        when: parseDate("1814-06-18"),
+        where: { location: "elba" },
+      }),
+      event({
+        id: "e2",
+        title: "Revolt",
+        when: parseDate("1848-06-18"),
+        where: { location: "paris" },
+      }),
+      event({
+        id: "e3",
+        title: "Treaty",
+        when: parseDate("1802-03-25"),
+        where: { map: "europe", at: [12, 12] },
+      }),
+    ],
+  });
+
+  it("lists the events that happen there", () => {
+    assert.deepEqual(
+      eventsAtPlace(w, "elba", "europe").map((e) => e.id),
+      ["e1"],
+    );
+  });
+
+  it("lists the events behind a portal too", () => {
+    // Seen from Europe, the events in the sub-map land on the portal.
+    assert.deepEqual(
+      eventsAtPlace(w, "london", "europe").map((e) => e.id),
+      ["e2"],
+    );
+    // Seen from the sub-map, they belong to the place they name.
+    assert.deepEqual(
+      eventsAtPlace(w, "paris", "london-map").map((e) => e.id),
+      ["e2"],
+    );
+  });
+
+  it("leaves out an event with a point of its own", () => {
+    assert.equal(
+      eventsAtPlace(w, "elba", "europe").some((e) => e.id === "e3"),
+      false,
+    );
+  });
+
+  it("says which map a place is on", () => {
+    assert.equal(placeMap(w, w.locations[0]!), "europe");
   });
 });
 

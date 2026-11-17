@@ -399,11 +399,29 @@ select {
   box-shadow: 0 0 0 3px rgba(31, 79, 160, 0.32), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.tw-pin-badge,
-.tw-pin-portal {
+.tw-pin-badge {
   position: absolute;
   top: -5px;
   right: -7px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--event);
+  color: #fff;
+  border: 1.5px solid #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+}
+
+/* The way into a sub-map sits on the other side of the pin, so a place
+   can show both its count and the door it opens. */
+.tw-pin-portal {
+  position: absolute;
+  top: -5px;
+  left: -7px;
   min-width: 15px;
   height: 15px;
   padding: 0 3px;
@@ -415,6 +433,24 @@ select {
   font-weight: 700;
   line-height: 12px;
   text-align: center;
+}
+
+/* Two events on the same point are nudged apart in screen pixels, so the
+   nudge stays the same size however far the reader has zoomed in. */
+.tw-pin-offset-1 {
+  transform: translate(7px, -7px);
+}
+
+.tw-pin-offset-2 {
+  transform: translate(-7px, 7px);
+}
+
+.tw-pin-offset-3 {
+  transform: translate(9px, 4px);
+}
+
+.tw-pin-offset-4 {
+  transform: translate(-9px, -4px);
 }
 
 .tw-pin-label {
@@ -451,6 +487,63 @@ select {
 .tip-sub {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+/* --- The events at a place --- */
+
+.events-here {
+  margin: 0 0 0.6rem;
+}
+
+.events-here h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.events-here ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 11rem;
+  overflow: auto;
+}
+
+.events-here li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.12rem 0.3rem;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.86rem;
+}
+
+.events-here li.is-visible {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.events-here a {
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.events-here a:hover {
+  text-decoration: underline;
+}
+
+.events-here .when {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 /* --- Timeline --- */
