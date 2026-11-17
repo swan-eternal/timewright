@@ -14,9 +14,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { eventPlace, imageForDate, mapChain, resolveWorld } from "../../core/derive.js";
+import {
+  eventPlace,
+  imageForDate,
+  locationVisibleAt,
+  mapChain,
+  resolveLocationAt,
+  resolveWorld,
+} from "../../core/derive.js";
 import { buildIndex } from "../../core/building.js";
-import { parseDate } from "../../core/dates.js";
+import { compareBounds, compareDates, parseDate } from "../../core/dates.js";
+import { dateFraction, eventDomain } from "../../core/scale.js";
+import type { DateBound, ParsedDate } from "../../core/dates.js";
+import type { ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../../core/model.js";
 import { validateWorld } from "../../core/validate.js";
 import { loadWorld, resolveImagePath } from "../load.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
@@ -91,7 +101,7 @@ export function createEditorApi(root: string): (
 ) => Promise<void> {
   return async (request, response, url, query = new URLSearchParams()) => {
     if (url === "/api/editor" && request.method === "GET") {
-      respond(response, await describe(root));
+      respond(response, await describe(root, query.get("date") ?? undefined));
       return;
     }
 
@@ -349,11 +359,21 @@ function respond(response: ServerResponse, payload: unknown): void {
   response.end(JSON.stringify(payload));
 }
 
-async function describe(root: string): Promise<unknown> {
+export async function describe(root: string, dateStr?: string): Promise<unknown> {
   const loaded = await loadWorld(root);
   const world = resolveWorld(loaded.data);
   const index = buildIndex(loaded.data);
   const issues = [...loaded.issues, ...validateWorld(loaded.data)];
+
+  // The date the Studio is looking at: what it asked for, or where the
+  // world begins. Everything below - which image a map shows, where a
+  // vessel is, who is present - is answered at this date.
+  const active = resolveActiveDate(world, dateStr);
+  const atDate: DateBound | undefined = active.parsed;
+  const extraWarnings: { message: string; record: string }[] = [];
+  if (active.warning !== undefined) {
+    extraWarnings.push({ message: active.warning, record: "" });
+  }
 
   // Identify inline map indices inside world.yaml if any
   const worldFile = loaded.data.world.file;
@@ -369,6 +389,8 @@ async function describe(root: string): Promise<unknown> {
     const openedBy = index.locations
       .filter((loc) => loc.data.opens !== undefined && index.mapNames.resolve(loc.data.opens) === record.id)
       .map((loc) => ({ id: loc.id, name: loc.name }));
+    const resolved = world.maps.find((entry) => entry.id === record.id);
+    const activeImage = resolved !== undefined ? imageForDate(resolved, atDate) : undefined;
 
     return {
       id: record.id,
@@ -381,6 +403,7 @@ async function describe(root: string): Promise<unknown> {
       notes: map.notes ?? "",
       chain,
       openedBy,
+      activeImage: activeImage?.file ?? sourceImages[0]?.file ?? "",
       file: record.file,
       index: recordIndex,
       images: sourceImages.map((image) => ({
@@ -396,6 +419,20 @@ async function describe(root: string): Promise<unknown> {
     const location = record.data;
     const resolvedMap = location.map !== undefined ? index.mapNames.resolve(location.map) : undefined;
     const resolvedOpens = location.opens !== undefined ? index.mapNames.resolve(location.opens) : undefined;
+
+    // Where this place is at the Studio's date. A fixed place answers with
+    // its own map; a vessel answers with wherever it is that day, and
+    // names the place that is hosting it.
+    const resolvedPlace = world.locations.find((entry) => entry.id === record.id);
+    const visible = resolvedPlace !== undefined ? locationVisibleAt(resolvedPlace, atDate) : true;
+    const placed = resolvedPlace !== undefined ? resolveLocationAt(world, record.id, atDate) : undefined;
+    const placedMap = placed?.mapId ?? resolvedMap ?? "";
+    const placedAt = placed?.at ?? location.at ?? null;
+    const host = resolvedPlace !== undefined ? hostLocationName(world, resolvedPlace, atDate) : "";
+    const eventIds = world.events
+      .filter((event) => event.where?.location === record.id)
+      .map((event) => event.id);
+
     return {
       id: record.id,
       name: record.name,
@@ -416,6 +453,11 @@ async function describe(root: string): Promise<unknown> {
       image: location.image ?? "",
       notes: location.notes ?? "",
       kind: location.kind === "mobile" ? "mobile" : "fixed",
+      visibleAtDate: visible,
+      resolvedMap: placedMap,
+      resolvedAt: placedAt,
+      hostLocationName: host,
+      eventIds,
       file: record.file,
       index: record.index,
     };
@@ -423,6 +465,8 @@ async function describe(root: string): Promise<unknown> {
 
   const people = index.people.map((record) => {
     const person = record.data;
+    const resolvedPerson = world.people.find((entry) => entry.id === record.id);
+    const activeLocationId = resolvedPerson !== undefined ? activeStayLocation(world, resolvedPerson, atDate) : "";
     return {
       id: record.id,
       name: record.name,
@@ -440,6 +484,7 @@ async function describe(root: string): Promise<unknown> {
       bio: person.bio ?? "",
       image: person.image ?? "",
       notes: person.notes ?? "",
+      activeLocationId,
       file: record.file,
       index: record.index,
     };
@@ -481,6 +526,8 @@ async function describe(root: string): Promise<unknown> {
   const rawWorld = index.world;
   return {
     root,
+    activeDate: active.parsed?.raw ?? "",
+    timeline: buildTimeline(world, atDate),
     world: {
       title: rawWorld.title,
       overworld:
@@ -503,10 +550,162 @@ async function describe(root: string): Promise<unknown> {
       field: issue.field ?? "",
       suggestion: issue.suggestion ?? "",
     })),
-    warnings: issues
-      .filter((issue) => issue.severity === "warning")
-      .map((issue) => ({ message: issue.message, record: issue.record ?? "" })),
+    warnings: [
+      ...issues
+        .filter((issue) => issue.severity === "warning")
+        .map((issue) => ({ message: issue.message, record: issue.record ?? "" })),
+      ...extraWarnings,
+    ],
   };
+}
+
+/**
+ * The date the Studio is looking at.
+ *
+ * What the caller asked for, when it parses. Otherwise where the world
+ * starts, or else the earliest thing that happens in it.
+ */
+function resolveActiveDate(
+  world: ResolvedWorld,
+  dateStr: string | undefined,
+): { parsed: ParsedDate | undefined; warning?: string } {
+  const options = { calendar: world.calendar };
+  if (dateStr !== undefined && dateStr.trim() !== "") {
+    try {
+      return { parsed: parseDate(dateStr.trim(), options) };
+    } catch (error) {
+      const fallback = defaultActiveDate(world);
+      return {
+        parsed: fallback,
+        warning: `"${dateStr}" is not a date I understand; showing ${fallback?.raw ?? "nothing"} instead.`,
+      };
+    }
+  }
+  return { parsed: defaultActiveDate(world) };
+}
+
+function defaultActiveDate(world: ResolvedWorld): ParsedDate | undefined {
+  if (world.start !== undefined) {
+    return world.start;
+  }
+  let earliest: ParsedDate | undefined;
+  for (const event of world.events) {
+    if (earliest === undefined || compareDates(event.when, earliest) < 0) {
+      earliest = event.when;
+    }
+  }
+  return earliest;
+}
+
+/**
+ * The strip of time the Studio draws across the bottom of the canvas.
+ *
+ * Every event the creator wrote gets a tick, including the ones with no
+ * place on a map: the Studio is for authoring, so nothing is hidden from
+ * the person doing the authoring.
+ */
+function buildTimeline(
+  world: ResolvedWorld,
+  atDate: DateBound | undefined,
+): { start: string; end: string; events: unknown[] } {
+  const domain = eventDomain(world, { includeUnplaced: true });
+  const events = world.events.map((event) => {
+    const place = eventPlace(world, event, atDate);
+    const whereMode =
+      event.where === undefined ? "general" : event.where.location !== undefined ? "location" : "point";
+    return {
+      id: event.id,
+      title: event.title,
+      when: event.when.raw,
+      fraction: domain !== undefined ? dateFraction(event.when, domain) : 0,
+      whereMode,
+      map: place?.mapId ?? "",
+      locationId: place?.location?.id ?? "",
+    };
+  });
+  return {
+    start: domain?.from.raw ?? "",
+    end: domain?.to.raw ?? "",
+    events,
+  };
+}
+
+/**
+ * The place hosting a vessel on a given day.
+ *
+ * A vessel stays at a place; a vessel that stays at another vessel is
+ * hosted by wherever that one is. The chain is short, and it cannot be
+ * circular, so it is followed only so far.
+ */
+function hostLocationName(
+  world: ResolvedWorld,
+  location: ResolvedLocation,
+  atDate: DateBound | undefined,
+): string {
+  const hostId = hostLocationId(world, location.id, atDate, 0);
+  if (hostId === undefined) {
+    return "";
+  }
+  return world.locations.find((entry) => entry.id === hostId)?.name ?? "";
+}
+
+function hostLocationId(
+  world: ResolvedWorld,
+  locationId: string,
+  atDate: DateBound | undefined,
+  depth: number,
+): string | undefined {
+  if (depth > 8) {
+    return undefined;
+  }
+  const location = world.locations.find((entry) => entry.id === locationId);
+  if (location === undefined) {
+    return undefined;
+  }
+  if (location.kind !== "mobile") {
+    return location.id;
+  }
+  for (const stay of location.stays) {
+    if (!stayCovers(stay, atDate)) {
+      continue;
+    }
+    return hostLocationId(world, stay.at, atDate, depth + 1) ?? stay.at;
+  }
+  return undefined;
+}
+
+/**
+ * Where a person is on a given day: the place their stay names, or the
+ * place hosting the vessel they are aboard.
+ */
+function activeStayLocation(
+  world: ResolvedWorld,
+  person: ResolvedPerson,
+  atDate: DateBound | undefined,
+): string {
+  for (const stay of person.stays) {
+    if (!stayCovers(stay, atDate)) {
+      continue;
+    }
+    return hostLocationId(world, stay.at, atDate, 0) ?? stay.at;
+  }
+  return "";
+}
+
+/**
+ * Whether a stay is running on a given day. Both ends are inclusive.
+ */
+function stayCovers(stay: { from?: DateBound | undefined; until?: DateBound | undefined }, atDate: DateBound | undefined): boolean {
+  if (atDate === undefined) {
+    return true;
+  }
+  if (stay.from !== undefined && compareBounds(atDate, stay.from) < 0) {
+    return false;
+  }
+  if (stay.until !== undefined && compareBounds(atDate, stay.until) > 0) {
+    return false;
+  }
+  return true;
 }
 
 async function imagePath(
