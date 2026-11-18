@@ -1498,8 +1498,12 @@
           wrap.querySelector("#ev-loc-box").hidden = m !== "location";
           wrap.querySelector("#ev-pt-box").hidden = m !== "point";
         };
-        wrap.querySelectorAll("#ev-people-pills .pill").forEach((pill) => {
-          pill.onclick = () => togglePerson(wrap, pill);
+        // One delegated listener on the holder: the pills themselves are
+        // re-created on every toggle, so per-pill handlers would die after
+        // the first click and leave the picker unresponsive.
+        wrap.querySelector("#ev-people-pills").addEventListener("click", (e) => {
+          const btn = e.target.closest(".pill");
+          if (btn) togglePerson(wrap, btn);
         });
         wrap.querySelector("#ev-quick-person-add").onclick = async () => {
           const input = wrap.querySelector("#ev-quick-person");
