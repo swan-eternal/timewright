@@ -17,7 +17,10 @@ import { levenshtein, type NameIndex } from "./resolve.js";
 import {
   EventSchema,
   ExistsSchema,
+  FORMAT_MAJOR,
+  FORMAT_MINOR,
   knownKeys,
+  parseFormatVersion,
   LocationSchema,
   MapImageSchema,
   MapSchema,
@@ -66,6 +69,7 @@ export function validateWorld(data: WorldData, options: ValidateOptions = {}): I
   const index = buildIndex(data);
   const parseOptions = calendarOptions(index.world);
 
+  checkFormatVersion(issues, index);
   checkUnknownFields(issues, index);
   checkDuplicateIds(issues, index);
   checkNameCollisions(issues, index);
@@ -124,6 +128,52 @@ function reportUnknownFields(
       record: context.record,
       field: context.prefix === "" ? key : `${context.prefix}.${key}`,
       suggestion: near !== undefined ? `Did you mean "${near}"?` : undefined,
+    });
+  }
+}
+
+/**
+ * The world's format declaration. A world from before the field existed
+ * is format 1; a newer major does not build; a newer minor warns.
+ */
+function checkFormatVersion(issues: Issue[], index: WorldIndex): void {
+  const world = index.world;
+  if (world.format === undefined) {
+    return;
+  }
+  const version = parseFormatVersion(world.format);
+  if (version === undefined) {
+    issues.push({
+      severity: "error",
+      code: "invalid-format",
+      message: `cannot read the format "${world.format}"`,
+      file: index.worldFile,
+      record: world.title,
+      field: "format",
+      suggestion: `Did you mean ${FORMAT_MAJOR}?`,
+    });
+    return;
+  }
+  if (version.major !== FORMAT_MAJOR) {
+    issues.push({
+      severity: "error",
+      code: "unknown-format-major",
+      message: `this world is format ${version.major}; this timewright reads format ${FORMAT_MAJOR}`,
+      file: index.worldFile,
+      record: world.title,
+      field: "format",
+      suggestion: "a newer timewright may understand it",
+    });
+    return;
+  }
+  if (version.minor > FORMAT_MINOR) {
+    issues.push({
+      severity: "warning",
+      code: "newer-format-minor",
+      message: `this world is format ${version.major}.${version.minor}; this timewright knows ${FORMAT_MAJOR}.${FORMAT_MINOR}, so some of it may be missing`,
+      file: index.worldFile,
+      record: world.title,
+      field: "format",
     });
   }
 }

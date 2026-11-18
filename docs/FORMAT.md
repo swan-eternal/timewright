@@ -52,6 +52,7 @@ as well, the references are left alone and `timewright validate` says so.
 | Field | Type | Meaning |
 |---|---|---|
 | `title` | string, required | the world's name |
+| `format` | number or string | `1` — the format version the file is written for |
 | `overworld` | string | the map the viewer opens on |
 | `calendar` | string or object | `gregorian`, or a custom calendar (below) |
 | `start` | date | the default timeline span, from |
@@ -63,6 +64,11 @@ as well, the references are left alone and `timewright validate` says so.
 runs from the first event to the last. Events that have no place on the map do
 not widen the range — one background event six centuries early would squash
 the years that have a map into a sliver.
+
+A world with no `format` is format 1: the field arrived after the first
+worlds did. A world that declares a newer major format than the tool
+reads does not build; a newer minor only warns, because a minor adds
+without taking away.
 
 ## A custom calendar
 

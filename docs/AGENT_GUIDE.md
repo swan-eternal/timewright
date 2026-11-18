@@ -27,6 +27,7 @@ Both layouts work: one file per record (good for git) or one list per file
 **world.yaml** — the only required file.
 
 ```yaml
+format: 1                # the world format version; write it into new worlds
 title: Napoleonic Europe
 overworld: europe        # the map to open on (a map id or name)
 calendar: gregorian      # or a custom calendar, see below
