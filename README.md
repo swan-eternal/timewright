@@ -56,7 +56,8 @@ my-world/
 
 Dates are flexible on purpose: `1815`, `1815-06`, `~1200`, `1805..1807`,
 `<2300`, and custom calendars with named months and eras. A date that reads
-as impossible warns; it does not fail.
+as impossible warns; it does not fail. A world with no dates at all can
+order its events by chapter instead.
 
 **The format:** [docs/FORMAT.md](docs/FORMAT.md) is the reference.
 [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) is the short version, written for

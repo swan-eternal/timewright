@@ -117,6 +117,7 @@ export function resolveWorld(data: WorldData): ResolvedWorld {
       locations: resolveAll((reference) => index.locationNames.resolve(reference), event.locations),
       tags: event.tags ?? [],
       order: event.order,
+      chapter: event.chapter,
       card: event.card,
       sources: event.sources,
     };
@@ -127,6 +128,7 @@ export function resolveWorld(data: WorldData): ResolvedWorld {
     overworld:
       index.world.overworld !== undefined ? index.mapNames.resolve(index.world.overworld) : undefined,
     calendar: index.world.calendar === "gregorian" ? undefined : index.world.calendar,
+    chapters: index.world.chapters,
     start: parse(index.world.start),
     end: parse(index.world.end),
     maps,

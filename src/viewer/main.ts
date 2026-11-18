@@ -5,6 +5,7 @@
 import "./styles.css";
 
 import { parseDate, type DateBound } from "../core/dates.js";
+import { chapterBadge, displayDate, isChapterWorld } from "../core/chapters.js";
 import { eventDomain } from "../core/scale.js";
 import {
   eventHasPosition,
@@ -76,6 +77,14 @@ function portraitHtml(rawPath: string | undefined, alt: string): string {
   return `<div class="card-media"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" /></div>`;
 }
 
+/** The chapter note on an event's card, in a world that has dates. */
+function chapterNote(world: ResolvedWorld, event: ResolvedEvent): string {
+  if (event.chapter === undefined || isChapterWorld(world)) {
+    return "";
+  }
+  return ` · ${escapeHtml(chapterBadge(world, event.chapter))}`;
+}
+
 function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
   const place = world.locations.find((location) => event.where?.location === location.id);
   const mapObj =
@@ -93,7 +102,7 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
     .join(", ");
   return [
     `<h2>${escapeHtml(event.title)}</h2>`,
-    `<p class="meta">${escapeHtml(event.when.raw)} · ${whereHtml}</p>`,
+    `<p class="meta">${escapeHtml(displayDate(world, event.when))}${chapterNote(world, event)} · ${whereHtml}</p>`,
     people !== "" ? `<p class="people"><strong>People:</strong> ${people}</p>` : "",
     tagChips(event.tags),
     renderMarkdown(event.card),
@@ -119,7 +128,12 @@ function locationCard(
         : "";
   const existsMeta =
     location.exists !== undefined
-      ? [location.exists.from?.raw, location.exists.until?.raw].filter(Boolean).join(" – ")
+      ? [
+          location.exists.from !== undefined ? displayDate(world, location.exists.from) : undefined,
+          location.exists.until !== undefined ? displayDate(world, location.exists.until) : undefined,
+        ]
+          .filter(Boolean)
+          .join(" – ")
       : "";
   const metaParts = [location.kind === "mobile" ? "Mobile" : "", existsMeta].filter((p) => p !== "");
   // The events that happen here, oldest first. The ones the reader can
@@ -137,7 +151,7 @@ function locationCard(
       : `<div class="events-here"><h3>Events here</h3><ul>${eventsHere
           .map(
             (event) =>
-              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(event.when.raw)}</span></li>`,
+              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(displayDate(world, event.when))}</span></li>`,
           )
           .join("")}</ul></div>`;
   return [
@@ -153,7 +167,10 @@ function locationCard(
 }
 
 function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
-  const life = [person.born?.raw, person.died?.raw].filter((part) => part !== undefined).join(" – ");
+  const life = [person.born, person.died]
+    .filter((part) => part !== undefined)
+    .map((part) => displayDate(world, part))
+    .join(" – ");
   const staysList = person.stays
     .map((s) => {
       const loc = world.locations.find((l) => l.id === s.at);
@@ -490,7 +507,7 @@ async function boot(): Promise<void> {
       state.selection?.kind === "event" ? state.selection.id : focused?.eventId;
     timeline.render(state.world, currentDomain, span, state.date, tickIds, activeEventId);
     stepBar.render(
-      steps.map((step) => ({ label: step.label, date: step.date.raw })),
+      steps.map((step) => ({ label: step.label, date: displayDate(state.world, step.date) })),
       index,
     );
 
@@ -521,7 +538,7 @@ async function boot(): Promise<void> {
           ? state.world.events.find((e) => e.id === activeEventId)
           : undefined;
       if (activeEvent !== undefined && !eventHasPosition(state.world, activeEvent, state.date)) {
-        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(activeEvent.when.raw)}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
+        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(displayDate(state.world, activeEvent.when))}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
         generalBannerElement.hidden = false;
       } else {
         generalBannerElement.hidden = true;

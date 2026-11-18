@@ -3,6 +3,7 @@
  * it showing the whole range with draggable window + resize handles.
  */
 
+import { displayDate } from "../core/chapters.js";
 import { dateFraction, fractionDate, type TimeDomain } from "../core/scale.js";
 import { eventHasPosition, sortedEvents } from "../core/derive.js";
 import type { DateBound } from "../core/dates.js";
@@ -120,7 +121,7 @@ export class Timeline {
 
         const topRem = 0.85 + Math.min(stack, 2) * 0.48;
         const kindLabel = isGeneral ? " (Timeline event)" : "";
-        return `<button type="button" class="${classes}" data-event="${escapeHtml(event.id)}" style="left:${(fraction * 100).toFixed(2)}%;top:${topRem.toFixed(2)}rem" title="${escapeHtml(event.when.raw)} — ${escapeHtml(event.title)}${kindLabel}"></button>`;
+        return `<button type="button" class="${classes}" data-event="${escapeHtml(event.id)}" style="left:${(fraction * 100).toFixed(2)}%;top:${topRem.toFixed(2)}rem" title="${escapeHtml(displayDate(world, event.when))} — ${escapeHtml(event.title)}${kindLabel}"></button>`;
       })
       .join("");
 
@@ -129,8 +130,8 @@ export class Timeline {
       '<div class="strip-line"></div>',
       ticks,
       `<div class="playhead" style="left:${playhead.toFixed(2)}%"><span class="playhead-knob"></span></div>`,
-      `<span class="strip-end left">${escapeHtml(span.from.raw)}</span>`,
-      `<span class="strip-end right">${escapeHtml(span.to.raw)}</span>`,
+      `<span class="strip-end left">${escapeHtml(displayDate(world, span.from))}</span>`,
+      `<span class="strip-end right">${escapeHtml(displayDate(world, span.to))}</span>`,
     ].join("");
   }
 

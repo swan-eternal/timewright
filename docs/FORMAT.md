@@ -70,6 +70,43 @@ worlds did. A world that declares a newer major format than the tool
 reads does not build; a newer minor only warns, because a minor adds
 without taking away.
 
+## Chapter worlds
+
+A story may have no calendar at all. A world can order its events by
+chapter instead: write the chapter number where a date would go.
+
+```yaml
+# world.yaml
+chapters:
+  1: Arrival
+  2: The Storm
+```
+
+```yaml
+# an event
+- title: The ship reaches port
+  when: 2          # chapter two
+  order: 3         # third among the chapter's events
+```
+
+Everything that reads a date reads a chapter number: `3..5` spans
+chapters, `~3` marks an approximate one, a map image's `until: 12`
+switches at chapter twelve, and a stay's `from` and `until` count
+chapters too. Ordering inside one chapter is the `order` field.
+
+The `chapters` map only names the numbers — the timeline says
+"Chapter 2 — The Storm" instead of "2". A world orders either by
+chapters or by dates; mixing the two on one axis reads as a mistake.
+
+In a world that has dates, an event can still carry a chapter, as a
+note on its card:
+
+```yaml
+- title: Waterloo
+  when: 1815-06-18
+  chapter: 31      # the card says "Chapter 31"
+```
+
 ## A custom calendar
 
 ```yaml

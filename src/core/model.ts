@@ -6,6 +6,7 @@
  * this object, serialised.
  */
 
+import type { Chapters } from "./chapters.js";
 import type { CalendarSpec, ParsedDate } from "./dates.js";
 
 export interface ResolvedMapImage {
@@ -85,6 +86,8 @@ export interface ResolvedEvent {
   tags: string[];
   /** Tie-break inside one date. */
   order?: number | undefined;
+  /** The chapter the event belongs to, in a world that also has dates. */
+  chapter?: number | string | undefined;
   card?: string | undefined;
   sources?: string[] | undefined;
 }
@@ -94,6 +97,8 @@ export interface ResolvedWorld {
   /** The map the viewer opens on. */
   overworld?: string | undefined;
   calendar?: CalendarSpec | undefined;
+  /** Chapter titles, when the world orders by chapter. */
+  chapters?: Chapters | undefined;
   start?: ParsedDate | undefined;
   end?: ParsedDate | undefined;
   maps: ResolvedMap[];
