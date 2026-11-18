@@ -84,7 +84,7 @@
       .tl-bar { display: flex; gap: 0.35rem; align-items: center; font-size: 0.78rem; color: var(--muted); }
       .tl-bar input { width: 7.5rem; padding: 0.2rem 0.4rem; border: 1px solid var(--line); border-radius: 5px; font-size: 0.78rem; }
       .tl-range { font-size: 0.74rem; }
-      #tl-strip { position: relative; height: 3.1rem; margin-top: 0.25rem; }
+      #tl-strip { position: relative; height: 3.1rem; margin-top: 0.25rem; user-select: none; -webkit-user-select: none; }
       .tl-axis { position: absolute; left: 0; right: 0; top: 0.5rem; height: 0.7rem; background: #f1ece1; border-top: 2px solid var(--line); }
       .tl-tick { position: absolute; top: -0.35rem; width: 2px; height: 0.9rem; background: var(--muted); cursor: pointer; }
       .tl-tick.current { background: var(--event); height: 1.15rem; top: -0.5rem; }
@@ -1198,6 +1198,7 @@
         };
         strip.addEventListener("pointerdown", (e) => {
           if (e.target.classList && e.target.classList.contains("tl-tick")) return;
+          e.preventDefault();
           dragging = true;
           strip.setPointerCapture(e.pointerId);
           const fraction = fractionAt(e.clientX);
