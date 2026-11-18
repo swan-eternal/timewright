@@ -22,6 +22,15 @@ export interface DateBound {
   day?: number;
   /** Era label as written, when the date was era-qualified. */
   era?: string;
+  /**
+   * Where the bound starts, in years, worked out against the calendar
+   * it was parsed with. Comparisons read this when it is present, so a
+   * custom calendar's month and day counts cannot break the order once
+   * the date has travelled through JSON into the viewer.
+   */
+  startInstant?: number | undefined;
+  /** Where the bound's last day ends, in years, against that calendar. */
+  endInstant?: number | undefined;
 }
 
 export interface ParsedDate extends DateBound {
@@ -148,7 +157,7 @@ function parseBound(text: string, options: ParseOptions, warnings: string[]): Da
     const month = numeric[2] === undefined ? undefined : Number(numeric[2]);
     const day = numeric[3] === undefined ? undefined : Number(numeric[3]);
     checkRange(year, month, day, options, warnings);
-    return { raw, approx, year, month, day };
+    return withInstants({ raw, approx, year, month, day }, options);
   }
 
   const dayMonth = DAY_MONTH_YEAR.exec(body);
@@ -161,7 +170,7 @@ function parseBound(text: string, options: ParseOptions, warnings: string[]): Da
       throw new DateParseError(raw, `unknown month "${monthName}" in "${raw}"`);
     }
     checkRange(year, month, day, options, warnings);
-    return { raw, approx, year, month, day };
+    return withInstants({ raw, approx, year, month, day }, options);
   }
 
   const monthDay = MONTH_DAY_YEAR.exec(body);
@@ -174,7 +183,7 @@ function parseBound(text: string, options: ParseOptions, warnings: string[]): Da
       throw new DateParseError(raw, `unknown month "${monthName}" in "${raw}"`);
     }
     checkRange(year, month, day, options, warnings);
-    return { raw, approx, year, month, day };
+    return withInstants({ raw, approx, year, month, day }, options);
   }
 
   const monthYear = MONTH_YEAR.exec(body);
@@ -184,7 +193,7 @@ function parseBound(text: string, options: ParseOptions, warnings: string[]): Da
     const month = lookupMonthName(monthName, options);
     if (month !== undefined) {
       checkRange(year, month, undefined, options, warnings);
-      return { raw, approx, year, month };
+      return withInstants({ raw, approx, year, month }, options);
     }
     // Not a month we know: the word may be an era, so keep going.
   }
@@ -207,7 +216,7 @@ function parseBound(text: string, options: ParseOptions, warnings: string[]): Da
     if (resolved.warning !== undefined) {
       warnings.push(resolved.warning);
     }
-    return { raw, approx, year: resolved.year, era: eraToken };
+    return withInstants({ raw, approx, year: resolved.year, era: eraToken }, options);
   }
 
   throw new DateParseError(raw, `cannot parse date "${raw}"`);
@@ -357,10 +366,28 @@ const REACH = 0.25;
  * A bare year starts on 1 January; a bare month on its first day.
  */
 function instantOf(bound: DateBound): number {
+  if (typeof bound.startInstant === "number") {
+    return bound.startInstant;
+  }
+  return instantOfIn(bound, {});
+}
+
+/**
+ * The Gregorian year keeps the arithmetic it has always had; a custom
+ * calendar spreads its months and days evenly across the year, so the
+ * order cannot invert inside a month longer than a Gregorian month, or
+ * a year with more months than twelve.
+ */
+function instantOfIn(bound: DateBound, options: ParseOptions): number {
   const year = bound.year ?? 0;
-  const month = (bound.month ?? 1) - 1;
-  const day = (bound.day ?? 1) - 1;
-  return year + month / 12 + day / 365.25;
+  const month = bound.month ?? 1;
+  const day = bound.day ?? 1;
+  if (!hasCustomYear(options)) {
+    return year + (month - 1) / 12 + (day - 1) / 365.25;
+  }
+  const months = monthCountOf(options);
+  const days = daysInMonth(bound.year, month, options) ?? 30;
+  return year + (month - 1) / months + (day - 1) / (months * days);
 }
 
 /**
@@ -368,10 +395,42 @@ function instantOf(bound: DateBound): number {
  * last day.
  */
 function endOf(bound: DateBound): number {
+  if (typeof bound.endInstant === "number") {
+    return bound.endInstant;
+  }
+  return endOfIn(bound, {});
+}
+
+function endOfIn(bound: DateBound, options: ParseOptions): number {
   const year = bound.year ?? 0;
-  const month = bound.month ?? 12;
-  const day = bound.day ?? daysInMonth(bound.year, month, {}) ?? 31;
-  return year + (month - 1) / 12 + (day - 1) / 365.25;
+  const month = bound.month ?? monthCountOf(options);
+  if (!hasCustomYear(options)) {
+    const day = bound.day ?? daysInMonth(bound.year, month, {}) ?? 31;
+    return year + (month - 1) / 12 + (day - 1) / 365.25;
+  }
+  const months = monthCountOf(options);
+  const days = daysInMonth(bound.year, month, options) ?? daysInMonth(bound.year, month, {}) ?? 30;
+  const day = bound.day ?? days;
+  return year + (month - 1) / months + (day - 1) / (months * days);
+}
+
+/**
+ * Whether a calendar changes the shape of the year: months or days per
+ * month of its own.
+ */
+function hasCustomYear(options: ParseOptions): boolean {
+  return options.calendar?.months !== undefined || options.calendar?.days_per_month !== undefined;
+}
+
+/**
+ * Record where a bound starts and ends against the calendar it was
+ * parsed with, so every later comparison agrees with that calendar —
+ * even after the date has been through JSON into the viewer.
+ */
+function withInstants(bound: DateBound, options: ParseOptions): DateBound {
+  bound.startInstant = instantOfIn(bound, options);
+  bound.endInstant = endOfIn(bound, options);
+  return bound;
 }
 
 /**
