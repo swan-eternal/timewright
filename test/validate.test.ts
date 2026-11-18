@@ -154,3 +154,42 @@ describe("validateWorld", () => {
     assert.ok(strict.every((issue) => issue.severity === "error"));
   });
 });
+
+describe("the format declaration", () => {
+  it("accepts the format it reads", () => {
+    const issues = validateWorld(world({ world: { data: { title: "Test world", format: 1 } as WorldRecord } }));
+    assert.deepEqual(issues.filter((issue) => issue.field === "format"), []);
+  });
+
+  it("reads the version as a string too", () => {
+    const issues = validateWorld(world({ world: { data: { title: "Test world", format: "1.0" } as WorldRecord } }));
+    assert.deepEqual(issues.filter((issue) => issue.field === "format"), []);
+  });
+
+  it("says nothing when the field is absent", () => {
+    const issues = validateWorld(world());
+    assert.deepEqual(issues.filter((issue) => issue.field === "format"), []);
+  });
+
+  it("refuses a declaration it cannot read", () => {
+    const issues = validateWorld(world({ world: { data: { title: "Test world", format: "one" } as WorldRecord } }));
+    const issue = issues.find((entry) => entry.code === "invalid-format");
+    assert.ok(issue !== undefined);
+    assert.equal(issue.severity, "error");
+  });
+
+  it("refuses a format from a newer timewright", () => {
+    const issues = validateWorld(world({ world: { data: { title: "Test world", format: 2 } as WorldRecord } }));
+    const issue = issues.find((entry) => entry.code === "unknown-format-major");
+    assert.ok(issue !== undefined);
+    assert.equal(issue.severity, "error");
+    assert.match(issue.message, /format 2/);
+  });
+
+  it("warns about a newer minor version", () => {
+    const issues = validateWorld(world({ world: { data: { title: "Test world", format: "1.2" } as WorldRecord } }));
+    const issue = issues.find((entry) => entry.code === "newer-format-minor");
+    assert.ok(issue !== undefined);
+    assert.equal(issue.severity, "warning");
+  });
+});

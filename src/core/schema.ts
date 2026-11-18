@@ -131,6 +131,8 @@ export const EventSchema = z.looseObject({
 
 export const WorldSchema = z.looseObject({
   title: z.string().min(1),
+  /** The format this file is written for. Absent means 1. */
+  format: z.union([z.number(), z.string()]).optional(),
   /** The map the viewer opens on. */
   overworld: z.string().min(1).optional(),
   calendar: z.union([z.literal("gregorian"), CalendarSchema]).optional(),
@@ -141,6 +143,36 @@ export const WorldSchema = z.looseObject({
   maps: z.array(MapSchema).optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
 });
+
+/** The world format this timewright reads and writes. */
+export const FORMAT_MAJOR = 1;
+export const FORMAT_MINOR = 0;
+
+/** A format declaration, read off a world.yaml. */
+export interface FormatVersion {
+  major: number;
+  minor: number;
+}
+
+/**
+ * Read a format declaration: `1`, `"1"`, or `"1.2"`. Returns undefined
+ * when the text cannot be a format at all.
+ */
+export function parseFormatVersion(
+  value: number | string | undefined,
+): FormatVersion | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value >= 1 ? { major: value, minor: 0 } : undefined;
+  }
+  const match = /^([0-9]+)(?:\.([0-9]+))?$/.exec(value.trim());
+  if (match === null || Number(match[1]) < 1) {
+    return undefined;
+  }
+  return { major: Number(match[1]), minor: match[2] === undefined ? 0 : Number(match[2]) };
+}
 
 export const WorldBundleSchema = z.looseObject({
   world: WorldSchema,
