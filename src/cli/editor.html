@@ -248,6 +248,52 @@
       const el = (id) => document.getElementById(id);
       const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+      // Chapter worlds: when world.yaml carries a chapters map the same
+      // numbers get names, and the Studio picks chapters instead of
+      // asking for dates. Ordering is untouched — only the reading.
+      const chaptersOf = () => {
+        const map = S.data?.world?.chapters;
+        return map && typeof map === "object" && !Array.isArray(map) ? map : null;
+      };
+      const isChapterWorld = () => chaptersOf() !== null;
+      function chapterLabel(n) {
+        const title = chaptersOf()?.[String(n)];
+        return title ? `Chapter ${n} — ${title}` : `Chapter ${n}`;
+      }
+      function fmtWhen(raw) {
+        const text = String(raw ?? "");
+        const n = /^\d+$/.test(text.trim()) ? Number(text.trim()) : null;
+        return n !== null && isChapterWorld() ? chapterLabel(n) : text;
+      }
+      function chapterOptions(selected) {
+        const chapters = chaptersOf() || {};
+        const value = String(selected ?? "").trim();
+        const keys = Object.keys(chapters).map(Number).sort((a, b) => a - b);
+        const html = keys.map(
+          (k) => `<option value="${k}"${String(k) === value ? " selected" : ""}>${esc(chapterLabel(k))}</option>`,
+        );
+        if (value !== "" && !keys.some((k) => String(k) === value)) {
+          html.push(`<option value="${esc(value)}" selected>${esc(value)}</option>`);
+        }
+        return html.join("");
+      }
+      // The clock becomes a picker once the world says it counts chapters.
+      function chapterClock() {
+        const input = el("tl-date");
+        if (!input || input.tagName === "SELECT" || !isChapterWorld()) return;
+        const select = document.createElement("select");
+        select.id = "tl-date";
+        select.setAttribute("aria-label", "Current chapter");
+        select.innerHTML = chapterOptions(S.data?.activeDate || S.date || S.data?.world?.start || "");
+        select.onchange = () => el("tl-go").click();
+        input.replaceWith(select);
+        const add = el("tl-add-event");
+        if (add) {
+          add.textContent = "+ Event at Current Chapter";
+          add.title = "Add an event in this chapter";
+        }
+      }
+
       function say(msg, isErr = false) {
         const node = el("status");
         node.textContent = msg || "";
@@ -419,9 +465,13 @@
               <label class="field">Event Title
                 <input name="title" required data-draft-focus placeholder="The Battle of Waterloo" />
               </label>
-              <label class="field">Date (e.g. 1815, 1815-06-18, ~1200)
+              ${isChapterWorld()
+                ? `<label class="field">Chapter
+                <select name="when" required>${chapterOptions(d.when || currentDate())}</select>
+              </label>`
+                : `<label class="field">Date (e.g. 1815, 1815-06-18, ~1200)
                 <input name="when" required value="${esc(d.when || currentDate())}" />
-              </label>
+              </label>`}
               <label class="field">Where It Happens
                 <select name="whereMode" id="draft-where-mode">
                   <option value="location"${mode === "location" ? " selected" : ""}>At a named Location</option>
@@ -702,7 +752,7 @@
           const m = L.marker(pixelToLatLng(ox, oy), { icon, draggable, zIndexOffset: 200 });
           m.twKind = "events";
           m.twId = ev.id;
-          m.bindTooltip(`${esc(ev.title)} (${esc(ev.when)})${draggable ? " · drag to move" : ""}`, { direction: "top", offset: [0, -8] });
+          m.bindTooltip(`${esc(ev.title)} (${esc(fmtWhen(ev.when))})${draggable ? " · drag to move" : ""}`, { direction: "top", offset: [0, -8] });
           m.on("click", () => { S.tab = "events"; S.selectedId = ev.id; renderSidebar(); setPinSelection(); });
           if (draggable) {
             m.on("dragend", async () => {
@@ -845,7 +895,7 @@
           const label = it.name || it.title;
           let sub = "";
           if (S.tab === "locations") sub = it.kind === "mobile" ? "mobile" : (it.map || "unplaced") + (it.opens ? " ↘" : "");
-          else if (S.tab === "events") sub = `${it.when}${it.whereMode === "general" ? " · timeline" : it.where ? ` · ${it.where}` : it.whereMap ? ` · ${it.whereMap}` : ""}`;
+          else if (S.tab === "events") sub = `${fmtWhen(it.when)}${it.whereMode === "general" ? " · timeline" : it.where ? ` · ${it.where}` : it.whereMap ? ` · ${it.whereMap}` : ""}`;
           else if (S.tab === "people") sub = [it.born, it.died].filter(Boolean).join("–");
           else if (S.tab === "maps") sub = it.parent ? `in ${it.parent}` : "main map";
           const active = it.id === S.selectedId ? " active" : "";
@@ -939,8 +989,8 @@
                 </select>
               </div>
               <div class="mini-row">
-                <input type="text" id="map-img-from" placeholder="From date (optional)" />
-                <input type="text" id="map-img-until" placeholder="Until date (optional)" />
+                <input type="text" id="map-img-from" placeholder="${isChapterWorld() ? "From chapter (optional)" : "From date (optional)"}" />
+                <input type="text" id="map-img-until" placeholder="${isChapterWorld() ? "Until chapter (optional)" : "Until date (optional)"}" />
                 <button type="button" class="icon-btn" id="upload-map-img-btn">Upload</button>
               </div>
             </div>
@@ -1011,10 +1061,23 @@
         const timeline = S.data?.timeline;
         const strip = el("tl-strip");
         if (!timeline || !strip) return;
-        el("tl-range").textContent = timeline.start ? `${timeline.start} – ${timeline.end}` : "";
+        el("tl-range").textContent = timeline.start
+          ? `${fmtWhen(timeline.start)} – ${fmtWhen(timeline.end)}`
+          : "";
         const dateInput = el("tl-date");
-        if (S.data.activeDate && document.activeElement !== dateInput) dateInput.value = S.data.activeDate;
-        el("tl-mode").textContent = S.mode === "date" ? "All Time" : "At Date";
+        if (S.data.activeDate && document.activeElement !== dateInput) {
+          if (
+            dateInput.tagName === "SELECT" &&
+            !Array.from(dateInput.options).some((option) => option.value === S.data.activeDate)
+          ) {
+            dateInput.insertAdjacentHTML(
+              "beforeend",
+              `<option value="${esc(S.data.activeDate)}">${esc(S.data.activeDate)}</option>`,
+            );
+          }
+          dateInput.value = S.data.activeDate;
+        }
+        el("tl-mode").textContent = S.mode === "date" ? "All Time" : isChapterWorld() ? "At Chapter" : "At Date";
         el("tl-mode").classList.toggle("active", S.mode === "date");
 
         strip.innerHTML = "";
@@ -1027,14 +1090,14 @@
           const tick = document.createElement("div");
           tick.className = "tl-tick" + (ev.current ? " current" : "");
           tick.style.left = pct + "%";
-          tick.title = `${ev.title} — ${ev.when}`;
+          tick.title = `${ev.title} — ${fmtWhen(ev.when)}`;
           tick.onclick = () => { S.date = ev.when; S.mode = "date"; refresh(); };
           axis.appendChild(tick);
           const label = document.createElement("div");
           label.className = "tl-tick-label";
           label.style.left = pct + "%";
           label.textContent = ev.title;
-          label.title = `${ev.title} — ${ev.when}`;
+          label.title = `${ev.title} — ${fmtWhen(ev.when)}`;
           labels.appendChild(label);
         }
         strip.appendChild(axis);
@@ -1042,7 +1105,7 @@
         const head = document.createElement("div");
         head.id = "tl-playhead";
         head.style.left = Math.max(0, Math.min(100, (timeline.activeFraction || 0) * 100)) + "%";
-        head.title = S.data.activeDate ? `At ${S.data.activeDate}` : "";
+        head.title = S.data.activeDate ? `At ${fmtWhen(S.data.activeDate)}` : "";
         strip.appendChild(head);
       }
 
@@ -1056,7 +1119,7 @@
         return events
           .map(
             (e) =>
-              `<button type="button" class="ev-link" data-ev="${esc(e.id)}"><span>${esc(e.title)}</span> <span class="when">${esc(e.when)}</span></button>`,
+              `<button type="button" class="ev-link" data-ev="${esc(e.id)}"><span>${esc(e.title)}</span> <span class="when">${esc(fmtWhen(e.when))}</span></button>`,
           )
           .join("");
       }
@@ -1341,9 +1404,13 @@
               <input name="title" required value="${esc(ev.title)}" />
             </label>
             <div class="row">
-              <label class="field">Date / When
+              ${isChapterWorld()
+                ? `<label class="field">Chapter
+                <select name="when" required>${chapterOptions(ev.when)}</select>
+              </label>`
+                : `<label class="field">Date / When
                 <input name="when" required placeholder="e.g. 1815-06-18 or ~1200" value="${esc(ev.when)}" />
-              </label>
+              </label>`}
               <label class="field" style="max-width:6rem">Order (tie-break)
                 <input name="order" type="number" value="${esc(ev.order)}" placeholder="0" />
               </label>
@@ -1448,6 +1515,7 @@
 
       async function refresh(statusMsg = "", isErr = false) {
         S.data = await api("/api/editor" + editorQuery());
+        chapterClock();
         if (!S.mapId || !(S.data.maps || []).some((m) => m.id === S.mapId)) {
           S.mapId = S.data.world?.overworld || S.data.maps?.[0]?.id || "";
         }
