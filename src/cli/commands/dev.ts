@@ -34,7 +34,14 @@ export async function runDev(options: DevOptions = {}): Promise<number> {
   const root = path.resolve(options.world ?? process.cwd());
 
   // Loaded here, not at the top: only the dev server needs a bundler.
-  const { createServer } = await import("vite");
+  let createServer: typeof import("vite")["createServer"];
+  try {
+    ({ createServer } = await import("vite"));
+  } catch {
+    console.error("timewright dev: the dev server needs the bundler, which is a development dependency");
+    console.error("  run it from a source checkout with `npm install`, or use `timewright edit` instead");
+    return 1;
+  }
 
   const server = await createServer({
     configFile: false,

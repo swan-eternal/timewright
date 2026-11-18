@@ -12,7 +12,7 @@ This guide explains how **Timewright** is structured from end to end: how YAML w
    When the Studio or coordinate picker saves changes, `src/cli/world-edit.ts` uses the `yaml` package's CST/AST (`parseDocument`) rather than `JSON.stringify` or re-serializing from scratch. Comments, blank lines, and untouched keys survive browser edits.
 3. **Strict Separation of Layers (`core` → `cli` → `viewer`)**
    - `src/core/` is pure TypeScript with **zero DOM or Node filesystem dependencies** (except byte-buffer image header inspection). It parses dates, validates schemas, resolves names/aliases, derives positions over time, and computes timeline steps.
-   - `src/cli/` handles filesystem loading, in-place YAML editing, local HTTP tooling (`edit`, `pick`, `dev`), Vite static builds, single-file HTML inlining, and `.zip` archive creation.
+   - `src/cli/` handles filesystem loading, in-place YAML editing, local HTTP tooling (`edit`, `pick`, `dev`), prebuilt-viewer site assembly (Vite itself stays a development dependency), single-file HTML inlining, and `.zip` archive creation.
    - `src/viewer/` is the standalone browser client compiled by Vite. It never sees raw YAML — it consumes a single resolved `ResolvedWorld` (`world.json` or inline `<script id="world-data">`).
 4. **Native Pixel Space on Leaflet `CRS.Simple`**
    Map images use top-left pixel coordinates `[x, y]` in YAML (`[0, 0]` = top-left, `[width, height]` = bottom-right). Both the Viewer (`src/viewer/map.ts`) and Studio (`src/cli/editor.html`) map `[x, y]` to Leaflet `CRS.Simple` coordinates via `L.latLng(imageHeight - y, x)` with bounds `[[0, 0], [imageHeight, imageWidth]]`. Because pins live natively in Leaflet's coordinate space, markers never drift during zoom or pan animations.

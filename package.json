@@ -12,6 +12,7 @@
   "types": "dist/core/index.d.ts",
   "files": [
     "dist",
+    "dist-viewer",
     "src/viewer",
     "src/cli/picker.html",
     "src/cli/editor.html",
@@ -24,7 +25,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "tsc -p tsconfig.build.json && vite build && node scripts/copy-assets.mjs",
     "build:viewer": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsc -p tsconfig.json && node --test \"build/test/*.test.js\"",
@@ -44,13 +45,13 @@
     "dompurify": "^3.4.18",
     "leaflet": "^1.9.4",
     "marked": "^18.2.0",
-    "vite": "^8.3.8",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.22",
     "@types/node": "^26.6.6",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
   }
 }
