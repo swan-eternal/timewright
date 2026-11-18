@@ -3,7 +3,7 @@
  * a standalone `.html` file or `.zip` website bundle ready for hosting).
  */
 
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +19,7 @@ import { zipDirectory } from "../zip.js";
 export interface BuildOptions {
   world?: string | undefined;
   out?: string | undefined;
+  /** Accepted for compatibility; built sites carry relative URLs now. */
   base?: string | undefined;
   /** Also write one self-contained HTML file (`world.html`). */
   singleFile?: boolean | undefined;
@@ -83,11 +84,21 @@ async function copyEntityImages(root: string, outDir: string, world: ResolvedWor
   ]);
 }
 
+/**
+ * Copy the prebuilt viewer into the site. The viewer is built once, with
+ * relative URLs, so the same files work wherever the site is mounted —
+ * and `timewright build` never needs a bundler on the user's machine.
+ */
+async function copyViewerAssets(outDir: string): Promise<void> {
+  await rm(outDir, { recursive: true, force: true });
+  await mkdir(outDir, { recursive: true });
+  await cp(findViewerDist(), outDir, { recursive: true });
+}
+
 /** Programmatic static-site builder shared by CLI `build` and Editor Export. */
 export async function buildWorldSite(options: BuildOptions = {}): Promise<BuildSiteResult> {
   const root = path.resolve(options.world ?? process.cwd());
   const outDir = path.resolve(options.out ?? path.join(root, "dist"));
-  const base = options.base ?? "./";
 
   const loaded = await loadWorld(root);
   const issues = [...loaded.issues, ...validateWorld(loaded.data)];
@@ -98,20 +109,7 @@ export async function buildWorldSite(options: BuildOptions = {}): Promise<BuildS
 
   const world = resolveWorld(loaded.data);
 
-  const { build: viteBuild } = await import("vite");
-  await viteBuild({
-    configFile: false,
-    logLevel: options.quiet === true ? "silent" : "info",
-    root: findViewerRoot(),
-    base,
-    build: {
-      outDir,
-      emptyOutDir: true,
-      sourcemap: false,
-    },
-  });
-
-  await mkdir(outDir, { recursive: true });
+  await copyViewerAssets(outDir);
 
   // Copy map images
   await Promise.all(
@@ -307,4 +305,24 @@ export function findViewerRoot(): string {
     dir = parent;
   }
   throw new Error("cannot find the viewer source (src/viewer/index.html)");
+}
+
+/** The built viewer, wherever the package happens to be installed. */
+export function findViewerDist(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let depth = 0; depth < 7; depth += 1) {
+    const candidate = path.join(dir, "dist-viewer");
+    if (existsSync(path.join(candidate, "index.html"))) {
+      return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  throw new Error(
+    "cannot find the built viewer (dist-viewer/index.html); " +
+      "run `npm run build:viewer` where timewright's source is, then build again",
+  );
 }

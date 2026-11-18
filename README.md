@@ -75,7 +75,8 @@ an agent — point your agent at it and let it write the YAML for you.
 | `timewright schema` | Print the JSON Schema for the world format |
 
 Useful flags: `--json` (machine-readable validation, for agents), `--strict`
-(warnings become errors), `--base /repo/` (the path a site is served from),
+(warnings become errors), `--base` (accepted for older versions; the
+site's URLs are relative now, so it serves from any path),
 `--single-file` (also write one self-contained HTML file).
 
 ## Publishing on GitHub Pages
@@ -88,9 +89,9 @@ Useful flags: `--json` (machine-readable validation, for agents), `--strict`
 The workflow installs the tool from GitHub, so nothing has to be published to
 npm first.
 
-The `--base` flag matters: GitHub Pages serves a project site from
-`/repository-name/`, and the build has to know that. The template workflow
-already passes it.
+The site's URLs are relative, so it works under `/repository-name/`
+without any configuration. The template workflow still passes `--base`,
+because older versions of the tool needed it.
 
 To publish somewhere else, build it and upload the folder:
 
@@ -216,6 +217,8 @@ npm run build
 ```
 
 Requires Node 22 or newer. CI runs the build on Windows, macOS and Ubuntu.
+`npm run build` compiles the CLI and builds the viewer into `dist-viewer`,
+which every site is assembled from.
 
 ## Licence
 
