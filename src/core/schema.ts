@@ -124,6 +124,8 @@ export const EventSchema = z.looseObject({
   tags: z.array(z.string().min(1)).optional(),
   /** Tie-break inside one date. */
   order: z.number().optional(),
+  /** The chapter the event belongs to, in a world that also has dates. */
+  chapter: z.union([z.number(), z.string()]).optional(),
   card: z.string().optional(),
   notes: z.string().optional(),
   sources: z.array(z.string().min(1)).optional(),
@@ -136,6 +138,8 @@ export const WorldSchema = z.looseObject({
   /** The map the viewer opens on. */
   overworld: z.string().min(1).optional(),
   calendar: z.union([z.literal("gregorian"), CalendarSchema]).optional(),
+  /** Chapter titles, when the world orders by chapter instead of date. */
+  chapters: z.record(z.number(), z.string()).optional(),
   /** Default timeline span. */
   start: DateLike.optional(),
   end: DateLike.optional(),
@@ -146,7 +150,7 @@ export const WorldSchema = z.looseObject({
 
 /** The world format this timewright reads and writes. */
 export const FORMAT_MAJOR = 1;
-export const FORMAT_MINOR = 0;
+export const FORMAT_MINOR = 1;
 
 /** A format declaration, read off a world.yaml. */
 export interface FormatVersion {

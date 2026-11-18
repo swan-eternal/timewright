@@ -130,6 +130,21 @@ calendar:
     - { name: AF, start: 1200 }         # AF 1 is absolute year 1201
 ```
 
+## A world without dates
+
+Order events by chapter instead. Write the chapter number as `when:`
+(`when: 3`), use `order:` to sort events inside one chapter, and put a
+`chapters:` map in world.yaml to give the numbers titles:
+
+```yaml
+chapters:
+  1: Arrival
+  2: The Storm
+```
+
+Do not mix chapters and dates in one world — pick one axis. Ranges and
+approximations still work: `3..5`, `~3`.
+
 ## References are names
 
 Write `"where: Waterloo"`, not an id. Names, aliases and ids all resolve, and
