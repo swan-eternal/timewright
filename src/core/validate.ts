@@ -12,6 +12,7 @@ import {
   type WorldData,
   type WorldIndex,
 } from "./building.js";
+import { carriesCalendarDate } from "./chapters.js";
 import { compareDates, dateValue, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
 import { levenshtein, type NameIndex } from "./resolve.js";
 import {
@@ -70,6 +71,7 @@ export function validateWorld(data: WorldData, options: ValidateOptions = {}): I
   const parseOptions = calendarOptions(index.world);
 
   checkFormatVersion(issues, index);
+  checkChapterWorlds(issues, index, data, parseOptions);
   checkUnknownFields(issues, index);
   checkDuplicateIds(issues, index);
   checkNameCollisions(issues, index);
@@ -106,6 +108,96 @@ function suggestField(key: string, known: string[]): string | undefined {
     .filter((entry) => entry.distance <= Math.max(3, Math.floor(key.length / 3)))
     .sort((a, b) => a.score - b.score || a.distance - b.distance || a.candidate.localeCompare(b.candidate))[0]
     ?.candidate;
+}
+
+/**
+ * A world that counts chapters orders by number, not by date. Warn when
+ * the two axes meet: a calendar date in a chapter world, a calendar
+ * declared alongside the chapters, or a chapter field where the when
+ * already gives the chapter. Warnings, not errors — the world still
+ * builds, but its reader is told the axes are mixed.
+ */
+function checkChapterWorlds(
+  issues: Issue[],
+  index: WorldIndex,
+  data: WorldData,
+  parseOptions: ParseOptions,
+): void {
+  const world = index.world;
+  if (world.chapters === undefined) {
+    return;
+  }
+
+  if (world.calendar !== undefined && world.calendar !== "gregorian") {
+    issues.push({
+      severity: "warning",
+      code: "chapters-with-calendar",
+      message:
+        "this world counts chapters, so a calendar cannot order it — drop the calendar or the chapters",
+      file: index.worldFile,
+      record: world.title,
+      field: "calendar",
+    });
+  }
+
+  const isCalendarDate = (raw: string | number): boolean => {
+    const parsed = tryParseDate(raw, parseOptions);
+    return parsed.ok && carriesCalendarDate(parsed.value);
+  };
+  const reportDate = (
+    raw: string | number | undefined,
+    file: string | undefined,
+    record: string,
+    field: string,
+  ): void => {
+    if (raw === undefined || !isCalendarDate(raw)) {
+      return;
+    }
+    issues.push({
+      severity: "warning",
+      code: "chapter-world-date",
+      message: `"${raw}" is a calendar date, but this world counts chapters — one axis or the other`,
+      file,
+      record,
+      field,
+    });
+  };
+
+  reportDate(world.start, index.worldFile, world.title, "start");
+  reportDate(world.end, index.worldFile, world.title, "end");
+
+  for (const source of data.maps) {
+    for (const image of source.data.images ?? []) {
+      reportDate(image.from, source.file, source.data.name, "images.from");
+      reportDate(image.until, source.file, source.data.name, "images.until");
+    }
+  }
+  for (const source of data.people) {
+    reportDate(source.data.born, source.file, source.data.name, "born");
+    reportDate(source.data.died, source.file, source.data.name, "died");
+  }
+  for (const source of data.locations) {
+    reportDate(source.data.exists?.from, source.file, source.data.name, "exists.from");
+    reportDate(source.data.exists?.until, source.file, source.data.name, "exists.until");
+    for (const stay of source.data.stays ?? []) {
+      reportDate(stay.from, source.file, source.data.name, "stays.from");
+      reportDate(stay.until, source.file, source.data.name, "stays.until");
+    }
+  }
+  for (const source of data.events) {
+    reportDate(source.data.when, source.file, source.data.title, "when");
+    if (source.data.chapter !== undefined) {
+      issues.push({
+        severity: "warning",
+        code: "chapter-in-chapter-world",
+        message:
+          "the when already gives this event's chapter — the chapter field belongs in worlds that have dates",
+        file: source.file,
+        record: source.data.title,
+        field: "chapter",
+      });
+    }
+  }
 }
 
 /** Warn about any field the format does not know. */

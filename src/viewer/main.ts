@@ -5,7 +5,7 @@
 import "./styles.css";
 
 import { parseDate, type DateBound } from "../core/dates.js";
-import { chapterBadge, displayDate, isChapterWorld } from "../core/chapters.js";
+import { chapterBadge, chapterLabel, displayDate, isChapterWorld } from "../core/chapters.js";
 import { eventDomain } from "../core/scale.js";
 import {
   eventHasPosition,
@@ -36,6 +36,39 @@ const generalBannerElement = document.querySelector<HTMLElement>("#general-banne
 const activeFiltersElement = document.querySelector<HTMLElement>("#active-filters");
 const dateForm = document.querySelector<HTMLFormElement>("#date-form");
 const dateInput = document.querySelector<HTMLInputElement>("#date-input");
+
+/** In a world that counts chapters, the typed date becomes a picker. */
+let chapterInput: HTMLSelectElement | null = null;
+function ensureChapterInput(world: ResolvedWorld): void {
+  if (chapterInput !== null || dateInput === null || !isChapterWorld(world)) {
+    return;
+  }
+  const keys = Object.keys(world.chapters ?? {})
+    .map(Number)
+    .filter((n) => Number.isInteger(n))
+    .sort((a, b) => a - b);
+  if (keys.length === 0) {
+    return;
+  }
+  const label = document.querySelector<HTMLLabelElement>('label[for="date-input"]');
+  if (label !== null) {
+    label.textContent = "Chapter";
+    label.htmlFor = "chapter-input";
+  }
+  dateInput.hidden = true;
+  const select = document.createElement("select");
+  select.id = "chapter-input";
+  select.autocomplete = "off";
+  select.setAttribute("aria-label", "Chapter");
+  select.innerHTML = keys
+    .map((key) => `<option value="${key}">${escapeHtml(chapterLabel(world, key))}</option>`)
+    .join("");
+  select.addEventListener("change", () => {
+    void select.form?.requestSubmit();
+  });
+  dateInput.after(select);
+  chapterInput = select;
+}
 const prevButton = document.querySelector<HTMLButtonElement>("#prev-step");
 const nextButton = document.querySelector<HTMLButtonElement>("#next-step");
 const stepLabel = document.querySelector<HTMLElement>("#step-label");
@@ -524,8 +557,26 @@ async function boot(): Promise<void> {
     if (playheadReadoutElement !== null) {
       playheadReadoutElement.textContent = state.date !== undefined ? `At: ${state.date.raw}` : "";
     }
-    if (dateInput !== null && state.date !== undefined && document.activeElement !== dateInput) {
-      dateInput.value = state.date.raw;
+    if (state.world !== undefined) {
+      ensureChapterInput(state.world);
+    }
+    if (
+      state.date !== undefined &&
+      document.activeElement !== chapterInput &&
+      document.activeElement !== dateInput
+    ) {
+      const raw = state.date.raw;
+      if (chapterInput !== null) {
+        if (!Array.from(chapterInput.options).some((option) => option.value === raw)) {
+          chapterInput.insertAdjacentHTML(
+            "beforeend",
+            `<option value="${escapeHtml(raw)}">${escapeHtml(raw)}</option>`,
+          );
+        }
+        chapterInput.value = raw;
+      } else if (dateInput !== null) {
+        dateInput.value = raw;
+      }
     }
     if (resetSpanButton !== null) {
       resetSpanButton.hidden = state.span === undefined || state.mode === "trace";
@@ -692,7 +743,7 @@ async function boot(): Promise<void> {
 
   dateForm?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const raw = dateInput?.value.trim() ?? "";
+    const raw = (chapterInput ?? dateInput)?.value.trim() ?? "";
     if (raw === "") {
       return;
     }
@@ -704,8 +755,12 @@ async function boot(): Promise<void> {
     }
   });
 
-  if (dateInput !== null && initialDate !== undefined) {
-    dateInput.value = initialDate.raw;
+  if (initialDate !== undefined) {
+    if (chapterInput !== null) {
+      chapterInput.value = initialDate.raw;
+    } else if (dateInput !== null) {
+      dateInput.value = initialDate.raw;
+    }
   }
   if (searchInput !== null && store.get().query !== undefined) {
     searchInput.value = store.get().query ?? "";

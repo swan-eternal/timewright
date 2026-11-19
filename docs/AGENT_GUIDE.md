@@ -143,7 +143,8 @@ chapters:
 ```
 
 Do not mix chapters and dates in one world — pick one axis. Ranges and
-approximations still work: `3..5`, `~3`.
+approximations still work: `3..5`, `~3`. The Studio and the viewer pick
+chapters from a list when the chapters map is present.
 
 ## References are names
 

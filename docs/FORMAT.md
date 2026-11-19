@@ -98,6 +98,13 @@ The `chapters` map only names the numbers — the timeline says
 "Chapter 2 — The Storm" instead of "2". A world orders either by
 chapters or by dates; mixing the two on one axis reads as a mistake.
 
+Validation says so. A calendar date in a chapter world, a calendar
+declared alongside the chapters, or a chapter field on an event in a
+chapter world each draw a warning — the world still builds, but the
+axes are mixed. The Studio and the viewer swap their date box for a
+chapter picker when the map is present; ranges and approximations
+stay YAML territory.
+
 In a world that has dates, an event can still carry a chapter, as a
 note on its card:
 

@@ -577,6 +577,7 @@ export async function describe(
       start: rawWorld.start !== undefined ? String(rawWorld.start) : "",
       end: rawWorld.end !== undefined ? String(rawWorld.end) : "",
       calendar: rawWorld.calendar ?? "gregorian",
+      chapters: rawWorld.chapters ?? null,
     },
     maps,
     locations,
