@@ -36,6 +36,7 @@ export interface MapViewOptions {
   onEvent: (id: string) => void;
   onJumpMap: (mapId: string) => void;
   onImageMissing: (message: string) => void;
+  onMapClick?: () => void;
 }
 
 export function assetUrl(path: string | undefined): string | undefined {
@@ -77,7 +78,7 @@ export class MapView {
   /** The zoom that fits the whole current map, for focus math. */
   private fitZoom?: number | undefined;
   /** A focus waiting for the current image to finish loading. */
-  private pendingFocus?: { x: number; y: number } | undefined;
+  private pendingFocus?: { x: number; y: number; offsetYPx: number } | undefined;
   private imageLoaded = false;
 
   constructor(options: MapViewOptions) {
@@ -88,8 +89,12 @@ export class MapView {
       maxZoom: 4,
       zoomSnap: 0.25,
       zoomDelta: 0.5,
+      // Pinch is the zoom gesture on touch screens; the corner buttons
+      // only spend map space there.
+      zoomControl: !window.matchMedia("(pointer: coarse)").matches,
       attributionControl: true,
     });
+    this.map.on("click", () => this.options.onMapClick?.());
     this.map.attributionControl.setPrefix("");
     this.map.attributionControl.addAttribution("Timewright");
     this.pathLayer = L.layerGroup().addTo(this.map);
@@ -124,8 +129,8 @@ export class MapView {
    * whole-map view. Never zooms out, and waits for a loading image so a
    * map switch cannot clobber the view with its fit-everything reset.
    */
-  focusPixel(x: number, y: number): void {
-    this.pendingFocus = { x, y };
+  focusPixel(x: number, y: number, offsetYPx = 0): void {
+    this.pendingFocus = { x, y, offsetYPx };
     if (this.imageLoaded) {
       this.applyPendingFocus();
     }
@@ -140,7 +145,14 @@ export class MapView {
       this.map.getMaxZoom(),
       Math.max(this.zoom, (this.fitZoom ?? 0) + FOCUS_ZOOM_OFFSET),
     );
-    this.map.setView(this.pixelToLatLng(focus.x, focus.y), zoom, { animate: false });
+    let center = this.pixelToLatLng(focus.x, focus.y);
+    if (focus.offsetYPx > 0) {
+      // Shift the center down so the point lands above mid-screen, clear
+      // of whatever opens over the lower part of the map.
+      const point = this.map.latLngToContainerPoint(center);
+      center = this.map.containerPointToLatLng(point.add([0, focus.offsetYPx / 2]));
+    }
+    this.map.setView(center, zoom, { animate: false });
     this.pendingFocus = undefined;
   }
 

@@ -78,6 +78,8 @@ const resultsElement = document.querySelector<HTMLElement>("#results");
 const domainReadoutElement = document.querySelector<HTMLElement>("#domain-readout");
 const playheadReadoutElement = document.querySelector<HTMLElement>("#playhead-readout");
 const resetSpanButton = document.querySelector<HTMLButtonElement>("#reset-span");
+const filtersToggleElement = document.querySelector<HTMLButtonElement>("#filters-toggle");
+const filtersPanelElement = document.querySelector<HTMLElement>("#filters-panel");
 const contextElement = document.querySelector<HTMLElement>("#context");
 const stripElement = document.querySelector<HTMLElement>("#strip");
 
@@ -85,6 +87,17 @@ const stripElement = document.querySelector<HTMLElement>("#strip");
 const DEFAULT_SPAN_FRACTION = 0.05;
 /** Where the first event sits in the opening window, from its left edge. */
 const DEFAULT_SPAN_ANCHOR = 0.2;
+
+/** Phone-width layout: the card collapses to a peek row and secondary
+ *  controls fold into the filters panel. */
+const phoneMedia = window.matchMedia("(max-width: 899.98px)");
+function isPhoneView(): boolean {
+  return phoneMedia.matches;
+}
+
+/** The card's collapse state, meaningful on phone only. */
+let cardCollapsed = false;
+let lastSelectionKey: string | undefined;
 
 function setStatus(message: string, error = false): void {
   if (statusElement !== null) {
@@ -235,21 +248,173 @@ function renderCard(state: AppState, visibleEventIds: Set<string>): void {
   if (selection === undefined) {
     cardElement.hidden = true;
     cardElement.innerHTML = "";
+    lastSelectionKey = undefined;
     return;
   }
+  const key = `${selection.kind}:${selection.id}`;
+  if (key !== lastSelectionKey) {
+    // A new card opens collapsed on a phone: the peek row carries title
+    // and date, and the map keeps its space.
+    cardCollapsed = isPhoneView();
+    lastSelectionKey = key;
+  }
   let html = "";
+  let peekTitle = "";
+  let peekDate = "";
   if (selection.kind === "event") {
     const event = state.world.events.find((entry) => entry.id === selection.id);
     html = event !== undefined ? eventCard(state.world, event) : "";
+    peekTitle = event?.title ?? "";
+    peekDate = event !== undefined ? displayDate(state.world, event.when) : "";
   } else if (selection.kind === "location") {
     const location = state.world.locations.find((entry) => entry.id === selection.id);
     html = location !== undefined ? locationCard(state, location, visibleEventIds) : "";
+    peekTitle = location?.name ?? "";
   } else {
     const person = state.world.people.find((entry) => entry.id === selection.id);
     html = person !== undefined ? personCard(state.world, person) : "";
+    peekTitle = person?.name ?? "";
+    peekDate = [person?.born, person?.died]
+      .filter((part) => part !== undefined)
+      .map((part) => displayDate(state.world, part))
+      .join(" – ");
   }
-  cardElement.innerHTML = `<div class="card-header-close"><button type="button" id="close-card" class="ghost-btn" aria-label="Close card">✕ Close</button></div>${html}`;
+  const closeHtml =
+    '<div class="card-header-close"><button type="button" id="close-card" class="ghost-btn" aria-label="Close card">✕ Close</button></div>';
+  cardElement.innerHTML =
+    `<div class="card-sheet-head" role="button" tabindex="0" aria-label="Toggle details">` +
+    `<span class="sheet-grip" aria-hidden="true"></span>` +
+    `<span class="peek-title">${escapeHtml(peekTitle)}</span>` +
+    (peekDate !== "" ? ` <span class="peek-date">${escapeHtml(peekDate)}</span>` : "") +
+    `</div><div class="card-body">${closeHtml}${html}</div>`;
+  cardElement.classList.toggle("collapsed", cardCollapsed);
   cardElement.hidden = false;
+}
+
+/** Phone-only card gestures: tap the peek to expand, swipe down to
+ *  collapse, swipe down again to dismiss. */
+function setupCardSheet(store: Store): void {
+  if (cardElement === null) {
+    return;
+  }
+  let drag: { startY: number; moved: boolean } | undefined;
+  let suppressClick = false;
+  cardElement.addEventListener("pointerdown", (event) => {
+    if (!isPhoneView() || cardElement.hidden) {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest(".card-sheet-head") !== null) {
+      drag = { startY: event.clientY, moved: false };
+    }
+  });
+  window.addEventListener("pointermove", (event) => {
+    const active = drag;
+    if (active === undefined) {
+      return;
+    }
+    const dy = event.clientY - active.startY;
+    if (dy > 10) {
+      active.moved = true;
+      cardElement.classList.add("dragging");
+      cardElement.style.transform = `translateY(${Math.min(dy, 180)}px)`;
+    }
+  });
+  window.addEventListener("pointerup", (event) => {
+    const active = drag;
+    drag = undefined;
+    if (active === undefined) {
+      return;
+    }
+    const dy = event.clientY - active.startY;
+    cardElement.style.transform = "";
+    cardElement.classList.remove("dragging");
+    if (!active.moved) {
+      return;
+    }
+    suppressClick = true;
+    window.setTimeout(() => {
+      suppressClick = false;
+    }, 300);
+    if (dy > 56) {
+      if (cardCollapsed) {
+        store.set({ selection: undefined });
+      } else {
+        cardCollapsed = true;
+        cardElement.classList.add("collapsed");
+      }
+    }
+  });
+  cardElement.addEventListener("click", (event) => {
+    if (!isPhoneView() || !(event.target instanceof Element)) {
+      return;
+    }
+    if (event.target.closest(".card-sheet-head") === null) {
+      return;
+    }
+    if (suppressClick) {
+      event.preventDefault();
+      return;
+    }
+    cardCollapsed = !cardCollapsed;
+    cardElement.classList.toggle("collapsed", cardCollapsed);
+  });
+  cardElement.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest(".card-sheet-head") !== null) {
+      event.preventDefault();
+      cardCollapsed = !cardCollapsed;
+      cardElement.classList.toggle("collapsed", cardCollapsed);
+    }
+  });
+}
+
+/** Phone-only filters panel: date jump, search and the trace select fold
+ *  behind one topbar button; desktop keeps them inline. */
+function setupFiltersPanel(): void {
+  if (filtersToggleElement === null || filtersPanelElement === null) {
+    return;
+  }
+  const traceRow = document.querySelector<HTMLElement>(".trace-controls");
+  const movable = [dateForm, searchInput, traceRow].filter(
+    (node): node is HTMLElement => node !== null && node !== undefined,
+  );
+  const homes = movable.map((node) => node.parentElement);
+  const place = (): void => {
+    if (isPhoneView()) {
+      for (const node of movable) {
+        filtersPanelElement.appendChild(node);
+      }
+      return;
+    }
+    filtersToggleElement.setAttribute("aria-expanded", "false");
+    filtersPanelElement.classList.remove("open");
+    for (const [index, node] of movable.entries()) {
+      homes[index]?.appendChild(node);
+    }
+  };
+  place();
+  phoneMedia.addEventListener("change", place);
+  filtersToggleElement.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = filtersPanelElement.classList.toggle("open");
+    filtersToggleElement.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (event) => {
+    if (!filtersPanelElement.classList.contains("open")) {
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof Node &&
+      (filtersPanelElement.contains(target) || filtersToggleElement.contains(target))
+    ) {
+      return;
+    }
+    filtersPanelElement.classList.remove("open");
+    filtersToggleElement.setAttribute("aria-expanded", "false");
+  });
 }
 
 function renderActiveFilters(state: AppState): void {
@@ -451,6 +616,12 @@ async function boot(): Promise<void> {
     onJumpMap: (mapId) => {
       store.set({ mapId });
     },
+    onMapClick: () => {
+      // A tap on open map closes the card, like tapping away a sheet.
+      if (store.get().selection !== undefined) {
+        store.set({ selection: undefined });
+      }
+    },
     onImageMissing: (message) => setStatus(message, message !== ""),
   });
 
@@ -483,7 +654,7 @@ async function boot(): Promise<void> {
         openCard && step.eventId !== undefined ? { kind: "event", id: step.eventId } : state.selection,
     });
     if (step.mapId === (step.mapId ?? state.mapId) && step.at !== undefined) {
-      mapView.focusPixel(step.at[0], step.at[1]);
+      mapView.focusPixel(step.at[0], step.at[1], cardFocusOffset());
     }
   };
 
@@ -513,7 +684,7 @@ async function boot(): Promise<void> {
         selection: { kind: "event", id: eventId },
       });
       if (place?.at !== undefined) {
-        mapView.focusPixel(place.at[0], place.at[1]);
+        mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
       }
     },
   });
@@ -525,6 +696,9 @@ async function boot(): Promise<void> {
     ),
   ].join("");
   traceSelect.value = store.get().traceId ?? "";
+
+  setupCardSheet(store);
+  setupFiltersPanel();
 
   const renderState = (state: AppState, changed: Changed): void => {
     // An empty changed set means "nothing in particular" - render it all.
@@ -720,7 +894,7 @@ async function boot(): Promise<void> {
           selection: { kind: "event", id },
         });
         if (place?.at !== undefined) {
-          mapView.focusPixel(place.at[0], place.at[1]);
+          mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
         }
       }
       return;
@@ -775,6 +949,9 @@ async function boot(): Promise<void> {
     } else if (event.key === "ArrowRight" && !nextButton.disabled) {
       event.preventDefault();
       nextButton.click();
+    } else if (event.key === "Escape" && filtersPanelElement?.classList.contains("open")) {
+      filtersPanelElement.classList.remove("open");
+      filtersToggleElement?.setAttribute("aria-expanded", "false");
     } else if (event.key === "Escape" && store.get().selection !== undefined) {
       store.set({ selection: undefined });
     }
@@ -844,6 +1021,15 @@ function setupEmbedLink(): void {
   link.className = "embed-link";
   link.textContent = "Open full screen";
   topbar.appendChild(link);
+}
+
+/** How far event focus should shift up: the open card's height, so the
+ *  point centers in the visible area rather than under the card. */
+function cardFocusOffset(): number {
+  if (cardElement === null || cardElement.hidden || !isPhoneView()) {
+    return 0;
+  }
+  return cardElement.offsetHeight;
 }
 
 /** The span a trace opens on: the traced person's first-to-last step. */

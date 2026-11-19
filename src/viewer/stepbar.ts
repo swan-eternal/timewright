@@ -3,6 +3,8 @@
  * and opens the current step's card when clicked.
  */
 
+import { escapeHtml } from "./cards.js";
+
 export interface StepBarItem {
   label: string;
   date: string;
@@ -47,8 +49,11 @@ export class StepBar {
       this.options.label.textContent = "No events in this span";
     } else {
       const current = items[index];
-      const datePart = current?.date ? `${current.date} — ` : "";
-      this.options.label.textContent = `${index + 1}/${this.count} · ${datePart}${current?.label ?? ""}`;
+      const datePart = current?.date ? ` · ${escapeHtml(current.date)}` : "";
+      const titlePart = current?.label ? ` — ${escapeHtml(current.label)}` : "";
+      this.options.label.innerHTML =
+        `<span class="step-count">${index + 1}/${this.count}${datePart}</span>` +
+        `<span class="step-title">${titlePart}</span>`;
     }
     this.options.prev.disabled = this.count === 0 || index <= 0;
     this.options.next.disabled = this.count === 0 || index >= this.count - 1;

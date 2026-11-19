@@ -705,6 +705,14 @@ select {
   right: 0;
 }
 
+/* --- Filters toggle & card sheet head (phone affordances) --- */
+
+.filters-toggle,
+#filters-panel,
+.card-sheet-head {
+  display: none;
+}
+
 /* --- Detail Card --- */
 
 #card {
@@ -898,5 +906,140 @@ select {
   #status {
     grid-row: 7;
     grid-column: 1 / -1;
+  }
+}
+
+/* --- Phone Layout --- */
+
+@media (max-width: 899.98px) {
+  .filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  #filters-panel {
+    display: none;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.6rem
+      max(0.75rem, env(safe-area-inset-left));
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+
+  #filters-panel.open {
+    display: flex;
+  }
+
+  #filters-panel #date-form,
+  #filters-panel #search {
+    width: 100%;
+  }
+
+  #filters-panel #date-input {
+    flex: 1;
+  }
+
+  .step-controls {
+    flex-basis: 100%;
+  }
+
+  .step-title {
+    display: none;
+  }
+
+  #card {
+    display: flex;
+    flex-direction: column;
+    max-height: 46vh;
+    padding: 0;
+    overflow: hidden;
+    transition: transform 0.18s ease;
+  }
+
+  #card.dragging {
+    transition: none;
+  }
+
+  #card.collapsed {
+    max-height: none;
+  }
+
+  #card.collapsed .card-body {
+    display: none;
+  }
+
+  .card-sheet-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.6rem;
+    padding: 0.2rem max(1rem, env(safe-area-inset-right)) 0.2rem
+      max(1rem, env(safe-area-inset-left));
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #card.collapsed .card-sheet-head {
+    border-bottom: 0;
+  }
+
+  .sheet-grip {
+    flex: none;
+    width: 1.4rem;
+    height: 0.18rem;
+    border-radius: 999px;
+    background: var(--muted);
+  }
+
+  .peek-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .peek-date {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .card-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+  }
+
+  .card-header-close {
+    display: none;
+  }
+
+  .timeline-header {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .timeline-header .domain-readout,
+  .timeline-header .playhead-readout {
+    white-space: nowrap;
   }
 }
