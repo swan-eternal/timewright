@@ -20,13 +20,25 @@ static files that any web host can serve.
 
 ## Install
 
+### Easiest way on Windows — no commands to type
+
+1. On the GitHub page, click the green **Code** button, then **Download ZIP**.
+2. Right-click the downloaded file and choose **Extract All**.
+3. Open the extracted folder and double-click **install.bat**. If Node.js is
+   missing, the installer opens its download page for you — install it, then
+   run install.bat again.
+4. It asks what to call your first world, then creates it.
+5. From then on, double-click **start.bat** in that folder to open the editor.
+
+### From the command line
+
 ```bash
 npm install -g github:swan-eternal/timewright
 ```
 
-That installs from GitHub, and npm does the work: it clones the repository,
-builds it, and puts the `timewright` command on your path. There is no account
-to make and nothing to sign up for.
+> **Heads-up:** installing from GitHub is currently broken — the build step
+> cannot find its tools when npm installs straight from a repository. Use the
+> ZIP + install.bat route above until the package reaches npm.
 
 If it reaches npm one day, the install line becomes `npm install -g
 timewright` and nothing else changes — the command is the same either way.
