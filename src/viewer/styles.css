@@ -296,20 +296,6 @@ select {
   touch-action: none;
 }
 
-.map-caption {
-  position: absolute;
-  left: 0.75rem;
-  bottom: 0.65rem;
-  z-index: 500;
-  max-width: min(26rem, calc(100% - 1.5rem));
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  background: rgba(255, 253, 248, 0.9);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.8rem;
-  pointer-events: none;
-}
 
 .general-banner {
   position: absolute;

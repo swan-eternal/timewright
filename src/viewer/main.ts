@@ -6,7 +6,7 @@ import "./styles.css";
 
 import { parseDate, type DateBound } from "../core/dates.js";
 import { chapterBadge, chapterLabel, displayDate, isChapterWorld } from "../core/chapters.js";
-import { eventDomain } from "../core/scale.js";
+import { dateFraction, eventDomain, fractionDate } from "../core/scale.js";
 import {
   eventHasPosition,
   eventPlace,
@@ -31,7 +31,6 @@ const worldTitleElement = document.querySelector<HTMLElement>("#world-title");
 const crumbSepElement = document.querySelector<HTMLElement>("#crumb-sep");
 const breadcrumbElement = document.querySelector<HTMLElement>("#breadcrumb");
 const mapElement = document.querySelector<HTMLElement>("#map");
-const mapCaptionElement = document.querySelector<HTMLElement>("#map-caption");
 const generalBannerElement = document.querySelector<HTMLElement>("#general-banner");
 const activeFiltersElement = document.querySelector<HTMLElement>("#active-filters");
 const dateForm = document.querySelector<HTMLFormElement>("#date-form");
@@ -81,6 +80,11 @@ const playheadReadoutElement = document.querySelector<HTMLElement>("#playhead-re
 const resetSpanButton = document.querySelector<HTMLButtonElement>("#reset-span");
 const contextElement = document.querySelector<HTMLElement>("#context");
 const stripElement = document.querySelector<HTMLElement>("#strip");
+
+/** The opening timeline window: this share of the world's whole range. */
+const DEFAULT_SPAN_FRACTION = 0.05;
+/** Where the first event sits in the opening window, from its left edge. */
+const DEFAULT_SPAN_ANCHOR = 0.2;
 
 function setStatus(message: string, error = false): void {
   if (statusElement !== null) {
@@ -394,6 +398,36 @@ async function boot(): Promise<void> {
       // A bad span in the link is ignored.
     }
   }
+  if (initialSpan === undefined && link.trace !== undefined) {
+    // A trace shared without a span opens on the traced person's reach.
+    const tracedSpan = traceSpanOf(world, link.trace);
+    if (tracedSpan !== undefined) {
+      initialSpan = tracedSpan;
+      if (link.date === undefined) {
+        initialDate = tracedSpan.from;
+      }
+    }
+  }
+  if (initialSpan === undefined) {
+    // Open on a readable window around the story's start: a phone cannot
+    // show centuries legibly. The first event sits a fifth of the window
+    // in from the left edge.
+    const domain = eventDomain(world);
+    if (domain !== undefined && firstEvent !== undefined) {
+      const anchor = dateFraction(firstEvent.when, domain);
+      const from = Math.min(
+        Math.max(anchor - DEFAULT_SPAN_ANCHOR * DEFAULT_SPAN_FRACTION, 0),
+        1 - DEFAULT_SPAN_FRACTION,
+      );
+      initialSpan = {
+        from: fractionDate(from, domain),
+        to: fractionDate(from + DEFAULT_SPAN_FRACTION, domain),
+      };
+      if (link.date === undefined) {
+        initialDate = firstEvent.when;
+      }
+    }
+  }
 
   const store = new Store({
     world,
@@ -418,12 +452,6 @@ async function boot(): Promise<void> {
       store.set({ mapId });
     },
     onImageMissing: (message) => setStatus(message, message !== ""),
-    onCaptionChange: (caption) => {
-      if (mapCaptionElement !== null) {
-        mapCaptionElement.textContent = caption ?? "";
-        mapCaptionElement.hidden = caption === undefined || caption === "";
-      }
-    },
   });
 
   if (debugOn) {
@@ -455,7 +483,7 @@ async function boot(): Promise<void> {
         openCard && step.eventId !== undefined ? { kind: "event", id: step.eventId } : state.selection,
     });
     if (step.mapId === (step.mapId ?? state.mapId) && step.at !== undefined) {
-      mapView.panToPixel(step.at[0], step.at[1]);
+      mapView.focusPixel(step.at[0], step.at[1]);
     }
   };
 
@@ -484,6 +512,9 @@ async function boot(): Promise<void> {
         mapId: place?.mapId ?? store.get().mapId,
         selection: { kind: "event", id: eventId },
       });
+      if (place?.at !== undefined) {
+        mapView.focusPixel(place.at[0], place.at[1]);
+      }
     },
   });
 
@@ -502,7 +533,8 @@ async function boot(): Promise<void> {
     const domainSpan =
       currentDomain !== undefined ? { from: currentDomain.from, to: currentDomain.to } : undefined;
 
-    // Tracing shows the traced person's own timeline, not the whole world.
+    // A trace seeds the span with the person's own reach when it starts;
+    // after that the window belongs to the reader in both modes.
     const traced =
       state.mode === "trace" && state.traceId !== undefined
         ? traceSteps(state.world, state.traceId)
@@ -512,8 +544,7 @@ async function boot(): Promise<void> {
         ? { from: traced[0]?.date, to: traced[traced.length - 1]?.date }
         : undefined;
 
-    const span =
-      state.mode === "trace" ? (traceSpan ?? domainSpan) : (state.span ?? domainSpan);
+    const span = state.span ?? traceSpan ?? domainSpan;
 
     const steps = viewSteps(state.world, {
       mode: state.mode,
@@ -579,7 +610,12 @@ async function boot(): Promise<void> {
       }
     }
     if (resetSpanButton !== null) {
-      resetSpanButton.hidden = state.span === undefined || state.mode === "trace";
+      const atFullSpan =
+        span !== undefined &&
+        domainSpan !== undefined &&
+        span.from.raw === domainSpan.from.raw &&
+        span.to.raw === domainSpan.to.raw;
+      resetSpanButton.hidden = span === undefined || atFullSpan;
     }
 
     // Show floating banner when the focused/selected event is a general timeline-only event
@@ -644,7 +680,12 @@ async function boot(): Promise<void> {
     if (personElement !== null && personElement.dataset.person !== undefined) {
       event.preventDefault();
       const id = personElement.dataset.person;
-      store.set({ mode: "trace", traceId: id, selection: { kind: "person", id } });
+      store.set({
+        mode: "trace",
+        traceId: id,
+        span: traceSpanOf(world, id) ?? store.get().span,
+        selection: { kind: "person", id },
+      });
       return;
     }
     const resultElement = target.closest<HTMLElement>("[data-kind]");
@@ -653,7 +694,12 @@ async function boot(): Promise<void> {
       const kind = resultElement.dataset.kind;
       const id = resultElement.dataset.id;
       if (kind === "person") {
-        store.set({ mode: "trace", traceId: id, selection: { kind: "person", id } });
+        store.set({
+          mode: "trace",
+          traceId: id,
+          span: traceSpanOf(world, id) ?? store.get().span,
+          selection: { kind: "person", id },
+        });
       } else if (kind === "location") {
         store.set({ selection: { kind: "location", id } });
       } else {
@@ -673,6 +719,9 @@ async function boot(): Promise<void> {
             : {}),
           selection: { kind: "event", id },
         });
+        if (place?.at !== undefined) {
+          mapView.focusPixel(place.at[0], place.at[1]);
+        }
       }
       return;
     }
@@ -705,7 +754,10 @@ async function boot(): Promise<void> {
   });
 
   resetSpanButton?.addEventListener("click", () => {
-    store.set({ span: undefined });
+    // "Full timeline" means the whole domain in both modes, so it also
+    // escapes a trace's seeded window.
+    const domain = eventDomain(store.get().world);
+    store.set({ span: domain !== undefined ? { from: domain.from, to: domain.to } : undefined });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -734,7 +786,11 @@ async function boot(): Promise<void> {
       store.set({ mode: "span", traceId: undefined });
       return;
     }
-    store.set({ mode: "trace", traceId: value });
+    store.set({
+      mode: "trace",
+      traceId: value,
+      span: traceSpanOf(world, value) ?? store.get().span,
+    });
   });
 
   searchInput?.addEventListener("input", () => {
@@ -788,6 +844,15 @@ function setupEmbedLink(): void {
   link.className = "embed-link";
   link.textContent = "Open full screen";
   topbar.appendChild(link);
+}
+
+/** The span a trace opens on: the traced person's first-to-last step. */
+function traceSpanOf(world: ResolvedWorld, traceId: string): Span | undefined {
+  const steps = traceSteps(world, traceId);
+  if (steps.length === 0) {
+    return undefined;
+  }
+  return { from: steps[0]?.date, to: steps[steps.length - 1]?.date };
 }
 
 function updateLink(state: AppState): void {

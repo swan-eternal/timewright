@@ -27,13 +27,15 @@ import type { ResolvedEvent, ResolvedWorld } from "../core/model.js";
 import type { PathPoint, Span } from "../core/steps.js";
 import { escapeHtml } from "./cards.js";
 
+/** Event focus zooms this far above the whole-map fit. */
+const FOCUS_ZOOM_OFFSET = 1.5;
+
 export interface MapViewOptions {
   element: HTMLElement;
   onLocation: (id: string, openSubmap?: string) => void;
   onEvent: (id: string) => void;
   onJumpMap: (mapId: string) => void;
   onImageMissing: (message: string) => void;
-  onCaptionChange?: (caption: string | undefined) => void;
 }
 
 export function assetUrl(path: string | undefined): string | undefined {
@@ -72,6 +74,11 @@ export class MapView {
   private lastRender?: RenderMapOptions;
   private pathPoints: PathPoint[] = [];
   private pathColor = "#b3541e";
+  /** The zoom that fits the whole current map, for focus math. */
+  private fitZoom?: number | undefined;
+  /** A focus waiting for the current image to finish loading. */
+  private pendingFocus?: { x: number; y: number } | undefined;
+  private imageLoaded = false;
 
   constructor(options: MapViewOptions) {
     this.options = options;
@@ -111,6 +118,32 @@ export class MapView {
     }
   }
 
+  /**
+   * Center on an image pixel and zoom in so it reads: an event focus
+   * should fill about a third of the viewport, not stay a speck on a
+   * whole-map view. Never zooms out, and waits for a loading image so a
+   * map switch cannot clobber the view with its fit-everything reset.
+   */
+  focusPixel(x: number, y: number): void {
+    this.pendingFocus = { x, y };
+    if (this.imageLoaded) {
+      this.applyPendingFocus();
+    }
+  }
+
+  private applyPendingFocus(): void {
+    const focus = this.pendingFocus;
+    if (focus === undefined) {
+      return;
+    }
+    const zoom = Math.min(
+      this.map.getMaxZoom(),
+      Math.max(this.zoom, (this.fitZoom ?? 0) + FOCUS_ZOOM_OFFSET),
+    );
+    this.map.setView(this.pixelToLatLng(focus.x, focus.y), zoom, { animate: false });
+    this.pendingFocus = undefined;
+  }
+
   render(opts: RenderMapOptions): void {
     this.lastRender = opts;
     const { world, mapId, date } = opts;
@@ -123,7 +156,6 @@ export class MapView {
     }
 
     const image = imageForDate(mapRecord, date);
-    this.options.onCaptionChange?.(image?.caption);
     const url = assetUrl(image?.path);
     const mapChanged = mapId !== this.currentMapId;
     this.currentMapId = mapId;
@@ -149,6 +181,7 @@ export class MapView {
     declaredSize: [number, number] | undefined,
     resetFit: boolean,
   ): void {
+    this.imageLoaded = false;
     if (this.overlay !== undefined) {
       this.overlay.remove();
       this.overlay = undefined;
@@ -190,8 +223,14 @@ export class MapView {
         [this.imageHeight, this.imageWidth],
       ]);
       overlay.setBounds(finalBounds);
+      this.imageLoaded = true;
+      this.fitZoom = this.map.getBoundsZoom(finalBounds);
       if (resetFit) {
-        this.map.fitBounds(finalBounds, { padding: [18, 18], animate: false });
+        if (this.pendingFocus === undefined) {
+          this.map.fitBounds(finalBounds, { padding: [18, 18], animate: false });
+        } else {
+          this.applyPendingFocus();
+        }
       }
       this.options.onImageMissing("");
       this.drawMarkers();
