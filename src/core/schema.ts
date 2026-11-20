@@ -131,6 +131,35 @@ export const EventSchema = z.looseObject({
   sources: z.array(z.string().min(1)).optional(),
 });
 
+/** Viewer styling: a preset plus font and color overrides (core/theme.ts). */
+const ThemeSchema = z.looseObject({
+  preset: z.string().min(1).optional(),
+  fonts: z
+    .looseObject({
+      heading: z.string().min(1).optional(),
+      body: z.string().min(1).optional(),
+    })
+    .optional(),
+  colors: z
+    .looseObject({
+      bg: z.string().optional(),
+      panel: z.string().optional(),
+      card: z.string().optional(),
+      soft: z.string().optional(),
+      soft2: z.string().optional(),
+      ink: z.string().optional(),
+      muted: z.string().optional(),
+      line: z.string().optional(),
+      accent: z.string().optional(),
+      accentInk: z.string().optional(),
+      accentSoft: z.string().optional(),
+      event: z.string().optional(),
+      portal: z.string().optional(),
+      mapBg: z.string().optional(),
+    })
+    .optional(),
+});
+
 export const WorldSchema = z.looseObject({
   title: z.string().min(1),
   /** The format this file is written for. Absent means 1. */
@@ -145,6 +174,8 @@ export const WorldSchema = z.looseObject({
   end: DateLike.optional(),
   /** Maps may be defined here instead of in maps/. */
   maps: z.array(MapSchema).optional(),
+  /** Viewer styling: preset, fonts, colors (resolved by core/theme.ts). */
+  theme: ThemeSchema.optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 

@@ -63,14 +63,11 @@ if (!existsSync(nodeZip)) {
 // 3. Assemble the folder a tester will extract.
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-for (const item of ["dist", "templates", "LICENSE", "package.json", "package-lock.json"]) {
+for (const item of ["dist", "dist-viewer", "fonts", "templates", "LICENSE", "package.json", "package-lock.json"]) {
   if (!existsSync(path.join(root, item))) {
     throw new Error(`missing ${item} - run this from a built checkout`);
   }
   await cp(path.join(root, item), path.join(stage, item), { recursive: true });
-}
-if (existsSync(path.join(root, "dist-viewer"))) {
-  await cp(path.join(root, "dist-viewer"), path.join(stage, "dist-viewer"), { recursive: true });
 }
 mkdirSync(path.join(stage, "runtime"));
 mkdirSync(path.join(stage, "worlds"));
@@ -157,6 +154,7 @@ for (const must of [
   "dist/cli/editor.html",
   "dist/cli/picker.html",
   "templates/starter-world/world.yaml",
+  "fonts/orbitron.woff2",
   "node_modules/yaml/package.json",
   "node_modules/leaflet/package.json",
 ]) {
