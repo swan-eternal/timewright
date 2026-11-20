@@ -465,6 +465,10 @@ function setupFiltersPanel(tracesSection: HTMLElement): void {
   if (filtersToggleElement === null || filtersPanelElement === null) {
     return;
   }
+  // The checklist lives at the bottom of the panel on every screen; the
+  // controls folded in on the phone land above it. It must be attached
+  // before place() uses it as an insertion reference.
+  filtersPanelElement.appendChild(tracesSection);
   const traceRow = document.querySelector<HTMLElement>(".trace-controls");
   const movable = [dateForm, searchInput, traceRow].filter(
     (node): node is HTMLElement => node !== null && node !== undefined,
