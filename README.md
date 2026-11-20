@@ -23,6 +23,16 @@ static files that any web host can serve.
 
 ## Install
 
+### No install at all — the portable build
+
+The [releases page][releases] carries a portable ZIP with the engine built
+in: download it, right-click, **Extract All**, then double-click
+**Start Timewright.bat** — your browser opens the home page. Nothing is
+installed, nothing else is downloaded, and deleting the folder removes it.
+Rebuild it from a checkout with `node scripts/make-portable.mjs`.
+
+[releases]: https://github.com/swan-eternal/timewright/releases
+
 ### Easiest way on Windows — no commands to type
 
 1. On the GitHub page, click the green **Code** button, then **Download ZIP**.
