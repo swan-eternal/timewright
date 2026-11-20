@@ -73,8 +73,7 @@ export class MapView {
   private imageHeight = 700;
   private hasView = false;
   private lastRender?: RenderMapOptions;
-  private pathPoints: PathPoint[] = [];
-  private pathColor = "#b3541e";
+  private paths: { points: PathPoint[]; color: string }[] = [];
   /** The zoom that fits the whole current map, for focus math. */
   private fitZoom?: number | undefined;
   /** A focus waiting for the current image to finish loading. */
@@ -182,9 +181,11 @@ export class MapView {
     this.drawPath();
   }
 
-  setPath(points: PathPoint[], color?: string): void {
-    this.pathPoints = points;
-    this.pathColor = color !== undefined && color !== "" ? color : "#b3541e";
+  setPaths(paths: { points: PathPoint[]; color?: string | undefined }[]): void {
+    this.paths = paths.map((path) => ({
+      points: path.points,
+      color: path.color !== undefined && path.color !== "" ? path.color : "#b3541e",
+    }));
     this.drawPath();
   }
 
@@ -454,74 +455,76 @@ export class MapView {
   private drawPath(): void {
     this.pathLayer.clearLayers();
     const opts = this.lastRender;
-    if (opts === undefined || this.pathPoints.length === 0) {
+    if (opts === undefined || this.paths.length === 0) {
       return;
     }
     const { world, mapId, date } = opts;
 
-    let run: L.LatLng[] = [];
+    for (const path of this.paths) {
+      let run: L.LatLng[] = [];
 
-    for (const point of this.pathPoints) {
-      if (point.mapId === undefined || point.at === undefined) {
-        continue;
-      }
+      for (const point of path.points) {
+        if (point.mapId === undefined || point.at === undefined) {
+          continue;
+        }
 
-      // Project sub-map points onto parent maps so cross-level journeys stay continuous on the overworld!
-      const onThisMap =
-        point.mapId === mapId
-          ? { at: point.at }
-          : projectToMap(world, point.mapId, point.at, mapId, point.date ?? date);
+        // Project sub-map points onto parent maps so cross-level journeys stay continuous on the overworld!
+        const onThisMap =
+          point.mapId === mapId
+            ? { at: point.at }
+            : projectToMap(world, point.mapId, point.at, mapId, point.date ?? date);
 
-      if (onThisMap !== undefined) {
-        const latLng = this.pixelToLatLng(onThisMap.at[0], onThisMap.at[1]);
-        run.push(latLng);
+        if (onThisMap !== undefined) {
+          const latLng = this.pixelToLatLng(onThisMap.at[0], onThisMap.at[1]);
+          run.push(latLng);
 
-        L.circleMarker(latLng, {
-          radius: 4.5,
-          color: "#fff",
-          weight: 1.5,
-          fillColor: this.pathColor,
-          fillOpacity: 1,
-        })
-          .bindTooltip(`${point.date.raw}${point.locationName ? ` · ${point.locationName}` : ""}`, {
-            direction: "top",
+          L.circleMarker(latLng, {
+            radius: 4.5,
+            color: "#fff",
+            weight: 1.5,
+            fillColor: path.color,
+            fillOpacity: 1,
           })
-          .addTo(this.pathLayer);
-      } else {
-        // Path left this map hierarchy for an unrelated or parent map; flush current run
-        if (run.length > 0) {
-          const lastLatLng = run[run.length - 1];
-          this.addPolylineRun(run);
-          run = [];
-          if (lastLatLng !== undefined && point.mapId !== undefined) {
-            const targetMapId = point.mapId;
-            const targetMapName =
-              world.maps.find((m) => m.id === targetMapId)?.name ?? targetMapId;
-            const jumpMarker = L.circleMarker(lastLatLng, {
-              radius: 8,
-              color: "#fff",
-              weight: 2,
-              fillColor: "#6a3fb5",
-              fillOpacity: 0.92,
-            }).bindTooltip(`Continues on ${targetMapName} (click to switch map)`, {
+            .bindTooltip(`${point.date.raw}${point.locationName ? ` · ${point.locationName}` : ""}`, {
               direction: "top",
-            });
-            jumpMarker.on("click", () => this.options.onJumpMap(targetMapId));
-            jumpMarker.addTo(this.pathLayer);
+            })
+            .addTo(this.pathLayer);
+        } else {
+          // Path left this map hierarchy for an unrelated or parent map; flush current run
+          if (run.length > 0) {
+            const lastLatLng = run[run.length - 1];
+            this.addPolylineRun(run, path.color);
+            run = [];
+            if (lastLatLng !== undefined && point.mapId !== undefined) {
+              const targetMapId = point.mapId;
+              const targetMapName =
+                world.maps.find((m) => m.id === targetMapId)?.name ?? targetMapId;
+              const jumpMarker = L.circleMarker(lastLatLng, {
+                radius: 8,
+                color: "#fff",
+                weight: 2,
+                fillColor: "#6a3fb5",
+                fillOpacity: 0.92,
+              }).bindTooltip(`Continues on ${targetMapName} (click to switch map)`, {
+                direction: "top",
+              });
+              jumpMarker.on("click", () => this.options.onJumpMap(targetMapId));
+              jumpMarker.addTo(this.pathLayer);
+            }
           }
         }
       }
-    }
 
-    this.addPolylineRun(run);
+      this.addPolylineRun(run, path.color);
+    }
   }
 
-  private addPolylineRun(run: L.LatLng[]): void {
+  private addPolylineRun(run: L.LatLng[], color: string): void {
     if (run.length < 2) {
       return;
     }
     L.polyline(run, {
-      color: this.pathColor,
+      color,
       weight: 3.5,
       opacity: 0.88,
       dashArray: "8 6",

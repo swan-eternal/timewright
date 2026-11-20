@@ -10,6 +10,7 @@ describe("deep links", () => {
       date: "1815-06-18",
       span: "1812..1815",
       trace: "napoleon",
+      traces: "napoleon,wellington",
       event: "waterloo",
       query: "water",
     });
@@ -19,6 +20,7 @@ describe("deep links", () => {
       date: "1815-06-18",
       span: "1812..1815",
       trace: "napoleon",
+      traces: "napoleon,wellington",
       event: "waterloo",
       query: "water",
     });
