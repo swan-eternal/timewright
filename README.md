@@ -6,13 +6,16 @@ A world is a folder of YAML — maps, locations, people, events. Timewright
 validates it, resolves the names, and builds a site you can step through:
 click a date, follow a person across the map, read their card.
 
+On Windows the quick start is double-click shaped: download the ZIP, extract
+it, run `install.bat` once, and your browser opens the Timewright home page —
+create a world, click Edit, and you're writing. From a checkout:
+
 ```bash
-npm install -g github:swan-eternal/timewright
-timewright init my-world
-cd my-world
-timewright validate
-timewright pick          # place the locations on the map
-timewright build --out dist
+git clone https://github.com/swan-eternal/timewright
+cd timewright
+npm install
+npm run build
+node dist/cli/index.js home
 ```
 
 No database, no server, no build toolchain to learn. The output is a folder of
@@ -27,21 +30,24 @@ static files that any web host can serve.
 3. Open the extracted folder and double-click **install.bat**. If Node.js is
    missing, the installer opens its download page for you — install it, then
    run install.bat again.
-4. It asks what to call your first world, then creates it.
-5. From then on, double-click **start.bat** in that folder to open the editor.
+4. When it finishes, your browser opens the Timewright home page. Type a name,
+   click **Create world**, then **Edit**.
+5. From then on, double-click **start.bat** in that folder to reopen the home
+   page. Keep the black window open while you work; close it when you're done.
 
-### From the command line
+### From the command line (developers)
 
 ```bash
-npm install -g github:swan-eternal/timewright
+git clone https://github.com/swan-eternal/timewright
+cd timewright
+npm install
+npm run build
+node dist/cli/index.js home     # then: init / edit / validate / pick / build
 ```
 
-> **Heads-up:** installing from GitHub is currently broken — the build step
-> cannot find its tools when npm installs straight from a repository. Use the
-> ZIP + install.bat route above until the package reaches npm.
-
-If it reaches npm one day, the install line becomes `npm install -g
-timewright` and nothing else changes — the command is the same either way.
+> Installing with `npm install -g github:...` is currently broken — the build
+> step cannot find its tools when npm installs straight from a repository.
+> Clone and build instead until the package reaches npm.
 
 ## What a world looks like
 

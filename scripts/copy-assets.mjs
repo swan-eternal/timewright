@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const files = [
+  ["src/cli/home.html", "dist/cli/home.html"],
   ["src/cli/picker.html", "dist/cli/picker.html"],
   ["src/cli/editor.html", "dist/cli/editor.html"],
 ];

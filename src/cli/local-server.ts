@@ -35,6 +35,8 @@ export interface LocalServerOptions {
 export interface LocalServerAddress {
   host: string;
   port: number;
+  /** Stops the server; for tests and orderly shutdowns. */
+  close: () => Promise<void>;
 }
 
 /**
@@ -186,7 +188,20 @@ export async function startLocalServer(options: LocalServerOptions): Promise<Loc
   });
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : options.port;
-  return { host: options.host, port };
+  return {
+    host: options.host,
+    port,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error === undefined) {
+            resolve();
+          } else {
+            reject(error);
+          }
+        });
+      }),
+  };
 }
 
 /** Read a JSON body off a request. */

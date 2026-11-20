@@ -44,12 +44,14 @@ import {
   type EditableKind,
 } from "../world-edit.js";
 import { buildWorldSite, exportWorldArtifact } from "./build.js";
+import { openBrowser } from "../open-browser.js";
 import { runInit } from "./init.js";
 
 export interface EditOptions {
   world?: string | undefined;
   port?: number | undefined;
   host?: string | undefined;
+  noOpen?: boolean | undefined;
 }
 
 const MIME: Record<string, string> = {
@@ -87,6 +89,12 @@ export async function runEdit(options: EditOptions = {}): Promise<number> {
 
   console.log(`timewright edit: ${root}`);
   console.log(`  http://${host}:${port}/`);
+  if (options.noOpen === true) {
+    console.log("  Browser not opened automatically (--no-open).");
+  } else {
+    console.log("  Opening your browser...");
+    openBrowser(`http://${host}:${port}/`);
+  }
   console.log("  Edit the world in the browser. Ctrl-C to stop.");
   return 0;
 }

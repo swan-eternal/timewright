@@ -69,19 +69,15 @@ if errorlevel 1 goto failed
 echo.
 echo  [ok] Timewright is installed.
 echo.
-set "WORLD="
-set /p WORLD="Name your first world (or press Enter for my-world): "
-if "%WORLD%"=="" set "WORLD=my-world"
-if exist "%WORLD%" (
-    echo  A folder named "%WORLD%" already exists here - keeping it.
-) else (
-    call timewright init "%WORLD%"
-)
+echo  Starting Timewright - your browser will open the
+echo  home page, where you create your first world.
 echo.
-echo  All set. To open the editor later, come back to this
-echo  folder and double-click start.bat
+echo  Keep the Timewright window open while you work.
+echo  To come back later, double-click start.bat
 echo.
-echo  You can close this window now.
+call timewright home
+echo.
+echo  Timewright stopped. You can close this window.
 echo.
 pause
 exit /b 0

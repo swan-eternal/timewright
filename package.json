@@ -14,6 +14,7 @@
     "dist",
     "dist-viewer",
     "src/viewer",
+    "src/cli/home.html",
     "src/cli/picker.html",
     "src/cli/editor.html",
     "docs",
