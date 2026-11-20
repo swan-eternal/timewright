@@ -16,11 +16,13 @@ import { loadWorld, resolveImagePath } from "../load.js";
 import { buildIndex } from "../../core/building.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
 import { moveLocation } from "../world-edit.js";
+import { openBrowser } from "../open-browser.js";
 
 export interface PickOptions {
   world?: string | undefined;
   port?: number | undefined;
   host?: string | undefined;
+  noOpen?: boolean | undefined;
 }
 
 export async function runPick(options: PickOptions = {}): Promise<number> {
@@ -60,6 +62,12 @@ export async function runPick(options: PickOptions = {}): Promise<number> {
 
   console.log(`timewright pick: ${root}`);
   console.log(`  http://${host}:${port}/`);
+  if (options.noOpen === true) {
+    console.log("  Browser not opened automatically (--no-open).");
+  } else {
+    console.log("  Opening your browser...");
+    openBrowser(`http://${host}:${port}/`);
+  }
   console.log("  Click the map to get coordinates. Ctrl-C to stop.");
   return 0;
 }

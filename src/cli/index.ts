@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { runBuild } from "./commands/build.js";
 import { runDev } from "./commands/dev.js";
 import { runEdit } from "./commands/edit.js";
+import { runHome } from "./commands/home.js";
 import { runInit } from "./commands/init.js";
 import { runPick } from "./commands/pick.js";
 import { runSchema } from "./commands/schema.js";
@@ -18,6 +19,7 @@ import { runValidate } from "./commands/validate.js";
 const USAGE = `timewright - build interactive timeline maps from YAML worlds
 
 Usage:
+  timewright home [options]      Open the world chooser in your browser
   timewright init [folder]       Make a starter world
   timewright validate [options]   Check a world folder and explain what to fix
   timewright build [options]     Build a world into a static site
@@ -36,12 +38,14 @@ Options:
       --base <path>   Base path the site is served from (build), e.g. /repo/
       --single-file   Also write one self-contained HTML file (build)
       --zip           Also write a website .zip bundle ready to upload (build)
-      --port <n>      Port for the dev server (5173), the picker (5174) or the
-                      editor (5175)
+      --port <n>      Port for the dev server (5173), the picker (5174), the
+                      editor (5175) or the home page (5176)
+      --no-open       Do not open the browser automatically (home, edit, pick)
       --force         Write into a folder that already has something in it (init)
   -h, --help          Show this help
 
 Examples:
+  timewright home
   timewright init my-world
   timewright validate --world ./my-world
   timewright pick --world ./my-world
@@ -61,6 +65,7 @@ interface ParsedArgs {
   singleFile: boolean;
   zip: boolean;
   force: boolean;
+  noOpen: boolean;
   help: boolean;
 }
 
@@ -73,6 +78,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     singleFile: false,
     zip: false,
     force: false,
+    noOpen: false,
     help: false,
   };
   const rest: string[] = [];
@@ -138,6 +144,10 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.force = true;
       continue;
     }
+    if (argument === "--no-open") {
+      parsed.noOpen = true;
+      continue;
+    }
     if (argument.startsWith("-")) {
       continue;
     }
@@ -193,10 +203,12 @@ async function main(argv: string[]): Promise<number> {
       });
     case "dev":
       return runDev({ world: args.world, port: args.port });
+    case "home":
+      return runHome({ world: args.world, port: args.port, noOpen: args.noOpen });
     case "pick":
-      return runPick({ world: args.world, port: args.port });
+      return runPick({ world: args.world, port: args.port, noOpen: args.noOpen });
     case "edit":
-      return runEdit({ world: args.world, port: args.port });
+      return runEdit({ world: args.world, port: args.port, noOpen: args.noOpen });
     case "schema":
       return runSchema({ out: args.out });
     case "version":
