@@ -1,5 +1,7 @@
-- name: Alex Vale
-  tags: [character]
-  bio: |
-    A person in the story. Give them a life: when they were born, where they
-    were, and what they were doing.
+# People are the characters in your world.
+#
+# - name: Alex Vale
+#   tags: [character]
+#   bio: |
+#     A person in the story. Give them a life: when they were born, where
+#     they were, and what they were doing.

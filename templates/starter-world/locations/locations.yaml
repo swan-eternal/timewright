@@ -1,9 +1,9 @@
-- name: Home
-  map: region
-  at: [430, 320]
-  tags: [place]
-
-# This one has no position yet. Place it with `timewright pick`.
-- name: The Old Mill
-  map: region
-  tags: [place]
+# Locations are places on your maps. To add your first one, remove the
+# # marks from the example below, or use the editor's New Location button.
+#
+# - name: Home
+#   map: region
+#   at: [430, 320]
+#
+# A location without an `at` line has no position yet. Place it with
+# `timewright pick`.

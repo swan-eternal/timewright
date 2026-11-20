@@ -1,8 +1,11 @@
-- title: Something Happens
-  when: 1820
-  where: Home
-  people: [Alex Vale]
-  tags: [event]
-  card: |
-    What happened, and why it matters. Markdown works here: **bold**, lists
-    and [links](https://example.com) all render.
+# Events are what happened, one list entry each. To write your first one,
+# remove the # marks from the example below, or use the editor's New Event
+# button, which writes this file for you.
+#
+# - title: Something Happens
+#   when: 1820
+#   where: Home
+#   people: [Alex Vale]
+#   card: |
+#     What happened, and why it matters. Markdown works here: **bold**, lists
+#     and [links](https://example.com) all render.
