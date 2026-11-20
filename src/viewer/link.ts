@@ -8,11 +8,13 @@ export interface LinkState {
   date?: string;
   span?: string;
   trace?: string;
+  /** Comma-separated ids of traces shown together on the map. */
+  traces?: string;
   event?: string;
   query?: string;
 }
 
-const KEYS = ["map", "date", "span", "trace", "event", "query"] as const;
+const KEYS = ["map", "date", "span", "trace", "traces", "event", "query"] as const;
 
 export function readLink(hash: string): LinkState {
   const text = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -54,6 +56,9 @@ export function writeLink(state: LinkState): string {
   }
   if (state.trace !== undefined) {
     parts.push(`trace=${encodeURIComponent(state.trace)}`);
+  }
+  if (state.traces !== undefined) {
+    parts.push(`traces=${encodeURIComponent(state.traces)}`);
   }
   if (state.event !== undefined) {
     parts.push(`event=${encodeURIComponent(state.event)}`);

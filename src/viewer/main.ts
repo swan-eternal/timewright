@@ -15,7 +15,15 @@ import {
   placeMap,
   sortedEvents,
 } from "../core/derive.js";
-import { findStep, tracePath, traceSteps, traceable, viewSteps, type Span } from "../core/steps.js";
+import {
+  findStep,
+  tracePath,
+  traceSteps,
+  traceable,
+  viewSteps,
+  type PathPoint,
+  type Span,
+} from "../core/steps.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../core/model.js";
 import { escapeHtml, renderMarkdown } from "./cards.js";
 import { debugOn, installDebug } from "./debug.js";
@@ -370,9 +378,90 @@ function setupCardSheet(store: Store): void {
   });
 }
 
-/** Phone-only filters panel: date jump, search and the trace select fold
- *  behind one topbar button; desktop keeps them inline. */
-function setupFiltersPanel(): void {
+/** Colors for shown traces. The follow trace keeps the world's event
+ *  orange, so the palette stays clear of it. */
+const TRACE_PALETTE = [
+  "#1e60b3",
+  "#2e7d32",
+  "#6a3fb5",
+  "#a04700",
+  "#0e7c86",
+  "#8a2d5b",
+  "#5a5a15",
+  "#37474f",
+];
+
+/** A shown trace's color: the person's own when the world declares one,
+ *  otherwise a stable turn of the palette. */
+function shownTraceColor(world: ResolvedWorld, id: string): string {
+  const person = world.people.find((entry) => entry.id === id);
+  if (person?.color !== undefined && person.color !== "") {
+    return person.color;
+  }
+  const entries = traceable(world);
+  const index = Math.max(0, entries.findIndex((entry) => entry.id === id));
+  return TRACE_PALETTE[index % TRACE_PALETTE.length];
+}
+
+/** The "Show traces" checklist: several traces at once, each in its own
+ *  color, independent of the Follow dropdown's single-life walk. */
+function buildTracesSection(world: ResolvedWorld, store: Store): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "traces-section";
+  const head = document.createElement("div");
+  head.className = "traces-head";
+  const label = document.createElement("span");
+  label.className = "filter-label";
+  label.textContent = "Show traces";
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "mini-link";
+  clear.id = "clear-shown-traces";
+  clear.textContent = "Clear all";
+  clear.hidden = true;
+  clear.addEventListener("click", () => {
+    store.set({ shownTraces: [] });
+  });
+  head.append(label, clear);
+  const list = document.createElement("div");
+  list.className = "traces-list";
+  list.id = "traces-list";
+  for (const entry of traceable(world)) {
+    const row = document.createElement("label");
+    row.className = "trace-check";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.dataset.traceId = entry.id;
+    const dot = document.createElement("span");
+    dot.className = "trace-dot";
+    dot.style.background = shownTraceColor(world, entry.id);
+    const name = document.createElement("span");
+    name.textContent = entry.name;
+    row.append(box, dot, name);
+    list.appendChild(row);
+  }
+  section.append(head, list);
+  section.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.dataset.traceId === undefined) {
+      return;
+    }
+    const id = target.dataset.traceId;
+    const current = new Set(store.get().shownTraces ?? []);
+    if (target.checked) {
+      current.add(id);
+    } else {
+      current.delete(id);
+    }
+    store.set({ shownTraces: [...current] });
+  });
+  return section;
+}
+
+/** The filters panel: date jump, search and the trace select fold behind
+ *  one topbar button on the phone; the traces checklist lives in it on
+ *  every screen, so the toggle works on desktop too. */
+function setupFiltersPanel(tracesSection: HTMLElement): void {
   if (filtersToggleElement === null || filtersPanelElement === null) {
     return;
   }
@@ -384,7 +473,7 @@ function setupFiltersPanel(): void {
   const place = (): void => {
     if (isPhoneView()) {
       for (const node of movable) {
-        filtersPanelElement.appendChild(node);
+        filtersPanelElement.insertBefore(node, tracesSection);
       }
       return;
     }
@@ -423,7 +512,8 @@ function renderActiveFilters(state: AppState): void {
   }
   const tags = state.tags ?? [];
   const query = (state.query ?? "").trim();
-  if (tags.length === 0 && query === "") {
+  const shown = state.shownTraces ?? [];
+  if (tags.length === 0 && query === "" && shown.length === 0) {
     activeFiltersElement.hidden = true;
     activeFiltersElement.innerHTML = "";
     return;
@@ -437,6 +527,12 @@ function renderActiveFilters(state: AppState): void {
   if (query !== "") {
     chips.push(
       `<button type="button" class="filter-chip" id="clear-query-chip">Search: "${escapeHtml(query)}" ✕</button>`,
+    );
+  }
+  for (const id of shown) {
+    const entry = traceable(state.world).find((candidate) => candidate.id === id);
+    chips.push(
+      `<button type="button" class="filter-chip" data-trace-clear="${escapeHtml(id)}"><span class="chip-dot" style="background:${escapeHtml(shownTraceColor(state.world, id))}"></span>${escapeHtml(entry?.name ?? id)} ✕</button>`,
     );
   }
   activeFiltersElement.innerHTML = `<span class="filter-label">Active filters:</span> ${chips.join(" ")}`;
@@ -601,6 +697,9 @@ async function boot(): Promise<void> {
     span: initialSpan,
     mode: link.trace !== undefined ? "trace" : "span",
     traceId: link.trace,
+    shownTraces: (link.traces ?? "")
+      .split(",")
+      .filter((id) => traceable(world).some((entry) => entry.id === id)),
     selection: link.event !== undefined ? { kind: "event", id: link.event } : undefined,
     query: link.query,
   });
@@ -698,7 +797,7 @@ async function boot(): Promise<void> {
   traceSelect.value = store.get().traceId ?? "";
 
   setupCardSheet(store);
-  setupFiltersPanel();
+  setupFiltersPanel(buildTracesSection(world, store));
 
   const renderState = (state: AppState, changed: Changed): void => {
     // An empty changed set means "nothing in particular" - render it all.
@@ -751,6 +850,16 @@ async function boot(): Promise<void> {
 
     if (traceSelect.value !== (state.traceId ?? "")) {
       traceSelect.value = state.traceId ?? "";
+    }
+    const shownNow = new Set(state.shownTraces ?? []);
+    for (const box of document.querySelectorAll<HTMLInputElement>(
+      "#traces-list input[type=checkbox]",
+    )) {
+      box.checked = shownNow.has(box.dataset.traceId ?? "");
+    }
+    const clearShownTraces = document.querySelector<HTMLButtonElement>("#clear-shown-traces");
+    if (clearShownTraces !== null) {
+      clearShownTraces.hidden = shownNow.size === 0;
     }
     if (clearTraceButton !== null) {
       clearTraceButton.hidden = state.mode !== "trace";
@@ -822,12 +931,24 @@ async function boot(): Promise<void> {
       selectedEventId: state.selection?.kind === "event" ? state.selection.id : undefined,
       visibleEventIds: tickIds,
     });
-    mapView.setPath(
-      state.mode === "trace" && state.traceId !== undefined
-        ? tracePath(state.world, state.traceId, state.date)
-        : [],
-      tracedPerson?.color,
-    );
+    const followId = state.mode === "trace" ? state.traceId : undefined;
+    const paths: { points: PathPoint[]; color?: string | undefined }[] = [];
+    if (followId !== undefined) {
+      paths.push({
+        points: tracePath(state.world, followId, state.date),
+        color: tracedPerson?.color,
+      });
+    }
+    for (const id of state.shownTraces ?? []) {
+      if (id === followId) {
+        continue;
+      }
+      paths.push({
+        points: tracePath(state.world, id, state.date),
+        color: shownTraceColor(state.world, id),
+      });
+    }
+    mapView.setPaths(paths);
 
     if (everything || changed.has("mapId")) {
       renderBreadcrumb(state);
@@ -897,6 +1018,15 @@ async function boot(): Promise<void> {
           mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
         }
       }
+      return;
+    }
+    const traceClear = target.closest<HTMLElement>("[data-trace-clear]");
+    if (traceClear !== null && traceClear.dataset.traceClear !== undefined) {
+      event.preventDefault();
+      const id = traceClear.dataset.traceClear;
+      store.set({
+        shownTraces: (store.get().shownTraces ?? []).filter((entry) => entry !== id),
+      });
       return;
     }
     const tagElement = target.closest<HTMLElement>("[data-tag]");
@@ -1047,6 +1177,7 @@ function updateLink(state: AppState): void {
     date: state.date?.raw,
     span: state.span !== undefined ? `${state.span.from.raw}..${state.span.to.raw}` : undefined,
     trace: state.traceId,
+    traces: (state.shownTraces ?? []).length > 0 ? state.shownTraces?.join(",") : undefined,
     event: state.selection?.kind === "event" ? state.selection.id : undefined,
     query: state.query !== undefined && state.query !== "" ? state.query : undefined,
   });

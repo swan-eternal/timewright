@@ -29,6 +29,8 @@ export interface AppState {
   mode: Mode;
   /** The person or vessel being traced. */
   traceId?: string | undefined;
+  /** Extra traces drawn on the map at once, independent of following one. */
+  shownTraces?: string[] | undefined;
   /** What is open in the card. */
   selection?: Selection | undefined;
   /** Text filter over events, people and locations. */

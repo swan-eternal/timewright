@@ -705,12 +705,37 @@ select {
   right: 0;
 }
 
-/* --- Filters toggle & card sheet head (phone affordances) --- */
+/* --- Filters toggle, panel and card sheet head --- */
+/* The panel was phone-only; the traces checklist lives in it, so the
+   toggle now works on every screen. */
 
-.filters-toggle,
-#filters-panel,
 .card-sheet-head {
   display: none;
+}
+
+.filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+#filters-panel {
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.6rem
+    max(0.75rem, env(safe-area-inset-left));
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+#filters-panel.open {
+  display: flex;
 }
 
 /* --- Detail Card --- */
@@ -1042,4 +1067,53 @@ select {
   .timeline-header .playhead-readout {
     white-space: nowrap;
   }
+}
+
+
+/* --- Show traces: several lives on one map --- */
+
+.traces-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.traces-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.traces-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.trace-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.trace-dot,
+.chip-dot {
+  display: inline-block;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.chip-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.3rem;
+  vertical-align: baseline;
 }
