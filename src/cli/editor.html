@@ -163,7 +163,7 @@
         </nav>
         <div id="placeholder-callout" hidden>
           <span>This world is still using the placeholder map image.</span>
-          <button type="button" id="upload-main-map">Upload Main Map</button>
+          <button type="button" id="upload-main-map">Upload Map Image</button>
           <input type="file" id="callout-file" accept="image/*" hidden />
         </div>
         <div id="list-pane">
@@ -1116,7 +1116,14 @@
             label.style.top = "";
             continue;
           }
-          const center = (parseFloat(label.style.left) / 100) * span;
+          const rawCenter = (parseFloat(label.style.left) / 100) * span;
+          // The first and last events sit at the very edges of the strip,
+          // and a label centered there would hang half its text outside
+          // the timeline. Pull it in, and let the row slotting below see
+          // the pulled-in position.
+          const center =
+            span >= width ? Math.min(Math.max(rawCenter, width / 2), span - width / 2) : span / 2;
+          label.style.left = ((center / span) * 100).toFixed(3) + "%";
           const start = center - width / 2;
           const end = center + width / 2;
           let slot = rowEnds.findIndex((last) => start > last + 4);
