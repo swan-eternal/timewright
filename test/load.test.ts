@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -45,5 +48,19 @@ describe("loadWorld", () => {
   it("reports a folder with no world.yaml", async () => {
     const loaded = await loadWorld(fixture("napoleon-world/maps"));
     assert.ok(loaded.issues.some((issue) => issue.code === "missing-world"));
+  });
+
+  it("treats a list file that holds only comments as an empty list", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "timewright-commentonly-"));
+    await mkdir(path.join(dir, "people"), { recursive: true });
+    await writeFile(path.join(dir, "world.yaml"), "format: 1\ntitle: Empty\n");
+    await writeFile(
+      path.join(dir, "people", "people.yaml"),
+      "# - name: Somebody\n#   bio: |\n#     Not written yet.\n",
+    );
+    const loaded = await loadWorld(dir);
+    const errors = loaded.issues.filter((issue) => issue.severity === "error");
+    assert.deepEqual(errors.map((issue) => issue.message), []);
+    assert.equal(loaded.data.people.length, 0);
   });
 });

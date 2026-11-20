@@ -49,6 +49,19 @@ describe("the picker", () => {
     const dir = await scratch();
     const target = path.join(dir, "my-world");
     await runInit({ folder: target });
+    await writeFile(
+      path.join(target, "locations", "locations.yaml"),
+      [
+        "- name: Home",
+        "  map: region",
+        "  at: [430, 320]",
+        "",
+        "# This one has no position yet. Place it with `timewright pick`.",
+        "- name: The Old Mill",
+        "  map: region",
+        "",
+      ].join("\n"),
+    );
 
     const result = await moveLocation(target, "The Old Mill", "region", 120, 340);
     assert.equal(result.ok, true);

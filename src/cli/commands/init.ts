@@ -1,12 +1,12 @@
 /**
  * `timewright init` - make a starter world.
  *
- * The starter world is small on purpose: one map, two locations, one person
- * and one event. It validates, it builds, and one of the locations is left
- * unplaced so that `timewright pick` has something to do.
+ * The starter world is empty of content on purpose: the map is real, the
+ * content files hold commented-out examples, and the world's title comes
+ * from the folder name. Nothing has to be deleted before real history starts.
  */
 
-import { copyFile, cp, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
@@ -43,6 +43,15 @@ export async function runInit(options: InitOptions = {}): Promise<number> {
     await copyFile(guide, path.join(target, "AGENT_GUIDE.md"));
   }
 
+  // The world's title follows the folder the creator chose.
+  const worldFile = path.join(target, "world.yaml");
+  const worldText = await readFile(worldFile, "utf8");
+  await writeFile(
+    worldFile,
+    worldText.replace(/^title:.*$/m, `title: ${JSON.stringify(path.basename(target))}`),
+    "utf8",
+  );
+
   await writeFile(
     path.join(target, "README.md"),
     [
@@ -56,9 +65,11 @@ export async function runInit(options: InitOptions = {}): Promise<number> {
       "```",
       "",
       "The format is in `AGENT_GUIDE.md` (for an agent) and in the package's `docs/FORMAT.md`",
-      "(for a person).",
+      "(for a person). The content files start as comments: delete the # marks",
+      "to write your first record, or use the editor's New buttons.",
       "",
-      "One location, `The Old Mill`, has no position yet. Place it with:",
+      "The starter's map is a placeholder. Replace `maps/region.svg` with your own",
+      "map image, and place locations on it with:",
       "",
       "```bash",
       "timewright pick --world .",
@@ -72,7 +83,7 @@ export async function runInit(options: InitOptions = {}): Promise<number> {
   console.log("");
   console.log("  world.yaml       the world's title, calendar and maps");
   console.log("  maps/            a map and its image");
-  console.log("  locations/       places, one of them still to be placed");
+  console.log("  locations/       places on your maps");
   console.log("  people/          who is in the story");
   console.log("  events/          what happened");
   console.log("  AGENT_GUIDE.md   the format, written for an agent");

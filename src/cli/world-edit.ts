@@ -648,6 +648,13 @@ export async function createRecord(
       await writeFile(listFile, documentText(document), "utf8");
       return { ok: true, message: `added to ${listFile}`, file: listFile, id };
     }
+    if (document.contents === null) {
+      // A file that holds only comments parses to an empty document: the
+      // first record starts its list, and the example comments retire.
+      document.contents = document.createNode([cleaned]) as unknown as typeof document.contents;
+      await writeFile(listFile, documentText(document), "utf8");
+      return { ok: true, message: `added to ${listFile}`, file: listFile, id };
+    }
   }
 
   const dir = path.join(root, DIRECTORIES[kind]);

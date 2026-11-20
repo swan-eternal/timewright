@@ -17,6 +17,21 @@ async function starterWorld(): Promise<string> {
   const dir = await scratch();
   const target = path.join(dir, "my-world");
   await runInit({ folder: target });
+  // The starter ships its examples as comments, so these tests give the
+  // world two real locations to edit.
+  await writeFile(
+    path.join(target, "locations", "locations.yaml"),
+    [
+      "- name: Home",
+      "  map: region",
+      "  at: [430, 320]",
+      "",
+      "# This one has no position yet. Place it with `timewright pick`.",
+      "- name: The Old Mill",
+      "  map: region",
+      "",
+    ].join("\n"),
+  );
   return target;
 }
 

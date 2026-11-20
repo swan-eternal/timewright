@@ -205,6 +205,11 @@ async function collectRecords<T>(
       issues.push({ severity: "error", code: "yaml", message: parsed.message, file });
       continue;
     }
+    // A file that holds only comments parses to null: it is an empty list,
+    // not an error. The starter world ships files like this.
+    if (parsed.value === null || parsed.value === undefined) {
+      continue;
+    }
     const items = Array.isArray(parsed.value) ? parsed.value : [parsed.value];
     for (const [index, item] of items.entries()) {
       const name = recordLabel(item, `${label} #${index + 1}`);
