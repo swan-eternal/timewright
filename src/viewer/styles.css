@@ -1,13 +1,20 @@
 :root {
   --bg: #f7f4ee;
   --panel: #fffdf8;
+  --card: #ffffff;
+  --soft: #f2ece0;
+  --soft-2: #f3ede0;
   --ink: #2b2620;
   --muted: #6b6155;
   --line: #ddd4c4;
   --accent: #1f4fa0;
+  --accent-ink: #ffffff;
   --accent-soft: #e8eef9;
   --event: #b3541e;
   --portal: #6a3fb5;
+  --map-bg: #ded7c9;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 * {
@@ -25,7 +32,7 @@ body {
 }
 
 body {
-  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.45 var(--font-body);
   color: var(--ink);
   background: var(--bg);
 }
@@ -134,7 +141,7 @@ select {
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
 }
 
 #date-form button {
@@ -142,7 +149,7 @@ select {
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   cursor: pointer;
 }
 
@@ -151,7 +158,7 @@ select {
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
 }
 
 /* --- Stepbar --- */
@@ -181,7 +188,7 @@ select {
   min-height: 2.1rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
@@ -211,7 +218,7 @@ select {
 }
 
 .step-label-btn:hover {
-  background: #f2ece0;
+  background: var(--soft);
   border-color: var(--line);
 }
 
@@ -231,14 +238,14 @@ select {
   padding: 0.3rem 0.45rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
 }
 
 .ghost-btn {
   padding: 0.25rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
   color: var(--muted);
   font-size: 0.82rem;
   cursor: pointer;
@@ -246,7 +253,7 @@ select {
 
 .ghost-btn:hover {
   color: var(--ink);
-  background: #f3ede0;
+  background: var(--soft-2);
 }
 
 /* --- Active Filters Bar --- */
@@ -257,7 +264,7 @@ select {
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.75rem;
-  background: #f2ece0;
+  background: var(--soft);
   border-bottom: 1px solid var(--line);
   font-size: 0.8rem;
 }
@@ -292,7 +299,7 @@ select {
   min-height: 0;
   width: 100%;
   height: 100%;
-  background: #ded7c9;
+  background: var(--map-bg);
   touch-action: none;
 }
 
@@ -640,7 +647,7 @@ select {
   padding: 0;
   border: 2px solid var(--event);
   border-radius: 50%;
-  background: #fff;
+  background: var(--card);
   cursor: pointer;
   z-index: 2;
 }
@@ -703,6 +710,16 @@ select {
 
 .strip-end.right {
   right: 0;
+}
+
+/* --- Theme (world.yaml `theme:`) --- */
+
+h2,
+h3,
+.peek-title,
+.timeline-header,
+#breadcrumb {
+  font-family: var(--font-heading);
 }
 
 /* --- Filters toggle, panel and card sheet head --- */
@@ -797,7 +814,7 @@ select {
 
 .action-btn:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }
 
 #card .people,
@@ -817,7 +834,7 @@ select {
   padding: 0.1rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f3ede0;
+  background: var(--soft-2);
   font-size: 0.75rem;
   cursor: pointer;
 }
@@ -846,7 +863,7 @@ select {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--card);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -945,7 +962,7 @@ select {
     padding: 0.25rem 0.6rem;
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: #fff;
+    background: var(--card);
     font-size: 0.85rem;
     cursor: pointer;
   }

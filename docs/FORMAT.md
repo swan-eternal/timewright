@@ -70,6 +70,29 @@ worlds did. A world that declares a newer major format than the tool
 reads does not build; a newer minor only warns, because a minor adds
 without taking away.
 
+## theme
+
+world.yaml may carry a `theme:` block. `preset:` sets a whole look in one
+word; `fonts` and `colors` override any part of it.
+
+```yaml
+theme:
+  preset: scifi          # chronicle | fantasy | scifi | manuscript | case-file
+  fonts:
+    heading: orbitron    # any id below; display faces suit headings
+    body: space-grotesk  # readable faces only
+  colors:
+    accent: "#4cc2ff"    # any of: bg panel card soft soft2 ink muted line
+    mapBg: "#0b0e14"     #        accent accentInk accentSoft event portal mapBg
+```
+
+Fonts ship with the tool as small open-license WOFF2 files, so sites stay
+self-contained and offline. Ids: `default`, `eb-garamond`, `cinzel`,
+`im-fell-english`, `great-vibes`, `orbitron`, `space-grotesk`,
+`special-elite`, `caveat`. Display faces (`cinzel`, `great-vibes`,
+`orbitron`, `caveat`) apply to headings only. Unknown names warn and fall
+back — a typo never stops a build.
+
 ## Chapter worlds
 
 A story may have no calendar at all. A world can order its events by

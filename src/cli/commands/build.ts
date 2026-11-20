@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 import { resolveWorld } from "../../core/derive.js";
 import type { ResolvedWorld } from "../../core/model.js";
 import { validateWorld, type Issue } from "../../core/validate.js";
+import { resolveTheme, themeCss, themeFontFiles } from "../../core/theme.js";
 import { loadWorld, resolveImagePath } from "../load.js";
+import { packageDir } from "../paths.js";
 import { writeSingleFile } from "../single-file.js";
 import { zipDirectory } from "../zip.js";
 
@@ -110,6 +112,32 @@ export async function buildWorldSite(options: BuildOptions = {}): Promise<BuildS
   const world = resolveWorld(loaded.data);
 
   await copyViewerAssets(outDir);
+
+  // Theme: fonts and colors from world.yaml, baked into the site's page.
+  // The viewer stays generic; a theme is just variables and @font-face.
+  const rawTheme = (
+    loaded.data.world as { data?: { theme?: unknown } | undefined } | undefined
+  )?.data?.theme;
+  if (rawTheme !== null && typeof rawTheme === "object") {
+    const { theme, warnings } = resolveTheme(rawTheme);
+    for (const warning of warnings) {
+      issues.push({ code: "theme", severity: "warning", message: warning });
+    }
+    const fontFiles = themeFontFiles(theme);
+    if (fontFiles.length > 0) {
+      await mkdir(path.join(outDir, "fonts"), { recursive: true });
+      for (const file of fontFiles) {
+        await copyFile(packageDir(path.join("fonts", file)), path.join(outDir, "fonts", file));
+      }
+    }
+    const viewerPage = path.join(outDir, "index.html");
+    const page = await readFile(viewerPage, "utf8");
+    await writeFile(
+      viewerPage,
+      page.replace("</head>", `<style id="tw-theme">${themeCss(theme)}</style></head>`),
+      "utf8",
+    );
+  }
 
   // Copy map images
   await Promise.all(
