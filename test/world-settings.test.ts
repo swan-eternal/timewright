@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { createEditorApi } from "../src/cli/commands/edit.js";
 import { loadWorld } from "../src/cli/load.js";
-import { writeWorldTheme } from "../src/cli/world-edit.js";
+import { writeWorldCalendar, writeWorldTheme, writeWorldTimeline } from "../src/cli/world-edit.js";
 
 async function scratch(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "tw-world-settings-"));
@@ -161,5 +161,184 @@ describe("the shelf fonts route", () => {
     } finally {
       await address.close();
     }
+  });
+});
+
+describe("writeWorldTimeline", () => {
+  it("writes chapters sorted with numeric keys, keeping comments", async () => {
+    const root = await world();
+    const res = await writeWorldTimeline(root, {
+      chapters: [
+        { n: 2, title: "The Storm" },
+        { n: 1, title: "Arrival" },
+      ],
+    });
+    assert.equal(res.ok, true);
+    const text = await readFile(path.join(root, "world.yaml"), "utf8");
+    assert.match(text, /# keep me/);
+    assert.match(text, /chapters:\n  1: Arrival\n  2: The Storm/);
+  });
+
+  it("clears the chapter list for date worlds", async () => {
+    const root = await world();
+    await writeWorldTimeline(root, { chapters: [{ n: 1, title: "One" }] });
+    const res = await writeWorldTimeline(root, { chapters: [] });
+    assert.equal(res.ok, true);
+    const text = await readFile(path.join(root, "world.yaml"), "utf8");
+    assert.doesNotMatch(text, /chapters:/);
+  });
+
+  it("refuses duplicate numbers and blank titles, writing nothing", async () => {
+    const root = await world();
+    const before = await readFile(path.join(root, "world.yaml"), "utf8");
+    const dup = await writeWorldTimeline(root, {
+      chapters: [
+        { n: 1, title: "One" },
+        { n: 1, title: "Also one" },
+      ],
+    });
+    assert.equal(dup.ok, false);
+    const blank = await writeWorldTimeline(root, { chapters: [{ n: 3, title: "  " }] });
+    assert.equal(blank.ok, false);
+    assert.equal(await readFile(path.join(root, "world.yaml"), "utf8"), before);
+  });
+});
+
+describe("writeWorldCalendar", () => {
+  it("writes the calendar block exactly as the format doc shapes it", async () => {
+    const root = await world();
+    const res = await writeWorldCalendar(root, {
+      calendar: {
+        months: ["Hammer", "Alturiak"],
+        days_per_month: [31, 30],
+        eras: [{ name: "AF", start: 1200 }],
+      },
+    });
+    assert.equal(res.ok, true);
+    const text = await readFile(path.join(root, "world.yaml"), "utf8");
+    assert.match(text, /# keep me/);
+    assert.match(text, /calendar:\n  months:\n    - Hammer\n    - Alturiak/);
+    assert.match(text, /eras:\n    - name: AF\n      start: 1200/);
+    const loaded = await loadWorld(root);
+    const record = loaded.data.world.data as {
+      calendar?: { months?: string[]; eras?: { name: string; start: number }[] };
+    };
+    assert.deepEqual(record.calendar?.months, ["Hammer", "Alturiak"]);
+    assert.equal(record.calendar?.eras?.[0]?.start, 1200);
+  });
+
+  it("writes a month count and a single days-per-month", async () => {
+    const root = await world();
+    const res = await writeWorldCalendar(root, {
+      calendar: { months: 13, days_per_month: 28 },
+    });
+    assert.equal(res.ok, true);
+    const text = await readFile(path.join(root, "world.yaml"), "utf8");
+    assert.match(text, /months: 13\n  days_per_month: 28/);
+  });
+
+  it("clears back to gregorian", async () => {
+    const root = await world();
+    await writeWorldCalendar(root, { calendar: { months: 13 } });
+    const res = await writeWorldCalendar(root, { calendar: null });
+    assert.equal(res.ok, true);
+    const text = await readFile(path.join(root, "world.yaml"), "utf8");
+    assert.doesNotMatch(text, /calendar:/);
+  });
+
+  it("refuses duplicate months, mismatched day lists, and empty customs", async () => {
+    const root = await world();
+    const before = await readFile(path.join(root, "world.yaml"), "utf8");
+    const dup = await writeWorldCalendar(root, {
+      calendar: { months: ["Hammer", "hammer"], days_per_month: 30 },
+    });
+    assert.equal(dup.ok, false);
+    const mismatch = await writeWorldCalendar(root, {
+      calendar: { months: ["A", "B"], days_per_month: [30, 30, 30] },
+    });
+    assert.equal(mismatch.ok, false);
+    const empty = await writeWorldCalendar(root, { calendar: {} });
+    assert.equal(empty.ok, false);
+    assert.equal(await readFile(path.join(root, "world.yaml"), "utf8"), before);
+  });
+});
+
+describe("the timeline and calendar API", () => {
+  it("saves the timeline through /api/world", async () => {
+    const root = await world();
+    const api = createEditorApi(root);
+    const { response, json } = capture();
+    await api(
+      post({
+        section: "timeline",
+        values: { chapters: [{ n: 1, title: "Arrival" }, { n: 2, title: "The Storm" }] },
+      }),
+      response,
+      "/api/world",
+    );
+    assert.equal(json().ok, true);
+    const loaded = await loadWorld(root);
+    const record = loaded.data.world.data as { chapters?: Record<string, string> };
+    assert.equal(record.chapters?.["1"], "Arrival");
+    assert.equal(record.chapters?.["2"], "The Storm");
+  });
+
+  it("saves the calendar through /api/world", async () => {
+    const root = await world();
+    const api = createEditorApi(root);
+    const { response, json } = capture();
+    await api(
+      post({
+        section: "calendar",
+        values: {
+          calendar: { months: 13, days_per_month: 28, eras: [{ name: "DR", start: 0 }] },
+        },
+      }),
+      response,
+      "/api/world",
+    );
+    assert.equal(json().ok, true);
+    const loaded = await loadWorld(root);
+    const record = loaded.data.world.data as { calendar?: { months?: number } };
+    assert.equal(record.calendar?.months, 13);
+  });
+
+  it("parses sample dates against a drafted calendar", async () => {
+    const root = await world();
+    const api = createEditorApi(root);
+    const era = capture();
+    await api(
+      post({
+        calendar: { months: ["Hammer", "Alturiak"], eras: [{ name: "AF", start: 1200 }] },
+        input: "AF 15",
+      }),
+      era.response,
+      "/api/calendar/parse",
+    );
+    const parsed = era.json();
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.value.year, 1215);
+    assert.equal(parsed.value.era, "AF");
+    const month = capture();
+    await api(
+      post({ calendar: { months: ["Hammer"] }, input: "3 Hammer 1215" }),
+      month.response,
+      "/api/calendar/parse",
+    );
+    const withMonth = month.json();
+    assert.equal(withMonth.ok, true);
+    assert.equal(withMonth.value.month, 1);
+    assert.equal(withMonth.value.day, 3);
+  });
+
+  it("reports unparseable sample dates without writing", async () => {
+    const root = await world();
+    const before = await readFile(path.join(root, "world.yaml"), "utf8");
+    const api = createEditorApi(root);
+    const { response, json } = capture();
+    await api(post({ calendar: null, input: "sometime soon!!" }), response, "/api/calendar/parse");
+    const res = json();
+    assert.equal(res.ok, false);
+    assert.equal(await readFile(path.join(root, "world.yaml"), "utf8"), before);
   });
 });

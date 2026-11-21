@@ -24,9 +24,15 @@ import {
   resolveWorld,
 } from "../../core/derive.js";
 import { buildIndex } from "../../core/building.js";
-import { compareBounds, compareDates, dateValue, parseDate } from "../../core/dates.js";
+import {
+  compareBounds,
+  compareDates,
+  dateValue,
+  parseDate,
+  tryParseDate,
+} from "../../core/dates.js";
 import { dateFraction, eventDomain, fractionDate } from "../../core/scale.js";
-import type { DateBound, ParsedDate } from "../../core/dates.js";
+import type { CalendarSpec, DateBound, ParsedDate } from "../../core/dates.js";
 import type { ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../../core/model.js";
 import { validateWorld } from "../../core/validate.js";
 import {
@@ -47,8 +53,10 @@ import {
   saveAssetImage,
   saveMapImage,
   writeRecordFields,
+  writeWorldCalendar,
   writeWorldSettings,
   writeWorldTheme,
+  writeWorldTimeline,
   type EditableKind,
 } from "../world-edit.js";
 import { buildWorldSite, exportWorldArtifact } from "./build.js";
@@ -137,6 +145,16 @@ export function createEditorApi(root: string): (
         respond(response, await writeWorldTheme(root, themeValues));
         return;
       }
+      if (body.section === "timeline") {
+        const values = (body.values ?? {}) as Record<string, unknown>;
+        respond(response, await writeWorldTimeline(root, values));
+        return;
+      }
+      if (body.section === "calendar") {
+        const values = (body.values ?? {}) as Record<string, unknown>;
+        respond(response, await writeWorldCalendar(root, values));
+        return;
+      }
       const values = (body.values ?? body) as Record<string, unknown>;
       respond(response, await writeWorldSettings(root, values));
       return;
@@ -166,6 +184,39 @@ export function createEditorApi(root: string): (
       const body = await readJsonBody(request);
       const { theme, warnings } = resolveTheme(body.theme ?? null);
       respond(response, { ok: true, theme, warnings });
+      return;
+    }
+
+    if (url === "/api/calendar/parse" && request.method === "POST") {
+      // The sample-date line in the settings panel: parse a date with
+      // the calendar the creator is drafting, before anything is
+      // saved. Core does the reading - the panel never re-implements
+      // a calendar.
+      const body = await readJsonBody(request);
+      const input = String(body.input ?? "").trim();
+      if (input === "") {
+        respond(response, { ok: true, value: null });
+        return;
+      }
+      const calendar = (body.calendar ?? undefined) as CalendarSpec | undefined;
+      const result = tryParseDate(input, { calendar });
+      if (!result.ok) {
+        respond(response, { ok: false, error: result.error });
+        return;
+      }
+      const date = result.value;
+      respond(response, {
+        ok: true,
+        value: {
+          kind: date.kind,
+          raw: date.raw,
+          year: date.year ?? null,
+          month: date.month ?? null,
+          day: date.day ?? null,
+          era: date.era ?? null,
+          warnings: date.warnings,
+        },
+      });
       return;
     }
 
