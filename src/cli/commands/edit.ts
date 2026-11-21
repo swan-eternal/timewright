@@ -29,6 +29,13 @@ import { dateFraction, eventDomain, fractionDate } from "../../core/scale.js";
 import type { DateBound, ParsedDate } from "../../core/dates.js";
 import type { ResolvedLocation, ResolvedPerson, ResolvedWorld } from "../../core/model.js";
 import { validateWorld } from "../../core/validate.js";
+import {
+  FONT_SHELF,
+  resolveTheme,
+  THEME_FONT_IDS,
+  THEME_PRESETS,
+  THEME_PRESET_IDS,
+} from "../../core/theme.js";
 import { loadWorld, resolveImagePath } from "../load.js";
 import { readJsonBody, startLocalServer } from "../local-server.js";
 import {
@@ -41,6 +48,7 @@ import {
   saveMapImage,
   writeRecordFields,
   writeWorldSettings,
+  writeWorldTheme,
   type EditableKind,
 } from "../world-edit.js";
 import { buildWorldSite, exportWorldArtifact } from "./build.js";
@@ -124,8 +132,40 @@ export function createEditorApi(root: string): (
 
     if (url === "/api/world" && request.method === "POST") {
       const body = await readJsonBody(request);
+      if (body.section === "theme") {
+        const themeValues = (body.values ?? {}) as Record<string, unknown>;
+        respond(response, await writeWorldTheme(root, themeValues));
+        return;
+      }
       const values = (body.values ?? body) as Record<string, unknown>;
       respond(response, await writeWorldSettings(root, values));
+      return;
+    }
+
+    if (url === "/api/theme-shelf" && request.method === "GET") {
+      // The shelf the settings panel picks from: the same data the
+      // build resolves with, so the two can never drift.
+      respond(response, {
+        presets: THEME_PRESET_IDS.map((id) => ({
+          id,
+          fonts: THEME_PRESETS[id]!.fonts,
+          colors: THEME_PRESETS[id]!.colors,
+        })),
+        fonts: THEME_FONT_IDS.map((id) => ({
+          id,
+          family: FONT_SHELF[id]!.family,
+          file: FONT_SHELF[id]!.file ?? "",
+          bodyOk: FONT_SHELF[id]!.bodyOk,
+        })),
+        defaultColors: resolveTheme(null).theme.colors,
+      });
+      return;
+    }
+
+    if (url === "/api/theme/resolve" && request.method === "POST") {
+      const body = await readJsonBody(request);
+      const { theme, warnings } = resolveTheme(body.theme ?? null);
+      respond(response, { ok: true, theme, warnings });
       return;
     }
 
@@ -586,6 +626,7 @@ export async function describe(
       end: rawWorld.end !== undefined ? String(rawWorld.end) : "",
       calendar: rawWorld.calendar ?? "gregorian",
       chapters: rawWorld.chapters ?? null,
+      theme: rawWorld.theme ?? null,
     },
     maps,
     locations,

@@ -42,7 +42,8 @@ describe("the Studio's shape", () => {
 
   it("puts the tabs in the order the work happens", () => {
     const tabs = [...editorHtml.matchAll(/data-tab="([a-z]+)"/g)].map((match) => match[1]);
-    assert.deepEqual(tabs, ["maps", "people", "locations", "events", "world"]);
+    assert.deepEqual(tabs, ["maps", "people", "locations", "events"]);
+    assert.ok(editorHtml.includes('id="settings-btn"'), "world settings should live behind the gear button");
   });
 
   it("counts what is in each tab", () => {

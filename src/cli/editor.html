@@ -118,6 +118,25 @@
       .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); font-weight: 700; }
       .modal-body { padding: 1rem; overflow: auto; flex: 1; }
       #preview-frame { width: 100%; height: 78vh; border: 0; background: var(--bg); }
+      /* The World Settings slide-over */
+      #settings-scrim { position: fixed; inset: 0; z-index: 1900; background: rgba(25,22,18,0.35); }
+      #settings-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1950; width: min(30rem, 94vw); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,0.18); display: flex; flex-direction: column; }
+      #settings-panel .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); font-weight: 700; }
+      #settings-panel .panel-body { flex: 1; overflow: auto; padding: 0.9rem; }
+      .set-section { margin-bottom: 1.2rem; }
+      .set-title { font-size: 0.82rem; font-weight: 700; color: var(--ink); margin: 0 0 0.55rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+      .preset-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.65rem; }
+      .preset-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.26rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; cursor: pointer; font-size: 0.8rem; }
+      .preset-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+      .chip-swatch { display: inline-flex; }
+      .chip-swatch i { width: 0.72rem; height: 0.72rem; border-radius: 2px; display: inline-block; margin-left: -0.16rem; border: 1px solid rgba(0,0,0,0.18); }
+      .color-row { display: grid; grid-template-columns: 1fr auto 5.4rem auto; gap: 0.35rem; align-items: center; margin-bottom: 0.28rem; font-size: 0.8rem; }
+      .color-row label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .color-row input[type="color"] { width: 2.1rem; height: 1.45rem; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; }
+      .color-row input[type="text"] { padding: 0.22rem 0.3rem; border: 1px solid var(--line); border-radius: 5px; font-size: 0.76rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
+      .color-row .override-dot { display: inline-block; width: 0.42rem; height: 0.42rem; border-radius: 50%; background: var(--accent); margin-left: 0.3rem; vertical-align: middle; }
+      .theme-preview { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 0.7rem; }
+      .theme-preview .tp-empty { padding: 0.7rem; font-size: 0.8rem; color: var(--muted); }
       @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 52vh; } aside { border-left: 0; border-top: 1px solid var(--line); } }
     </style>
   </head>
@@ -131,6 +150,7 @@
       <button id="place-evt-btn" class="toolbar-btn" type="button">+ Place Event</button>
       <span class="spacer"></span>
       <span id="status"></span>
+      <button id="settings-btn" class="toolbar-btn" type="button" title="World settings: title, theme, timeline">⚙ Settings</button>
       <button id="preview-btn" class="toolbar-btn" type="button">Preview</button>
       <button id="export-btn" class="toolbar-btn primary" type="button">Export Website</button>
     </header>
@@ -159,7 +179,6 @@
           <button type="button" data-tab="people">People <span class="tab-count" data-count="people"></span></button>
           <button type="button" data-tab="locations">Locations <span class="tab-count" data-count="locations"></span></button>
           <button type="button" data-tab="events">Events <span class="tab-count" data-count="events"></span></button>
-          <button type="button" data-tab="world">World</button>
         </nav>
         <div id="placeholder-callout" hidden>
           <span>This world is still using the placeholder map image.</span>
@@ -222,6 +241,14 @@
       </div>
     </div>
 
+    <div id="settings-scrim" hidden></div>
+    <aside id="settings-panel" hidden aria-label="World settings">
+      <div class="panel-head">
+        <span>World Settings</span>
+        <button type="button" class="icon-btn" id="settings-close" title="Close">✕</button>
+      </div>
+      <div class="panel-body" id="settings-body"><p class="hint">Loading…</p></div>
+    </aside>
     <script src="/leaflet/leaflet.js"></script>
     <script id="studio-script">
       const S = {
@@ -877,11 +904,6 @@
         }
         el("placeholder-callout").hidden = !(S.data.maps || []).some((m) => m.placeholder);
         const listPane = el("list-pane");
-        if (S.tab === "world") {
-          listPane.hidden = true;
-          renderWorldForm();
-          return;
-        }
         listPane.hidden = false;
         const items = S.data[S.tab] || [];
         const q = S.filter.trim().toLowerCase();
@@ -919,11 +941,72 @@
         else if (S.tab === "events") renderEventForm(chosen);
       }
 
-      function renderWorldForm() {
-        const w = S.data.world || {};
-        const wrap = el("form-wrap");
-        wrap.innerHTML = `
-          <form id="world-form">
+      // ----- The World Settings slide-over -----
+      // Basics save straight to world.yaml's flat fields. The theme
+      // section edits the theme block field by field, previewing live
+      // through the same resolver the build uses - the panel never
+      // decides a colour or a font on its own.
+      const THEME = { shelf: null, draft: null, timer: null };
+      const ALL_COLOR_KEYS = ["bg", "panel", "card", "soft", "soft2", "ink", "muted", "line", "accent", "accentInk", "accentSoft", "event", "portal", "mapBg"];
+      const COLOR_GROUPS = [
+        ["Surfaces", ["bg", "panel", "card", "soft", "soft2"]],
+        ["Text", ["ink", "muted", "line"]],
+        ["Accents", ["accent", "accentInk", "accentSoft", "event", "portal"]],
+        ["Map", ["mapBg"]],
+      ];
+      const COLOR_LABELS = {
+        bg: "Page background", panel: "Panels", card: "Cards & inputs", soft: "Soft wash", soft2: "Soft wash 2",
+        ink: "Primary text", muted: "Quiet text", line: "Hairlines",
+        accent: "Accent", accentInk: "Text on accent", accentSoft: "Accent wash", event: "Event markers", portal: "Portal markers",
+        mapBg: "Behind the map",
+      };
+
+      function openSettings() {
+        el("settings-scrim").hidden = false;
+        el("settings-panel").hidden = false;
+        renderSettings();
+      }
+      function closeSettings() {
+        el("settings-scrim").hidden = true;
+        el("settings-panel").hidden = true;
+      }
+
+      async function renderSettings() {
+        const body = el("settings-body");
+        if (!THEME.shelf) {
+          body.innerHTML = '<p class="hint">Loading…</p>';
+          THEME.shelf = await api("/api/theme-shelf");
+          ensureShelfFonts(THEME.shelf.fonts || []);
+        }
+        // The draft always starts from what is on disk, so a panel
+        // closed without saving does not leak into the next opening.
+        THEME.draft = null;
+        body.innerHTML = `
+          <div class="set-section" id="basics-section"></div>
+          <div class="set-section" id="theme-section"></div>
+        `;
+        renderBasicsSection();
+        renderThemeSection();
+      }
+
+      // The preview should show the real faces, so the shelf's woff2
+      // files get font-face rules the first time the panel opens.
+      function ensureShelfFonts(fonts) {
+        if (document.getElementById("shelf-fonts")) return;
+        const style = document.createElement("style");
+        style.id = "shelf-fonts";
+        style.textContent = fonts
+          .filter((f) => f.file)
+          .map((f) => `@font-face{font-family:"${f.family.replace(/"/g, "")}";src:url("/fonts/${f.file}") format("woff2");font-display:block;}`)
+          .join("");
+        document.head.appendChild(style);
+      }
+
+      function renderBasicsSection() {
+        const w = S.data?.world || {};
+        el("basics-section").innerHTML = `
+          <h3 class="set-title">Basics</h3>
+          <form id="settings-basics">
             <label class="field">World / Project Title
               <input name="title" required value="${esc(w.title)}" />
             </label>
@@ -938,18 +1021,282 @@
                 <input name="end" placeholder="e.g. 1900" value="${esc(w.end)}" />
               </label>
             </div>
-            <p class="hint">All edits write directly into your YAML files on disk while keeping comments intact.</p>
             <div class="actions">
-              <button type="submit" class="primary">Save World Settings</button>
+              <button type="submit" class="primary">Save Basics</button>
             </div>
           </form>
         `;
-        wrap.querySelector("#world-form").onsubmit = async (e) => {
+        el("settings-basics").onsubmit = async (e) => {
           e.preventDefault();
           const fd = new FormData(e.target);
           const res = await api("/api/world", { values: Object.fromEntries(fd.entries()) });
-          await refresh(res.message, !res.ok);
+          if (res.ok) {
+            await refresh(res.message);
+            renderBasicsSection();
+          } else {
+            say(res.message, true);
+          }
         };
+      }
+
+      function currentThemeDraft() {
+        const t = S.data?.world?.theme || {};
+        return {
+          preset: t.preset || "",
+          fonts: {
+            heading: (t.fonts && t.fonts.heading) || "default",
+            body: (t.fonts && t.fonts.body) || "default",
+          },
+          colors: { ...((t && t.colors) || {}) },
+        };
+      }
+
+      function presetColors(id) {
+        const p = (THEME.shelf?.presets || []).find((x) => x.id === id);
+        return p ? p.colors : null;
+      }
+
+      function effectiveColor(key) {
+        const base = { ...((THEME.shelf && THEME.shelf.defaultColors) || {}), ...(presetColors(THEME.draft?.preset) || {}) };
+        const own = THEME.draft?.colors?.[key];
+        return typeof own === "string" && own !== "" ? own : base[key] || "#000000";
+      }
+
+      function to6(hex) {
+        const v = String(hex ?? "");
+        const short = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(v);
+        if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+        return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : "#000000";
+      }
+
+      function renderThemeSection() {
+        if (!THEME.draft) THEME.draft = currentThemeDraft();
+        const section = el("theme-section");
+        const presets = (THEME.shelf?.presets) || [];
+        const fonts = (THEME.shelf?.fonts) || [];
+        const chip = (id, name) => {
+          const colors = { ...THEME.shelf.defaultColors, ...(id ? presetColors(id) || {} : {}) };
+          const swatch = ["accent", "bg", "card", "ink"].map((k) => `<i style="background:${esc(colors[k] || "#fff")}"></i>`).join("");
+          return `<button type="button" class="preset-chip${THEME.draft.preset === id ? " on" : ""}" data-preset="${esc(id)}"><span class="chip-swatch">${swatch}</span>${esc(name)}</button>`;
+        };
+        const fontOption = (id, selected) => {
+          const f = fonts.find((x) => x.id === id);
+          return `<option value="${esc(id)}"${id === selected ? " selected" : ""}>${esc(f ? f.family : id)}${f && f.bodyOk === false ? " (headings only)" : ""}</option>`;
+        };
+        const colorRow = (key) => {
+          const eff = effectiveColor(key);
+          const hasOverride = Object.prototype.hasOwnProperty.call(THEME.draft.colors, key);
+          return `
+            <div class="color-row">
+              <label for="tc-${esc(key)}">${esc(COLOR_LABELS[key] || key)}${hasOverride ? '<span class="override-dot" title="override set"></span>' : ""}</label>
+              <input type="color" id="tc-${esc(key)}" data-color-input="${esc(key)}" value="${to6(eff)}" title="Effective colour - from the preset unless overridden" />
+              <input type="text" data-color-hex="${esc(key)}" value="${hasOverride ? esc(String(THEME.draft.colors[key]).toLowerCase()) : ""}" placeholder="${esc(eff)}" spellcheck="false" />
+              <button type="button" class="icon-btn" data-color-reset="${esc(key)}" title="Remove override" ${hasOverride ? "" : "disabled"}>✕</button>
+            </div>`;
+        };
+        const group = ([title, keys]) => `
+          <div class="box">
+            <div class="box-title">${esc(title)}</div>
+            ${keys.map(colorRow).join("")}
+          </div>`;
+        section.innerHTML = `
+          <h3 class="set-title">Theme</h3>
+          <div class="theme-preview" id="theme-preview"><p class="tp-empty">Preview…</p></div>
+          <div class="box">
+            <div class="box-title">Preset</div>
+            <div class="preset-chips">
+              ${chip("", "None")}${presets.map((p) => chip(p.id, p.id)).join("")}
+            </div>
+            <p class="hint" style="margin:0">A preset sets fonts and colours in one word; everything below still overrides it.</p>
+          </div>
+          <div class="box">
+            <div class="box-title">Fonts</div>
+            <label class="field">Headings
+              <select data-font="heading">${fonts.map((f) => fontOption(f.id, THEME.draft.fonts.heading)).join("")}</select>
+            </label>
+            <label class="field">Body
+              <select data-font="body">${fonts.filter((f) => f.bodyOk !== false).map((f) => fontOption(f.id, THEME.draft.fonts.body)).join("")}</select>
+            </label>
+          </div>
+          ${COLOR_GROUPS.map(group).join("")}
+          <p class="hint">All edits write directly into world.yaml while keeping comments intact.</p>
+          <div class="actions">
+            <button type="button" class="primary" id="theme-save">Save Theme</button>
+            <button type="button" id="theme-clear">Remove Theme</button>
+          </div>
+        `;
+        wireThemeEvents(section);
+        scheduleThemePreview(0);
+      }
+
+      function wireThemeEvents(section) {
+        section.querySelectorAll("[data-preset]").forEach((b) => {
+          b.onclick = () => {
+            THEME.draft.preset = b.dataset.preset || "";
+            section.querySelectorAll("[data-preset]").forEach((x) => x.classList.toggle("on", x === b));
+            refreshColorInputs(section);
+            scheduleThemePreview();
+          };
+        });
+        section.querySelectorAll("[data-font]").forEach((sel) => {
+          sel.onchange = () => {
+            THEME.draft.fonts[sel.dataset.font] = sel.value;
+            scheduleThemePreview();
+          };
+        });
+        section.querySelectorAll("[data-color-input]").forEach((inp) => {
+          inp.oninput = () => setColor(section, inp.dataset.colorInput, inp.value);
+        });
+        section.querySelectorAll("[data-color-hex]").forEach((inp) => {
+          inp.onchange = () => {
+            const key = inp.dataset.colorHex;
+            const v = inp.value.trim();
+            if (v === "") {
+              resetColor(section, key);
+              return;
+            }
+            if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) {
+              say(`"${v}" is not a hex colour (e.g. #1f4fa0)`, true);
+              inp.value = Object.prototype.hasOwnProperty.call(THEME.draft.colors, key) ? String(THEME.draft.colors[key]).toLowerCase() : "";
+              return;
+            }
+            setColor(section, key, v);
+          };
+        });
+        section.querySelectorAll("[data-color-reset]").forEach((b) => {
+          b.onclick = () => resetColor(section, b.dataset.colorReset);
+        });
+        section.querySelector("#theme-save").onclick = async () => {
+          const colors = {};
+          for (const key of ALL_COLOR_KEYS) colors[key] = THEME.draft.colors[key] ?? "";
+          const res = await api("/api/world", {
+            section: "theme",
+            values: {
+              preset: THEME.draft.preset || "",
+              fonts: { heading: THEME.draft.fonts.heading, body: THEME.draft.fonts.body },
+              colors,
+            },
+          });
+          if (res.ok) {
+            await refresh(res.message);
+            renderThemeSection();
+          } else {
+            say(res.message, true);
+          }
+        };
+        section.querySelector("#theme-clear").onclick = async (e) => {
+          const btn = e.target;
+          if (btn.dataset.armed !== "1") {
+            btn.dataset.armed = "1";
+            btn.textContent = "Really remove?";
+            setTimeout(() => {
+              btn.dataset.armed = "";
+              btn.textContent = "Remove Theme";
+            }, 2500);
+            return;
+          }
+          const colors = {};
+          for (const key of ALL_COLOR_KEYS) colors[key] = "";
+          const res = await api("/api/world", {
+            section: "theme",
+            values: { preset: "", fonts: { heading: "default", body: "default" }, colors },
+          });
+          THEME.draft = { preset: "", fonts: { heading: "default", body: "default" }, colors: {} };
+          if (res.ok) {
+            await refresh(res.message);
+            renderThemeSection();
+          } else {
+            say(res.message, true);
+          }
+        };
+      }
+
+      function setColor(section, key, value) {
+        THEME.draft.colors[key] = value.toLowerCase();
+        const inp = section.querySelector(`[data-color-input="${key}"]`);
+        if (inp) inp.value = to6(value);
+        const hex = section.querySelector(`[data-color-hex="${key}"]`);
+        if (hex) hex.value = value.toLowerCase();
+        const reset = section.querySelector(`[data-color-reset="${key}"]`);
+        if (reset) reset.disabled = false;
+        const row = inp && inp.closest(".color-row");
+        const label = row && row.querySelector("label");
+        if (label && !label.querySelector(".override-dot")) {
+          label.insertAdjacentHTML("beforeend", '<span class="override-dot"></span>');
+        }
+        scheduleThemePreview();
+      }
+
+      function resetColor(section, key) {
+        delete THEME.draft.colors[key];
+        const inp = section.querySelector(`[data-color-input="${key}"]`);
+        if (inp) inp.value = to6(effectiveColor(key));
+        const hex = section.querySelector(`[data-color-hex="${key}"]`);
+        if (hex) {
+          hex.value = "";
+          hex.placeholder = effectiveColor(key);
+        }
+        const reset = section.querySelector(`[data-color-reset="${key}"]`);
+        if (reset) reset.disabled = true;
+        const row = inp && inp.closest(".color-row");
+        const dot = row && row.querySelector("label .override-dot");
+        if (dot) dot.remove();
+        scheduleThemePreview();
+      }
+
+      function refreshColorInputs(section) {
+        section.querySelectorAll("[data-color-input]").forEach((inp) => {
+          const key = inp.dataset.colorInput;
+          if (!Object.prototype.hasOwnProperty.call(THEME.draft.colors, key)) {
+            inp.value = to6(effectiveColor(key));
+            const hex = section.querySelector(`[data-color-hex="${key}"]`);
+            if (hex) hex.placeholder = effectiveColor(key);
+          }
+        });
+      }
+
+      function themeDraftForResolve() {
+        const d = THEME.draft;
+        const out = {};
+        if (d.preset) out.preset = d.preset;
+        const fonts = {};
+        if (d.fonts.heading !== "default") fonts.heading = d.fonts.heading;
+        if (d.fonts.body !== "default") fonts.body = d.fonts.body;
+        if (Object.keys(fonts).length > 0) out.fonts = fonts;
+        if (Object.keys(d.colors).length > 0) out.colors = { ...d.colors };
+        return out;
+      }
+
+      function scheduleThemePreview(delay = 200) {
+        clearTimeout(THEME.timer);
+        THEME.timer = setTimeout(async () => {
+          const res = await api("/api/theme/resolve", { theme: themeDraftForResolve() });
+          if (res && res.theme) paintThemePreview(res.theme);
+        }, delay);
+      }
+
+      function paintThemePreview(t) {
+        const p = el("theme-preview");
+        if (!p) return;
+        const face = (choice) => `${choice.family.includes(" ") ? `"${choice.family}"` : choice.family}, ${choice.fallback}`;
+        p.innerHTML = `
+          <div style="background:${t.colors.bg};padding:0.7rem 0.75rem">
+            <div style="background:${t.colors.panel};border:1px solid ${t.colors.line};border-radius:7px;padding:0.55rem 0.6rem">
+              <div style="font-family:${face(t.fonts.heading)};font-size:1.05rem;font-weight:700;color:${t.colors.ink};line-height:1.25">The Storm Breaks</div>
+              <div style="font-family:${face(t.fonts.body)};font-size:0.8rem;color:${t.colors.muted};margin-top:0.18rem">Chapter 2 — the fleet reaches the strait.</div>
+              <div style="margin-top:0.5rem;display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+                <span style="background:${t.colors.accent};color:${t.colors.accentInk};border-radius:5px;padding:0.18rem 0.6rem;font-size:0.76rem;font-weight:600;font-family:${face(t.fonts.body)}">Go to date</span>
+                <span title="event" style="display:inline-block;width:0.62rem;height:0.62rem;border-radius:2px;transform:rotate(45deg);background:${t.colors.event}"></span>
+                <span title="portal" style="display:inline-block;width:0.62rem;height:0.62rem;border-radius:50%;background:${t.colors.portal}"></span>
+                <span style="background:${t.colors.accentSoft};color:${t.colors.ink};border-radius:999px;padding:0.12rem 0.5rem;font-size:0.74rem;font-family:${face(t.fonts.body)}">#sea</span>
+              </div>
+              <div style="margin-top:0.5rem;background:${t.colors.soft};border-radius:5px;padding:0.3rem 0.45rem;font-family:${face(t.fonts.body)};font-size:0.76rem;color:${t.colors.ink}">A quiet wash, for hovers and chips.</div>
+            </div>
+            <div style="margin-top:0.45rem;background:${t.colors.mapBg};border-radius:7px;height:2.4rem;position:relative">
+              <span style="position:absolute;left:9%;top:42%;width:0.55rem;height:0.55rem;border-radius:50%;background:${t.colors.accent};border:2px solid ${t.colors.card}"></span>
+              <span style="position:absolute;left:58%;top:22%;width:0.5rem;height:0.5rem;border-radius:2px;transform:rotate(45deg);background:${t.colors.event};border:2px solid ${t.colors.card}"></span>
+            </div>
+          </div>`;
       }
 
       function renderMapForm(m) {
@@ -1591,6 +1938,12 @@
           renderMapCanvas(true);
         };
         el("new-map-btn").onclick = () => createNewMapPrompt(S.mapId || "", "");
+        el("settings-btn").onclick = () => openSettings();
+        el("settings-close").onclick = () => closeSettings();
+        el("settings-scrim").onclick = () => closeSettings();
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && !el("settings-panel").hidden) closeSettings();
+        });
         el("place-loc-btn").onclick = () => setPlacing("location");
         el("place-evt-btn").onclick = () => setPlacing("event");
         el("new-record-btn").onclick = () => handleNewRecord();
