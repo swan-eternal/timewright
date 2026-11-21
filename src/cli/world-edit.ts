@@ -507,6 +507,199 @@ export async function writeWorldTheme(
   return { ok: true, message: "saved theme", file: resolved };
 }
 
+/**
+ * Set the world's timeline axis. Chapters mode writes the chapters
+ * block; date mode clears it. Event `when` values are never touched -
+ * a number means whichever axis the world counts, so switching is a
+ * relabel, not a rewrite.
+ */
+export async function writeWorldTimeline(
+  root: string,
+  values: Record<string, unknown>,
+): Promise<EditResult> {
+  const worldFile =
+    (await findFirst(root, ["world.yaml", "world.yml"])) ?? path.join(root, "world.yaml");
+  const resolved = resolveWithinWorld(root, worldFile);
+  if (resolved === undefined) {
+    return { ok: false, message: "world.yaml is outside the world folder" };
+  }
+
+  const rows = Array.isArray(values.chapters) ? values.chapters : [];
+  const chapters: { n: number; title: string }[] = [];
+  const seen = new Set<number>();
+  for (const entry of rows) {
+    const row = (entry ?? {}) as Record<string, unknown>;
+    const n = Number(row.n);
+    const title = String(row.title ?? "").trim();
+    if (!Number.isInteger(n)) {
+      return {
+        ok: false,
+        message: `chapter number "${String(row.n ?? "")}" is not a whole number`,
+      };
+    }
+    if (title === "") {
+      return { ok: false, message: `chapter ${n} needs a title` };
+    }
+    if (seen.has(n)) {
+      return { ok: false, message: `chapter ${n} is listed twice` };
+    }
+    seen.add(n);
+    chapters.push({ n, title });
+  }
+  chapters.sort((a, b) => a.n - b.n);
+
+  const text = existsSync(resolved) ? await readFile(resolved, "utf8") : "title: My World\n";
+  const document = parseDocument(text);
+  document.deleteIn(["chapters"]);
+  if (chapters.length > 0) {
+    // A Map keeps the numbers numeric as YAML keys, in sorted order.
+    document.setIn(["chapters"], new Map(chapters.map(({ n, title }) => [n, title])));
+  }
+
+  await writeFile(resolved, documentText(document), "utf8");
+  return {
+    ok: true,
+    message:
+      chapters.length > 0 ? `saved ${chapters.length} chapters` : "cleared the chapter list",
+    file: resolved,
+  };
+}
+
+/**
+ * Write the calendar block, or clear it back to gregorian. The shape
+ * is exactly the format doc's: months as names or a count, one days
+ * count or one per month, and eras anchoring their year 0 - an era
+ * named AF starting at 1200 makes "AF 15" the absolute year 1215.
+ */
+export async function writeWorldCalendar(
+  root: string,
+  values: Record<string, unknown>,
+): Promise<EditResult> {
+  const worldFile =
+    (await findFirst(root, ["world.yaml", "world.yml"])) ?? path.join(root, "world.yaml");
+  const resolved = resolveWithinWorld(root, worldFile);
+  if (resolved === undefined) {
+    return { ok: false, message: "world.yaml is outside the world folder" };
+  }
+
+  const raw = "calendar" in values ? values.calendar : null;
+  const text = existsSync(resolved) ? await readFile(resolved, "utf8") : "title: My World\n";
+  const document = parseDocument(text);
+
+  if (raw === null || raw === undefined || raw === "" || raw === "gregorian") {
+    document.deleteIn(["calendar"]);
+    await writeFile(resolved, documentText(document), "utf8");
+    return { ok: true, message: "cleared the calendar (back to gregorian)", file: resolved };
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, message: "the calendar must be a calendar object, or empty for gregorian" };
+  }
+  const spec = raw as Record<string, unknown>;
+
+  // Months: a list of names, or a count of unnamed months.
+  let monthCount = 0;
+  let monthNames: string[] | undefined;
+  if (spec.months !== undefined && spec.months !== null && spec.months !== "") {
+    if (typeof spec.months === "number") {
+      if (!Number.isInteger(spec.months) || spec.months < 1 || spec.months > 36) {
+        return { ok: false, message: "months must be a whole number between 1 and 36" };
+      }
+      monthCount = spec.months;
+    } else if (Array.isArray(spec.months)) {
+      monthNames = spec.months.map((name) => String(name ?? "").trim());
+      if (monthNames.length === 0) {
+        return { ok: false, message: "a custom calendar needs at least one month" };
+      }
+      for (let i = 0; i < monthNames.length; i++) {
+        const name = monthNames[i]!;
+        if (name === "") {
+          return { ok: false, message: `month ${i + 1} needs a name` };
+        }
+        if (monthNames.slice(0, i).some((other) => other.toLowerCase() === name.toLowerCase())) {
+          return { ok: false, message: `month "${name}" is listed twice` };
+        }
+      }
+      monthCount = monthNames.length;
+    } else {
+      return { ok: false, message: "months must be a list of names, or a count" };
+    }
+  }
+
+  // Days per month: one count, or one count per month.
+  if (spec.days_per_month !== undefined && spec.days_per_month !== null && spec.days_per_month !== "") {
+    const days = spec.days_per_month;
+    if (typeof days === "number") {
+      if (!Number.isInteger(days) || days < 1) {
+        return { ok: false, message: "days per month must be a whole number of 1 or more" };
+      }
+    } else if (Array.isArray(days)) {
+      for (const day of days) {
+        if (!Number.isInteger(Number(day)) || Number(day) < 1) {
+          return { ok: false, message: "days per month must be whole numbers of 1 or more" };
+        }
+      }
+      if (monthCount > 0 && days.length !== monthCount) {
+        return {
+          ok: false,
+          message: `days per month lists ${days.length} months, but the calendar has ${monthCount}`,
+        };
+      }
+    } else {
+      return { ok: false, message: "days per month must be a number, or a list with one per month" };
+    }
+  }
+
+  // Eras: a name to write beside the year, anchored at its start year.
+  const eraRows = Array.isArray(spec.eras) ? spec.eras : [];
+  const eras: { name: string; start: number }[] = [];
+  const eraNames = new Set<string>();
+  for (const entry of eraRows) {
+    const era = (entry ?? {}) as Record<string, unknown>;
+    const name = String(era.name ?? "").trim();
+    const start = Number(era.start);
+    if (name === "") {
+      return { ok: false, message: "every era needs a name" };
+    }
+    if (eraNames.has(name.toLowerCase())) {
+      return { ok: false, message: `era "${name}" is listed twice` };
+    }
+    if (!Number.isInteger(start)) {
+      return { ok: false, message: `era "${name}" needs a whole-number start year` };
+    }
+    eraNames.add(name.toLowerCase());
+    eras.push({ name, start });
+  }
+
+  const hasDays =
+    (typeof spec.days_per_month === "number" && spec.days_per_month >= 1) ||
+    (Array.isArray(spec.days_per_month) && spec.days_per_month.length > 0);
+  if (monthCount === 0 && !hasDays && eras.length === 0) {
+    return {
+      ok: false,
+      message:
+        "a custom calendar needs months, days per month, or eras - untick Custom for gregorian",
+    };
+  }
+
+  document.deleteIn(["calendar"]);
+  if (monthNames !== undefined) {
+    document.setIn(["calendar", "months"], monthNames);
+  } else if (monthCount > 0) {
+    document.setIn(["calendar", "months"], monthCount);
+  }
+  if (typeof spec.days_per_month === "number") {
+    document.setIn(["calendar", "days_per_month"], spec.days_per_month);
+  } else if (Array.isArray(spec.days_per_month)) {
+    document.setIn(["calendar", "days_per_month"], spec.days_per_month.map(Number));
+  }
+  if (eras.length > 0) {
+    document.setIn(["calendar", "eras"], eras);
+  }
+
+  await writeFile(resolved, documentText(document), "utf8");
+  return { ok: true, message: "saved calendar", file: resolved };
+}
+
 /** Set fields on an existing record in place. */
 export async function writeRecordFields(
   root: string,

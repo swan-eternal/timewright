@@ -123,6 +123,15 @@
       #settings-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1950; width: min(30rem, 94vw); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,0.18); display: flex; flex-direction: column; }
       #settings-panel .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); font-weight: 700; }
       #settings-panel .panel-body { flex: 1; overflow: auto; padding: 0.9rem; }
+      #settings-panel .seg { display: flex; gap: 0.3rem; margin: 0.4rem 0 0.6rem; }
+      #settings-panel .seg-btn { flex: 1; padding: 0.4rem 0.5rem; border: 1px solid var(--line); background: var(--card); border-radius: 6px; cursor: pointer; font: inherit; color: inherit; }
+      #settings-panel .seg-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accentInk); font-weight: 700; }
+      #settings-panel .axis-row { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 0.35rem; margin-bottom: 0.35rem; align-items: center; }
+      #settings-panel .era-row { grid-template-columns: 1fr 5.5rem auto; }
+      #settings-panel .check { display: flex; gap: 0.45rem; align-items: center; margin: 0.4rem 0 0.6rem; }
+      #settings-panel .dim { opacity: 0.45; pointer-events: none; }
+      #settings-panel .sample-out.bad { color: #b3261e; }
+      #settings-panel .sample-out:not(.bad):not(:empty) { color: var(--accent); }
       .set-section { margin-bottom: 1.2rem; }
       .set-title { font-size: 0.82rem; font-weight: 700; color: var(--ink); margin: 0 0 0.55rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
       .preset-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.65rem; }
@@ -981,11 +990,17 @@
         // The draft always starts from what is on disk, so a panel
         // closed without saving does not leak into the next opening.
         THEME.draft = null;
+        resetAxisDraft();
+        resetCalDraft();
         body.innerHTML = `
           <div class="set-section" id="basics-section"></div>
+          <div class="set-section" id="timeline-section"></div>
+          <div class="set-section" id="calendar-section"></div>
           <div class="set-section" id="theme-section"></div>
         `;
         renderBasicsSection();
+        renderTimelineSection();
+        renderCalendarSection();
         renderThemeSection();
       }
 
@@ -1037,6 +1052,323 @@
             say(res.message, true);
           }
         };
+      }
+
+      // ----- Timeline axis: dates or chapters -----
+      // The axis drafts like the theme does: mode and rows edit
+      // locally, save writes them, and a panel closed without saving
+      // leaves the world exactly as it was.
+      const AXIS = { mode: "dates", rows: [] };
+      const CAL = { custom: false, months: "", days: "", eras: [], sample: "", timer: null };
+
+      function resetAxisDraft() {
+        const w = S.data?.world || {};
+        const chapters = w.chapters && typeof w.chapters === "object" ? w.chapters : null;
+        AXIS.mode = chapters && Object.keys(chapters).length > 0 ? "chapters" : "dates";
+        AXIS.rows = Object.entries(chapters ?? {})
+          .map(([n, title]) => ({ n: Number(n), title: String(title ?? "") }))
+          .sort((a, b) => a.n - b.n);
+      }
+
+      function resetCalDraft() {
+        const cal = S.data?.world?.calendar;
+        CAL.custom =
+          cal !== null && cal !== undefined && cal !== "gregorian" && typeof cal === "object";
+        CAL.months = Array.isArray(cal?.months)
+          ? cal.months.join(", ")
+          : typeof cal?.months === "number"
+            ? String(cal.months)
+            : "";
+        CAL.days = Array.isArray(cal?.days_per_month)
+          ? cal.days_per_month.join(", ")
+          : typeof cal?.days_per_month === "number"
+            ? String(cal.days_per_month)
+            : "";
+        CAL.eras = Array.isArray(cal?.eras)
+          ? cal.eras.map((era) => ({ name: String(era?.name ?? ""), start: era?.start ?? "" }))
+          : [];
+        CAL.sample = "";
+      }
+
+      // Calendar dates carry a month name or a day-month-year shape;
+      // bare numbers read fine as either axis.
+      function datedEventCount() {
+        return (S.data?.events ?? []).filter((e) => {
+          const when = String(e.when ?? "");
+          return /[A-Za-z]/.test(when) || /\d\s*-\s*\d/.test(when);
+        }).length;
+      }
+
+      function renderTimelineSection() {
+        el("timeline-section").innerHTML = `
+          <h3 class="set-title">Timeline</h3>
+          <p class="hint">How this world counts time. Events keep their numbers either way — a bare number reads as a year or a chapter, whichever axis is on.</p>
+          <div class="seg" role="group" aria-label="Timeline type">
+            <button type="button" class="seg-btn${AXIS.mode === "dates" ? " on" : ""}" data-axis="dates">Dates</button>
+            <button type="button" class="seg-btn${AXIS.mode === "chapters" ? " on" : ""}" data-axis="chapters">Chapters</button>
+          </div>
+          <div id="chapter-list" ${AXIS.mode === "dates" ? "hidden" : ""}>
+            ${AXIS.rows.map((row, i) => chapterRowHtml(row, i)).join("")}
+            <button type="button" id="chapter-add">+ Add chapter</button>
+          </div>
+          <div class="actions">
+            <button type="button" id="axis-save" class="primary">Save Timeline</button>
+          </div>
+        `;
+        wireTimelineEvents();
+      }
+
+      function chapterRowHtml(row, i) {
+        return `
+          <div class="axis-row" data-row="${i}">
+            <input data-ch-n type="number" step="1" value="${row.n}" aria-label="Chapter number" />
+            <input data-ch-title value="${esc(row.title)}" placeholder="Chapter title" />
+            <button type="button" class="icon-btn" data-ch-del title="Remove chapter">✕</button>
+          </div>
+        `;
+      }
+
+      function wireTimelineEvents() {
+        const section = el("timeline-section");
+        section.querySelectorAll("[data-axis]").forEach((btn) => {
+          btn.onclick = () => switchAxis(btn.dataset.axis);
+        });
+        section.querySelectorAll("[data-ch-n]").forEach((inp) => {
+          inp.oninput = () => {
+            const row = AXIS.rows[Number(inp.closest("[data-row]").dataset.row)];
+            if (row) row.n = Number(inp.value);
+          };
+        });
+        section.querySelectorAll("[data-ch-title]").forEach((inp) => {
+          inp.oninput = () => {
+            const row = AXIS.rows[Number(inp.closest("[data-row]").dataset.row)];
+            if (row) row.title = inp.value;
+          };
+        });
+        section.querySelectorAll("[data-ch-del]").forEach((btn) => {
+          btn.onclick = () => {
+            AXIS.rows.splice(Number(btn.closest("[data-row]").dataset.row), 1);
+            renderTimelineSection();
+          };
+        });
+        const add = section.querySelector("#chapter-add");
+        if (add) {
+          add.onclick = () => {
+            const next = AXIS.rows.reduce((max, row) => Math.max(max, row.n), 0) + 1;
+            AXIS.rows.push({ n: next, title: "" });
+            renderTimelineSection();
+            const last = el("timeline-section").querySelector(
+              "[data-row]:last-of-type [data-ch-title]",
+            );
+            if (last) last.focus();
+          };
+        }
+        section.querySelector("#axis-save").onclick = async () => {
+          const res = await api("/api/world", {
+            section: "timeline",
+            values: { chapters: AXIS.mode === "dates" ? [] : AXIS.rows },
+          });
+          if (res.ok) {
+            await refresh(res.message);
+            resetAxisDraft();
+            renderTimelineSection();
+            renderCalendarSection();
+          } else {
+            say(res.message, true);
+          }
+        };
+      }
+
+      function switchAxis(mode) {
+        if (mode === AXIS.mode) return;
+        if (mode === "chapters") {
+          const dated = datedEventCount();
+          if (
+            dated > 0 &&
+            !confirm(
+              `This world has ${dated} event${dated === 1 ? "" : "s"} with calendar dates (like "1815-10-21" or "October 1815"). In a chapter world a date stops reading as a date — the issues bar will flag each one after saving. Switch to chapters anyway?`,
+            )
+          ) {
+            return;
+          }
+        } else {
+          const titled = AXIS.rows.filter((row) => String(row.title).trim() !== "").length;
+          if (
+            titled > 0 &&
+            !confirm(
+              `Switch to dates and remove the ${titled} chapter title${titled === 1 ? "" : "s"} from world.yaml? Events keep their numbers — they will read as years.`,
+            )
+          ) {
+            return;
+          }
+        }
+        AXIS.mode = mode;
+        renderTimelineSection();
+        renderCalendarSection();
+      }
+
+      function renderCalendarSection() {
+        const dimmed = AXIS.mode === "chapters";
+        el("calendar-section").innerHTML = `
+          <h3 class="set-title">Calendar</h3>
+          ${dimmed ? '<p class="hint">Chapters and calendars are one axis or the other — switch the timeline back to dates to edit the calendar.</p>' : ""}
+          <div class="${dimmed ? "dim" : ""}">
+            <label class="check">
+              <input type="checkbox" id="cal-custom" ${CAL.custom ? "checked" : ""} />
+              Custom calendar — months, days, eras
+            </label>
+            <div id="cal-fields" ${CAL.custom ? "" : "hidden"}>
+              <label class="field">Months
+                <input id="cal-months" value="${esc(CAL.months)}" placeholder="Hammer, Alturiak, Ches — or a count like 13" />
+                <span class="hint">Comma-separated names, or one number for unnamed months.</span>
+              </label>
+              <label class="field">Days per month
+                <input id="cal-days" value="${esc(CAL.days)}" placeholder="30 — or one per month: 31, 30, 30" />
+              </label>
+              <div class="field">Eras
+                ${CAL.eras.map((era, i) => eraRowHtml(era, i)).join("")}
+                <button type="button" id="era-add">+ Add era</button>
+                <span class="hint">An era named AF starting at 1200 makes “AF 15” the absolute year 1215.</span>
+              </div>
+              <label class="field">Try a date
+                <input id="cal-sample" value="${esc(CAL.sample)}" placeholder="e.g. 3 Hammer 1215, or AF 15" />
+              </label>
+              <div id="cal-sample-out" class="hint sample-out"></div>
+            </div>
+            <div class="actions">
+              <button type="button" id="cal-save" class="primary">Save Calendar</button>
+            </div>
+          </div>
+        `;
+        wireCalendarEvents();
+        scheduleCalSample(0);
+      }
+
+      function eraRowHtml(era, i) {
+        return `
+          <div class="axis-row era-row" data-era="${i}">
+            <input data-era-name value="${esc(era.name)}" placeholder="AF" aria-label="Era name" />
+            <input data-era-start type="number" step="1" value="${era.start}" placeholder="1200" aria-label="Era start year" />
+            <button type="button" class="icon-btn" data-era-del title="Remove era">✕</button>
+          </div>
+        `;
+      }
+
+      function wireCalendarEvents() {
+        const section = el("calendar-section");
+        const custom = section.querySelector("#cal-custom");
+        if (custom) {
+          custom.onchange = () => {
+            CAL.custom = custom.checked;
+            renderCalendarSection();
+          };
+        }
+        const months = section.querySelector("#cal-months");
+        if (months) months.oninput = () => { CAL.months = months.value; scheduleCalSample(); };
+        const days = section.querySelector("#cal-days");
+        if (days) days.oninput = () => { CAL.days = days.value; scheduleCalSample(); };
+        section.querySelectorAll("[data-era-name]").forEach((inp) => {
+          inp.oninput = () => {
+            const era = CAL.eras[Number(inp.closest("[data-era]").dataset.era)];
+            if (era) era.name = inp.value;
+            scheduleCalSample();
+          };
+        });
+        section.querySelectorAll("[data-era-start]").forEach((inp) => {
+          inp.oninput = () => {
+            const era = CAL.eras[Number(inp.closest("[data-era]").dataset.era)];
+            if (era) era.start = inp.value;
+            scheduleCalSample();
+          };
+        });
+        section.querySelectorAll("[data-era-del]").forEach((btn) => {
+          btn.onclick = () => {
+            CAL.eras.splice(Number(btn.closest("[data-era]").dataset.era), 1);
+            renderCalendarSection();
+          };
+        });
+        const addEra = section.querySelector("#era-add");
+        if (addEra) {
+          addEra.onclick = () => {
+            CAL.eras.push({ name: "", start: "" });
+            renderCalendarSection();
+            const last = el("calendar-section").querySelector("[data-era]:last-of-type [data-era-name]");
+            if (last) last.focus();
+          };
+        }
+        const sample = section.querySelector("#cal-sample");
+        if (sample) sample.oninput = () => { CAL.sample = sample.value; scheduleCalSample(); };
+        section.querySelector("#cal-save").onclick = async () => {
+          const res = await api("/api/world", {
+            section: "calendar",
+            values: { calendar: calendarDraft() },
+          });
+          if (res.ok) {
+            await refresh(res.message);
+            resetCalDraft();
+            renderCalendarSection();
+          } else {
+            say(res.message, true);
+          }
+        };
+      }
+
+      function calendarDraft() {
+        if (!CAL.custom) return null;
+        const cal = {};
+        const months = CAL.months.trim();
+        if (months !== "") {
+          if (/^\d+$/.test(months)) cal.months = Number(months);
+          else cal.months = months.split(",").map((s) => s.trim()).filter((s) => s !== "");
+        }
+        const days = CAL.days.trim();
+        if (days !== "") {
+          if (days.includes(",")) cal.days_per_month = days.split(",").map((s) => Number(s.trim()));
+          else cal.days_per_month = Number(days);
+        }
+        const eras = CAL.eras
+          .filter((era) => String(era.name).trim() !== "" || String(era.start).trim() !== "")
+          .map((era) => ({ name: String(era.name).trim(), start: Number(era.start) }));
+        if (eras.length > 0) cal.eras = eras;
+        return cal;
+      }
+
+      function scheduleCalSample(delay = 250) {
+        clearTimeout(CAL.timer);
+        CAL.timer = setTimeout(runCalSample, delay);
+      }
+
+      async function runCalSample() {
+        const out = el("cal-sample-out");
+        if (!out) return;
+        const input = CAL.sample.trim();
+        if (input === "") {
+          out.textContent = "";
+          return;
+        }
+        const res = await api("/api/calendar/parse", {
+          calendar: CAL.custom ? calendarDraft() : null,
+          input,
+        });
+        if (!res.ok) {
+          out.textContent = "✗ " + (res.error ?? "could not read that date");
+          out.classList.add("bad");
+          return;
+        }
+        out.classList.remove("bad");
+        const v = res.value;
+        if (!v) {
+          out.textContent = "";
+          return;
+        }
+        const bits = [];
+        if (v.year !== null && v.year !== undefined) bits.push(`absolute year ${v.year}`);
+        if (v.month !== null && v.month !== undefined) bits.push(`month ${v.month}`);
+        if (v.day !== null && v.day !== undefined) bits.push(`day ${v.day}`);
+        if (v.era) bits.push(`era ${v.era}`);
+        bits.push(v.kind);
+        out.textContent =
+          "✓ " + bits.join(" · ") + (v.warnings && v.warnings.length ? " — " + v.warnings.join("; ") : "");
       }
 
       function currentThemeDraft() {
