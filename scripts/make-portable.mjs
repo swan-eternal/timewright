@@ -122,6 +122,9 @@ const readmeTxt = [
   "",
   "Nothing was installed on your computer. To remove",
   "Timewright, delete this folder.",
+  "",
+  "This folder bundles Node.js and open-source libraries; their",
+  "licenses are in runtime/ and node_modules/.",
 ].join("\r\n");
 await writeFile(path.join(stage, "Readme.txt"), readmeTxt, "utf8");
 
@@ -133,18 +136,24 @@ await writeFile(path.join(stage, "package.json"), `${JSON.stringify(stagePkg, nu
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 run(npm, ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: stage });
 
-// 6. Pull node.exe out of the official archive via the filesystem: piping
+// 6. Pull node.exe (and its license) out of the official archive via the filesystem: piping
 //    ~80 MB through a child's stdout hits execFileSync's 1 MB default
 //    maxBuffer, so it is extracted to disk and moved into place instead.
 const extractDir = path.join(outDir, ".node-extract");
 rmSync(extractDir, { recursive: true, force: true });
 const innerPath = `node-${nodeVersion}-win-x64/node.exe`;
-run("unzip", ["-o", "-q", nodeZip, innerPath, "-d", extractDir]);
+const licensePath = `node-${nodeVersion}-win-x64/LICENSE`;
+run("unzip", ["-o", "-q", nodeZip, innerPath, licensePath, "-d", extractDir]);
 const extracted = path.join(extractDir, innerPath);
 if (!existsSync(extracted)) {
   throw new Error(`could not extract ${innerPath} from ${nodeZip}`);
 }
 await rename(extracted, path.join(stage, "runtime", "node.exe"));
+// Node's own license travels with the binary that ships in the ZIP.
+const extractedLicense = path.join(extractDir, licensePath);
+if (existsSync(extractedLicense)) {
+  await rename(extractedLicense, path.join(stage, "runtime", "node-LICENSE.txt"));
+}
 rmSync(extractDir, { recursive: true, force: true });
 
 // 7. Sanity: the pieces a tester cannot fix themselves.
