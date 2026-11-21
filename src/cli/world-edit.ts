@@ -417,6 +417,96 @@ export async function writeWorldSettings(
   return { ok: true, message: "saved world settings", file: resolved };
 }
 
+/**
+ * Set the world's theme block. Only the fields present are touched:
+ * a value writes, an empty value removes the key, and a theme left
+ * with nothing in it disappears - an unthemed world stays unthemed.
+ */
+/**
+ * Delete a key under theme, tolerating blocks that are not there: the
+ * yaml library throws when a delete path walks through a key that is
+ * merely missing, and clearing an absent theme must stay a no-op.
+ */
+function deleteUnderTheme(
+  document: ReturnType<typeof parseDocument>,
+  ...rest: string[]
+): void {
+  try {
+    document.deleteIn(["theme", ...rest]);
+  } catch {
+    // A parent that is not a collection: nothing to delete.
+  }
+}
+
+export async function writeWorldTheme(
+  root: string,
+  values: Record<string, unknown>,
+): Promise<EditResult> {
+  const worldFile =
+    (await findFirst(root, ["world.yaml", "world.yml"])) ?? path.join(root, "world.yaml");
+  const resolved = resolveWithinWorld(root, worldFile);
+  if (resolved === undefined) {
+    return { ok: false, message: "world.yaml is outside the world folder" };
+  }
+  const text = existsSync(resolved) ? await readFile(resolved, "utf8") : "title: My World\n";
+  const document = parseDocument(text);
+
+  if ("preset" in values) {
+    const preset = String(values.preset ?? "").trim();
+    if (preset === "") {
+      deleteUnderTheme(document, "preset");
+    } else {
+      document.setIn(["theme", "preset"], preset);
+    }
+  }
+
+  const fonts = (values.fonts ?? {}) as Record<string, unknown>;
+  for (const role of ["heading", "body"] as const) {
+    if (!(role in fonts)) {
+      continue;
+    }
+    const value = String(fonts[role] ?? "").trim();
+    // "default" is the shelf's own name for no override.
+    if (value === "" || value === "default") {
+      deleteUnderTheme(document, "fonts", role);
+    } else {
+      document.setIn(["theme", "fonts", role], value);
+    }
+  }
+
+  const colors = (values.colors ?? {}) as Record<string, unknown>;
+  for (const [key, raw] of Object.entries(colors)) {
+    const value = String(raw ?? "").trim();
+    if (value === "") {
+      deleteUnderTheme(document, "colors", key);
+      continue;
+    }
+    if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) {
+      return { ok: false, message: `theme color "${key}" is not a hex color (e.g. #1f4fa0)` };
+    }
+    document.setIn(["theme", "colors", key], value);
+  }
+
+  // Blocks and the theme itself disappear when nothing is left in them.
+  const plain = (document.toJS() ?? {}) as Record<string, unknown>;
+  const theme = plain.theme as Record<string, unknown> | undefined;
+  if (theme !== undefined) {
+    for (const block of ["fonts", "colors"] as const) {
+      const value = theme[block];
+      if (value !== null && typeof value === "object" && Object.keys(value).length === 0) {
+        deleteUnderTheme(document, block);
+        delete theme[block];
+      }
+    }
+    if (Object.keys(theme).length === 0) {
+      deleteUnderTheme(document);
+    }
+  }
+
+  await writeFile(resolved, documentText(document), "utf8");
+  return { ok: true, message: "saved theme", file: resolved };
+}
+
 /** Set fields on an existing record in place. */
 export async function writeRecordFields(
   root: string,

@@ -7,11 +7,14 @@
  * It binds to 127.0.0.1 and is never deployed.
  */
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+
+import { packageDir } from "./paths.js";
 
 export interface LocalServerOptions {
   /** The world folder, for the tools' own use. */
@@ -135,6 +138,26 @@ export async function startLocalServer(options: LocalServerOptions): Promise<Loc
       if (url === "/leaflet/leaflet.css") {
         response.setHeader("Content-Type", "text/css; charset=utf-8");
         response.end(await readFile(path.join(leafletDir, "leaflet.css")));
+        return;
+      }
+      if (url.startsWith("/fonts/")) {
+        // Only woff2 basenames from the package fonts dir: no decoded
+        // traversal can survive that shape.
+        const name = url.slice("/fonts/".length);
+        if (!/^[\w.-]+\.woff2$/.test(name)) {
+          response.statusCode = 404;
+          response.end("not found");
+          return;
+        }
+        const file = packageDir(path.join("fonts", name));
+        if (!existsSync(file)) {
+          response.statusCode = 404;
+          response.end("not found");
+          return;
+        }
+        response.setHeader("Cache-Control", "max-age=86400");
+        response.setHeader("Content-Type", "font/woff2");
+        response.end(await readFile(file));
         return;
       }
       if (url.startsWith("/api/image/")) {
