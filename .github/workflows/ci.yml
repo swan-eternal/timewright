@@ -28,3 +28,22 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node dist/cli/index.js --help
+
+  portable-mac:
+    # The mac ZIP is the packaging path CI cannot check by inspection:
+    # a real macOS runner extracts the archive we ship and runs the
+    # bundled Node against the compiled CLI.
+    name: portable mac smoke
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/make-portable.mjs --platform mac-arm64 --out release
+      - name: The bundled node must run the CLI from inside the ZIP
+        run: |
+          unzip -q release/timewright-portable-mac-arm64-*.zip -d smoke
+          smoke/Timewright/runtime/node smoke/Timewright/dist/cli/index.js --help
