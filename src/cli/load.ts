@@ -253,6 +253,18 @@ async function resolveImage(
   ].filter((candidate) => isInside(root, candidate));
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
+      // existsSync proving a file is there does not prove its name is
+      // spelled the way the world spells it: macOS and Windows resolve
+      // case-insensitively, and a wrong-case reference must be reported
+      // (and answered with the name on disk) on every platform alike.
+      const entries = await readdir(path.dirname(candidate));
+      const wanted = path.basename(candidate);
+      if (!entries.includes(wanted)) {
+        const match = entries.find((entry) => entry.toLowerCase() === wanted.toLowerCase());
+        if (match !== undefined) {
+          return { path: path.join(path.dirname(candidate), match), caseMismatch: match };
+        }
+      }
       return { path: candidate };
     }
   }
