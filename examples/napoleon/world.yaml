@@ -2,5 +2,5 @@ format: 1
 title: Napoleonic Europe
 overworld: europe
 calendar: gregorian
-start: 1769
-end: 1821
+start: 1754
+end: 1852
