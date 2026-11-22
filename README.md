@@ -6,9 +6,10 @@ A world is a folder of YAML — maps, locations, people, events. Timewright
 validates it, resolves the names, and builds a site you can step through:
 click a date, follow a person across the map, read their card.
 
-On Windows the quick start is double-click shaped: download the ZIP, extract
-it, run `install.bat` once, and your browser opens the Timewright home page —
-create a world, click Edit, and you're writing. From a checkout:
+On Windows and macOS the quick start is double-click shaped: download the
+portable ZIP for your computer, extract it, open the launcher inside, and
+your browser opens the Timewright home page — create a world, click Edit,
+and you're writing. From a checkout:
 
 ```bash
 git clone https://github.com/swan-eternal/timewright
@@ -25,11 +26,13 @@ static files that any web host can serve.
 
 ### No install at all — the portable build
 
-The [releases page][releases] carries a portable ZIP with the engine built
-in: download it, right-click, **Extract All**, then double-click
-**Start Timewright.bat** — your browser opens the home page. Nothing is
-installed, nothing else is downloaded, and deleting the folder removes it.
-Rebuild it from a checkout with `node scripts/make-portable.mjs`.
+The [releases page][releases] carries portable ZIPs for Windows and macOS
+with the engine built in: extract the ZIP, double-click the launcher inside
+(**Start Timewright.bat** on Windows, **Start Timewright.command** on a
+Mac), and your browser opens the home page. Nothing is installed, nothing
+else is downloaded, and deleting the folder removes it. Rebuild them from a
+checkout with `node scripts/make-portable.mjs --platform all` (or one of
+`win64`, `mac-arm64`, `mac-x64`).
 
 [releases]: https://github.com/swan-eternal/timewright/releases
 
@@ -44,6 +47,22 @@ Rebuild it from a checkout with `node scripts/make-portable.mjs`.
    click **Create world**, then **Edit**.
 5. From then on, double-click **start.bat** in that folder to reopen the home
    page. Keep the black window open while you work; close it when you're done.
+
+### Easiest way on a Mac — no commands to type
+
+1. On the [releases page][releases], pick the Mac ZIP for your Mac:
+   `mac-arm64` for Apple Silicon (M1/M2/M3 — most Macs since 2020),
+   `mac-x64` for Intel. The Apple menu → **About This Mac** says which.
+2. Double-click the ZIP — Finder extracts it.
+3. The first time only, right-click **Start Timewright.command**, choose
+   **Open**, then click **Open** in the panel macOS shows. (macOS checks
+   software it doesn't recognize; that's all this is, and it won't ask
+   again.)
+4. Your browser opens the Timewright home page. Type a name, click
+   **Create world**, then **Edit**.
+5. From then on, double-click **Start Timewright.command** to reopen the
+   home page. Keep the Terminal window open while you work; close it when
+   you're done.
 
 ### From the command line (developers)
 
