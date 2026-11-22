@@ -1,0 +1,109 @@
+- title: Bilbo joins the quest
+  when: 1
+  where: Bag End
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Thorin's company descends on Bag End uninvited and in instalments, and
+    eats the pantry. By the end of the evening Gandalf has his burglar —
+    talked into it mostly by wounded pride and a Tookish streak.
+
+- title: The three trolls
+  when: 2
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Bilbo's first attempt at burglary ends with the whole company in sacks.
+    Gandalf keeps the trolls arguing about how to cook them until the dawn
+    takes all three, and leaves them a small treasury in the bargain.
+
+- title: A rest at Rivendell
+  when: 3
+  where: Rivendell
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Elrond plays host and the Last Homely House works its spell. The
+    moon-letters on Thrór's map give up their secret: Durin's Day, and a
+    hidden door on the Mountain.
+
+- title: Taken by goblins
+  when: 4
+  where: Goblin Town
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    A cave in the High Pass turns out to be a goblin door. Gandalf's swords
+    win a moment of chaos in the Great Goblin's hall — and in the flight
+    through the dark, Bilbo is knocked from Dori's back and lost.
+
+- title: Riddles in the dark
+  when: 5
+  where: Goblin Town
+  people: [bilbo]
+  card: |-
+    Alone on the shore of an underground lake, Bilbo pockets a ring that
+    its owner will come to miss. He wins the riddle game — barely, and not
+    honestly at the last — and follows Gollum to the back door.
+
+- title: Out of the frying-pan
+  when: 6
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Goblins and wargs drive the company into the trees and set the wood
+    alight beneath them. The Eagles of the Misty Mountains come at sunrise
+    and carry them off — to the edge of more trouble.
+
+- title: Queer lodgings
+  when: 7
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Beorn takes in the party a few at a time, in story instalments Gandalf
+    is careful to stage. At the edge of Mirkwood the wizard peels off on
+    business of his own — the kind he does not explain — leaving them his
+    instructions and his warnings.
+
+- title: The White Council strikes at Dol Guldur
+  when: 7..17
+  where: Dol Guldur
+  people: [gandalf]
+  card: |-
+    Off-page, while the company works through the forest: Gandalf and the
+    White Council assault the Necromancer's fortress in southern Mirkwood
+    and drive him out. It is less a victory than it looks — he was ready to
+    leave. Gandalf rejoins the company as the clouds gather at the
+    Mountain.
+
+- title: Spiders in the dark
+  when: 8
+  where: Mirkwood
+  order: 1
+  people: [bilbo, thorin]
+  card: |-
+    Off the path, out of food, out of arrows and luck: the company is
+    taken by giant spiders while the wood-elves look quietly on. Bilbo,
+    unseen and resourceful, cuts them down with a knife he names Sting.
+
+- title: Prisoners of the Elvenking
+  when: 8
+  where: Mirkwood
+  order: 2
+  people: [bilbo, thorin, elvenking]
+  card: |-
+    The wood-elves bag the starving dwarves not long after the spiders.
+    Bilbo alone stays free — the Ring keeps him unseen — and follows them
+    down into the Elvenking's halls, invisible in the cracks of the place.
+
+- title: Barrels out of bond
+  when: 9
+  where: Mirkwood
+  people: [bilbo, thorin]
+  card: |-
+    Bilbo steals the keys, packs the dwarves into empty barrels bound for
+    Lake-Town, and rides one himself down the Forest River — cold, wet,
+    and gloriously free.
+
+- title: A warm welcome in Lake-Town
+  when: 10
+  where: Lake-Town
+  people: [bilbo, thorin]
+  card: |-
+    The barrels are towed in and the survivors fished out. Thorin
+    announces himself — the King under the Mountain, come back at last —
+    and the town goes half-mad with hope, old songs, and expectations.

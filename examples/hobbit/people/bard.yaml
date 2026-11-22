@@ -1,0 +1,10 @@
+- name: Bard the Bowman
+  id: bard
+  aliases: [Bard, Bard of Esgaroth]
+  color: "#c0392b"
+  tags: [lake-town, men]
+  bio: |-
+    A grim-faced bargeman of Lake-Town with the blood of Dale's lords in
+    him and the last of the black arrows. He is on the town wall when the
+    dragon comes — and afterwards there is a town to rebuild and a king's
+    title nobody thought to look for in him.

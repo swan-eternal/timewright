@@ -1,0 +1,29 @@
+- name: Bag End
+  tags: [shire, home]
+
+- name: Rivendell
+  aliases: [The Last Homely House]
+  tags: [elves, refuge]
+
+- name: Goblin Town
+  aliases: [Goblin-town]
+  tags: [goblins, misty-mountains]
+
+- name: Mirkwood
+  aliases: [Greenwood the Great]
+  tags: [forest]
+
+- name: Lake-Town
+  aliases: [Esgaroth]
+  tags: [men, trade]
+
+- name: Dale
+  tags: [ruins, men]
+
+- name: Erebor
+  aliases: [The Lonely Mountain, The Kingdom under the Mountain]
+  tags: [dwarf, dragon]
+
+- name: Dol Guldur
+  aliases: [The Hill of Sorcery]
+  tags: [necromancer, mirkwood]
