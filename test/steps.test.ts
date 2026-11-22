@@ -5,7 +5,16 @@ import { fileURLToPath } from "node:url";
 import { loadWorld } from "../src/cli/load.js";
 import { resolveWorld } from "../src/core/derive.js";
 import { parseDate } from "../src/core/dates.js";
-import { spanSteps, stepAt, stepIndex, tracePath, traceSteps, traceable, viewSteps } from "../src/core/steps.js";
+import {
+  spanSteps,
+  stepAt,
+  stepIndex,
+  tracePath,
+  traceStart,
+  traceSteps,
+  traceable,
+  viewSteps,
+} from "../src/core/steps.js";
 
 function fixture(name: string): string {
   return fileURLToPath(new URL(`../../test/fixtures/${name}`, import.meta.url));
@@ -15,6 +24,20 @@ async function world() {
   const loaded = await loadWorld(fixture("napoleon-world"));
   return resolveWorld(loaded.data);
 }
+
+describe("trace start", () => {
+  it("is the first point of the path, wherever the path begins", async () => {
+    const resolved = await world();
+    for (const entry of traceable(resolved)) {
+      assert.deepEqual(traceStart(resolved, entry.id), tracePath(resolved, entry.id)[0]?.date);
+    }
+  });
+
+  it("is nothing when there is no placed point at all", async () => {
+    const resolved = await world();
+    assert.equal(traceStart(resolved, "never-placed-anywhere"), undefined);
+  });
+});
 
 describe("span steps", () => {
   it("keeps the events inside the span, both ends inclusive", async () => {

@@ -4,7 +4,7 @@
 
 import "./styles.css";
 
-import { parseDate, type DateBound } from "../core/dates.js";
+import { compareDateBounds, parseDate, type DateBound } from "../core/dates.js";
 import { chapterBadge, chapterLabel, displayDate, isChapterWorld } from "../core/chapters.js";
 import { dateFraction, eventDomain, fractionDate } from "../core/scale.js";
 import {
@@ -18,6 +18,7 @@ import {
 import {
   findStep,
   tracePath,
+  traceStart,
   traceSteps,
   traceable,
   viewSteps,
@@ -403,6 +404,24 @@ function shownTraceColor(world: ResolvedWorld, id: string): string {
   return TRACE_PALETTE[index % TRACE_PALETTE.length];
 }
 
+/** Showing a trace whose first point is still ahead of the reader draws
+ *  nothing at all, which reads as broken. Bring the reader to the trace's
+ *  first placed point instead; a reader already past it keeps their place. */
+function jumpToStart(
+  world: ResolvedWorld,
+  id: string,
+  date: DateBound | undefined,
+): Partial<AppState> {
+  const start = traceStart(world, id);
+  if (start === undefined) {
+    return {};
+  }
+  if (date !== undefined && compareDateBounds(date, start) >= 0) {
+    return {};
+  }
+  return { date: start, stepKey: undefined };
+}
+
 /** The "Show traces" checklist: several traces at once, each in its own
  *  color, independent of the Follow dropdown's single-life walk. */
 function buildTracesSection(world: ResolvedWorld, store: Store): HTMLElement {
@@ -453,7 +472,10 @@ function buildTracesSection(world: ResolvedWorld, store: Store): HTMLElement {
     } else {
       current.delete(id);
     }
-    store.set({ shownTraces: [...current] });
+    store.set({
+      shownTraces: [...current],
+      ...(target.checked ? jumpToStart(world, id, store.get().date) : {}),
+    });
   });
   return section;
 }
@@ -1101,6 +1123,7 @@ async function boot(): Promise<void> {
       mode: "trace",
       traceId: value,
       span: traceSpanOf(world, value) ?? store.get().span,
+      ...jumpToStart(world, value, store.get().date),
     });
   });
 
