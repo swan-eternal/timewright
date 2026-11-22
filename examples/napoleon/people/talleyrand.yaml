@@ -1,0 +1,14 @@
+- name: Charles-Maurice de Talleyrand-Périgord
+  id: talleyrand
+  aliases: [Talleyrand]
+  born: 1754-02-02
+  died: 1838-05-17
+  color: "#7a4fa0"
+  tags: [france, diplomacy]
+  bio: |
+    Bishop of Autun, then foreign minister to the Directory, the Consulate,
+    the Empire and the restored Bourbons — sometimes to more than one of
+    them at a time. He helped arrange the coup of 18 Brumaire, sold
+    Napoleon his counsel and the Austrians the same advice, and finished at
+    the Congress of Vienna by putting a defeated France back at the top
+    table.

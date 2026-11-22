@@ -1,4 +1,5 @@
 - name: Napoleon Bonaparte
+  id: napoleon
   aliases: [Napoleon, Bonaparte]
   born: 1769-08-15
   died: 1821-05-05

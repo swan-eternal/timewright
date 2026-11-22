@@ -1,0 +1,12 @@
+- name: Arthur Wellesley, Duke of Wellington
+  id: wellington
+  aliases: [Wellington, Sir Arthur Wellesley, Duke of Wellington]
+  born: 1769-05-01
+  died: 1852-09-14
+  color: "#b0392e"
+  tags: [britain, general]
+  bio: |
+    An Anglo-Irish officer who learned his trade in India, spent six years
+    beating French armies in Spain and Portugal, and ended the war at
+    Waterloo. Prime Minister twice, Commander-in-Chief for life, and by the
+    time he died the most famous man in Britain.
