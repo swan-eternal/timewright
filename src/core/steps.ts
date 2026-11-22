@@ -264,6 +264,13 @@ export function tracePath(world: ResolvedWorld, entityId: string, upTo?: DateBou
     }));
 }
 
+/** The date a trace becomes visible: its first placed point. Following or
+ *  showing a trace before this point has nothing to draw, so the viewer
+ *  starts the reader here rather than on an empty map. */
+export function traceStart(world: ResolvedWorld, entityId: string): DateBound | undefined {
+  return tracePath(world, entityId)[0]?.date;
+}
+
 /** The people and mobile locations that can be traced. */
 export function traceable(world: ResolvedWorld): { id: string; name: string; kind: "person" | "location" }[] {
   const people = world.people.map((person: ResolvedPerson) => ({
