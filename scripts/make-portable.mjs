@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Build the portable ZIPs: the compiled CLI, its runtime dependencies,
- * the starter template, and a private Node runtime, so a tester
+ * the starter template, the example worlds, and a private Node runtime, so a
  * extracts one folder and double-clicks. Nothing is installed, nothing
  * is downloaded on their machine, and deleting the folder removes the
  * whole thing.
@@ -26,7 +26,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { cp, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,6 +100,14 @@ for (const platform of platforms) {
   }
   mkdirSync(path.join(stage, "runtime"));
   mkdirSync(path.join(stage, "worlds"));
+  // The example worlds ship as ordinary worlds, ready to open from the
+  // home page: a finished one to poke at, and a starting point to edit.
+  if (!existsSync(path.join(root, "examples"))) {
+    throw new Error("missing examples - run this from a full checkout");
+  }
+  for (const example of readdirSync(path.join(root, "examples"))) {
+    await cp(path.join(root, "examples", example), path.join(stage, "worlds", example), { recursive: true });
+  }
 
   // 4. The double-click entry point and the readme.
   if (isMac) {
@@ -179,6 +187,8 @@ for (const platform of platforms) {
       "Keep the Terminal window open while you work - closing it",
       'stops Timewright. Your worlds live in the "worlds" folder',
       "next to this file; copying that folder backs them up.",
+      "It starts with two example worlds - edit them freely,",
+      "or delete them.",
       "",
       "Nothing was installed on your computer. To remove",
       "Timewright, drag this folder to the Trash.",
@@ -234,6 +244,8 @@ for (const platform of platforms) {
       "Keep the black window open while you work - closing it",
       'stops Timewright. Your worlds live in the "worlds" folder',
       "next to this file; copying that folder backs them up.",
+      "It starts with two example worlds - edit them freely,",
+      "or delete them.",
       "",
       "Nothing was installed on your computer. To remove",
       "Timewright, delete this folder.",
