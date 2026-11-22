@@ -1,7 +1,8 @@
 - title: Talleyrand is born
   when: 1754-02-02
+  where: Paris
   people: [talleyrand]
-  card: |
+  card: |-
     Born in Paris with a club foot that bars him from a military career and
     points him at the Church instead.
 
@@ -15,22 +16,24 @@
 
 - title: Wellington is born
   when: 1769-05-01
+  where: { map: europe, at: [404, 245] }
   people: [wellington]
-  card: |
+  card: |-
     Arthur Wesley — the family will fix the spelling later — born in Dublin,
     in the same year as the man he will be measured against forever.
 
 - title: Napoleon is born
   when: 1769-08-15
+  where: { map: europe, at: [946, 1059] }
   people: [napoleon]
-  card: |
+  card: |-
     Napoleone di Buonaparte, second surviving son of a minor Corsican
     family, born a year after France bought the island from Genoa.
 
-- title: The skeptic gets a bishopric
+- title: Talleyrand named Bishop of Autun
   when: 1789-01
   people: [talleyrand]
-  card: |
+  card: |-
     Consecrated Bishop of Autun months before the Revolution makes the job
     interesting. Talleyrand believes in almost nothing, and will lose the
     mitre before the decade is out.
@@ -38,45 +41,49 @@
 - title: Talleyrand rides out the Terror abroad
   when: 1792..1796
   people: [talleyrand]
-  card: |
+  card: |-
     A diplomatic mission to London, then a boat to America when the
     September massacres close the ports behind him. He spends the Terror in
     Philadelphia, land-speculating, and returns in 1796.
 
 - title: The fall of Toulon
   when: 1793-12
+  where: Toulon
   people: [napoleon]
-  card: |
+  card: |-
     The royalist port falls to the Revolutionary army, placed under its guns
     by a 24-year-old artillery officer. Napoleon is made brigadier general
     before Christmas.
 
 - title: Alexandre de Beauharnais goes to the guillotine
   when: 1794-07-23
+  where: Paris
   people: [josephine]
-  card: |
+  card: |-
     Joséphine's first husband dies on the Terror's scaffold, five days
     before Robespierre. She has been in Les Carmes prison since April, and
     walks out within the month.
 
 - title: Napoleon marries Joséphine
   when: 1796-03-09
+  where: Paris
   people: [napoleon, josephine]
-  card: |
+  card: |-
     A civil ceremony in Paris. Two days later he leaves to take command of
     the Army of Italy, and his letters from the campaign make her famous.
 
 - title: The coup of 18 Brumaire
   when: 1799-11-09
+  where: Paris
   people: [napoleon, talleyrand]
-  card: |
+  card: |-
     Sieyès has the plan and Napoleon the bayonets; Talleyrand helps buy and
     arrange the whole affair. The Directory falls, and Napoleon takes power
     as First Consul with Talleyrand as his foreign minister.
 
 - title: The Treaty of Amiens
   when: 1802-03-25
-  where: { map: europe, at: [400, 350] }
+  where: { map: europe, at: [697, 530] }
   tags: [treaty]
   card: |
     A brief peace between France and Britain. It held for fourteen months.
@@ -85,7 +92,7 @@
   when: 1803-09-23
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     In India, against the Maratha confederacy: a badly outnumbered
     Anglo-Indian force splits the enemy army between its two camps. "The
     finest thing I ever did in the way of fighting," Wellington says later —
@@ -93,16 +100,18 @@
 
 - title: Napoleon crowns himself Emperor
   when: 1804-12-02
+  where: Paris
   people: [napoleon, josephine]
-  card: |
+  card: |-
     At Notre-Dame, with Pope Pius VII in attendance, Napoleon takes the
     crown and sets it on his own head — then crowns Joséphine Empress.
 
 - title: Austerlitz
   when: 1805-12-02
+  where: { map: europe, at: [1315, 613] }
   people: [napoleon]
   tags: [battle]
-  card: |
+  card: |-
     One year to the day after the coronation, the Battle of the Three
     Emperors: some 68,000 French against 89,000 Austrians and Russians,
     broken by evening. His own favourite of all his battles.
@@ -117,9 +126,10 @@
 
 - title: Vimeiro
   when: 1808-08-21
+  where: { map: europe, at: [49, 1072] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     Sir Arthur Wellesley lands in Portugal and stops General Junot's
     advance outside Lisbon. The Convention of Sintra then sends the French
     home in British ships — and Wellesley home to a court of inquiry, which
@@ -127,8 +137,9 @@
 
 - title: Erfurt — "Sire, it would be a mistake"
   when: 1808-10
+  where: { map: europe, at: [1064, 497] }
   people: [napoleon, talleyrand]
-  card: |
+  card: |-
     Napoleon demands that his old foreign minister bless the Spanish war
     before the assembled kings. Talleyrand, to his face: "Sire, it would be
     a mistake." He leaves the room with his offices intact — and a private
@@ -136,8 +147,9 @@
 
 - title: The silk-stocking verdict
   when: 1809-01
+  where: Paris
   people: [napoleon, talleyrand]
-  card: |
+  card: |-
     Police evidence shows Talleyrand has been selling counsel to Austria and
     Russia. Napoleon confronts him before the council: "You are shit in a
     silk stocking." Talleyrand keeps his dignity, most of his positions,
@@ -145,60 +157,67 @@
 
 - title: Talavera
   when: 1809-07-28
+  where: { map: europe, at: [283, 1108] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     A hard-won fight against King Joseph's larger army, costing a third of
     the Anglo-Portuguese force. It earns Wellesley a viscountcy — and the
     name Wellington.
 
 - title: The divorce
   when: 1809-12-15
+  where: Paris
   people: [napoleon, josephine]
-  card: |
+  card: |-
     No son means no dynasty. At the Tuileries, Napoleon reads the act of
     divorce and weeps through it. Joséphine keeps the title of Empress and
     the house at Malmaison; he will remarry within four months.
 
 - title: Malmaison and its roses
   when: 1810
+  where: Paris
   people: [josephine]
-  card: |
+  card: |-
     Joséphine retires to Malmaison and builds the greatest rose collection
     in Europe — some 250 varieties — with black swans, emus and kangaroos
     in the park.
 
 - title: The Lines of Torres Vedras hold
   when: 1810-10..1811-03
+  where: { map: europe, at: [44, 1107] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     Masséna's army reaches Lisbon and finds three lines of forts, scorched
     earth, and no food. The French starve outside the Lines all winter and
     march home in the spring.
 
 - title: Into Russia
   when: 1812-06-24
+  where: { map: europe, at: [1560, 234] }
   people: [napoleon]
-  card: |
+  card: |-
     The Grande Armée crosses the Niemen, over 600,000 strong with half of
     Europe in tow. Borodino in September, Moscow burning in October, the
     snow on the road home. Six months later the army has ceased to exist.
 
 - title: Salamanca
   when: 1812-07-22
+  where: { map: europe, at: [303, 1175] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     Marmont overextends in the afternoon heat and Wellington destroys his
     right wing in forty minutes. Wellington enters Madrid three weeks
     later.
 
 - title: Vitoria
   when: 1813-06-21
+  where: { map: europe, at: [412, 936] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     The last French army in Spain is beaten and its baggage — King
     Joseph's silver included — scattered across the roads. Wellington gets
     a field marshal's baton from the Prince Regent, and a battle symphony
@@ -206,41 +225,46 @@
 
 - title: Paris falls to the Allies
   when: 1814-03-31
+  where: Paris
   people: [talleyrand]
-  card: |
+  card: |-
     The Tsar takes rooms in Talleyrand's own hôtel, and is talked into the
     Bourbons. Napoleon's Senate deposes him, and a provisional government
     under Talleyrand recalls Louis XVIII.
 
 - title: Napoleon abdicates at Fontainebleau
   when: 1814-04-06
+  where: Paris
   people: [napoleon]
-  card: |
+  card: |-
     With his marshals refusing to march on Paris, Napoleon gives up the
     throne. The allies exile him to Elba — an island to rule, a title to
     keep, and a pension nobody intends to pay.
 
 - title: Toulouse, and a dukedom
   when: 1814-04-10
+  where: { map: europe, at: [605, 923] }
   people: [wellington]
   tags: [battle]
-  card: |
+  card: |-
     The war's last major battle, fought four days after Napoleon's
     abdication, before the news arrives. A month later Arthur Wellesley is
     made Duke of Wellington.
 
 - title: Joséphine dies at Malmaison
   when: 1814-05-29
+  where: Paris
   people: [josephine]
-  card: |
+  card: |-
     She receives Tsar Alexander at Malmaison in the week after Napoleon's
     fall, catches a chill walking her gardens with him in the rain, and
     dies of it.
 
 - title: The Congress of Vienna
   when: 1814-09..1815-06
+  where: Vienna
   people: [talleyrand]
-  card: |
+  card: |-
     France arrives at the congress defeated and leaves it a great power.
     Dean of the assembly by seniority, Talleyrand splits the victorious
     coalition over its annexations, signs a secret treaty with Austria and
@@ -251,7 +275,7 @@
   where: Elba
   people: [napoleon]
   tags: [escape]
-  card: |
+  card: |-
     Napoleon sails from Portoferraio with a thousand men, lands in France a
     week later, and takes Paris without a shot. The Hundred Days begin.
 
@@ -261,7 +285,7 @@
   people: [napoleon, wellington]
   tags: [battle]
   order: 1
-  card: |
+  card: |-
     Napoleon's last battle, fought in the rain in what is now Belgium,
     decided when Blücher's Prussians arrive in the evening. "The
     nearest-run thing you ever saw in your life," Wellington says. The
@@ -270,13 +294,15 @@
 - title: Napoleon dies on Saint Helena
   when: 1821-05-05
   people: [napoleon]
-  card: |
+  card: |-
     Longwood House, in British custody six thousand miles from Paris, aged
     fifty-one. His reported last word: "Joséphine."
 
 - title: Wellington dies at Walmer Castle
   when: 1852-09-14
+  where: London
   people: [wellington]
-  card: |
+  card: |-
     The Grand Old Man dies in the house he loved, aged 83, and London gives
     him the grandest state funeral it has ever staged.
+

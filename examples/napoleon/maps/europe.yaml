@@ -1,10 +1,8 @@
 - id: europe
   name: Europe
-  size: [1200, 800]
+  size: [2284, 1503]
   images:
-    - file: europe.svg
-      caption: A sketch of Europe around 1815.
-
+    - file: Europe_1812_map_en.png
 - id: london
   name: London
   parent: europe

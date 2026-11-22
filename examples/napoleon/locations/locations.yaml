@@ -1,26 +1,31 @@
 - name: London
   map: europe
-  at: [430, 330]
+  at: [628, 405]
   opens: london
   tags: [city]
 
 - name: Waterloo
   aliases: [Waterloo battlefield]
   map: europe
-  at: [370, 345]
+  at: [985, 377]
   tags: [battlefield]
 
 - name: Paris
   map: europe
-  at: [415, 370]
+  at: [698, 597]
   tags: [city]
 
 - name: Elba
   map: europe
-  at: [575, 530]
+  at: [1019, 1030]
   tags: [island]
 
 - name: Vienna
   map: europe
-  at: [700, 285]
+  at: [1290, 678]
   tags: [city]
+
+- name: Toulon
+  map: europe
+  at: [810, 987]
+
