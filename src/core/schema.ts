@@ -41,6 +41,8 @@ export const MapSchema = z.looseObject({
   /** Image pixel size. Read from the file when omitted. */
   size: z.tuple([z.number().int().positive(), z.number().int().positive()]).optional(),
   images: z.array(MapImageSchema).optional(),
+  /** Map image attribution, shown as small text in the corner of the map. */
+  credit: z.string().min(1).max(300).optional(),
   /** The map this one sits inside, for breadcrumbs. */
   parent: z.string().min(1).optional(),
   tags: z.array(z.string().min(1)).optional(),

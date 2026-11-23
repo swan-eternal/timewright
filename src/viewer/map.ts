@@ -79,6 +79,7 @@ export class MapView {
   /** A focus waiting for the current image to finish loading. */
   private pendingFocus?: { x: number; y: number; offsetYPx: number } | undefined;
   private imageLoaded = false;
+  private currentCredit: string | undefined;
 
   constructor(options: MapViewOptions) {
     this.options = options;
@@ -155,6 +156,30 @@ export class MapView {
     this.pendingFocus = undefined;
   }
 
+  /**
+   * Show the map's credit in the corner, next to the Timewright tag. The
+   * string arrives from world data, so it stays text: no markup is let
+   * through into the attribution control.
+   */
+  private setCredit(credit: string | undefined): void {
+    const text = credit?.trim().replace(/[<>]/g, "");
+    if (text === undefined || text === "") {
+      if (this.currentCredit !== undefined) {
+        this.map.attributionControl.removeAttribution(this.currentCredit);
+        this.currentCredit = undefined;
+      }
+      return;
+    }
+    if (text === this.currentCredit) {
+      return;
+    }
+    if (this.currentCredit !== undefined) {
+      this.map.attributionControl.removeAttribution(this.currentCredit);
+    }
+    this.map.attributionControl.addAttribution(text);
+    this.currentCredit = text;
+  }
+
   render(opts: RenderMapOptions): void {
     this.lastRender = opts;
     const { world, mapId, date } = opts;
@@ -165,6 +190,7 @@ export class MapView {
       this.options.onImageMissing("No map found to display.");
       return;
     }
+    this.setCredit(mapRecord.credit);
 
     const image = imageForDate(mapRecord, date);
     const url = assetUrl(image?.path);

@@ -1,6 +1,7 @@
 - id: europe
   name: Europe
   size: [2284, 1503]
+  credit: Europe 1812 map — Wikimedia Commons, public domain
   images:
     - file: Europe_1812_map_en.png
 - id: london

@@ -26,6 +26,8 @@ export interface ResolvedMap {
   parent?: string | undefined;
   /** Pixel size of the map images. */
   size?: [number, number] | undefined;
+  /** Image attribution, shown in the corner of the map. */
+  credit?: string | undefined;
   images: ResolvedMapImage[];
 }
 
