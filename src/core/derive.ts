@@ -49,6 +49,7 @@ export function resolveWorld(data: WorldData): ResolvedWorld {
       name: record.name,
       parent: map.parent !== undefined ? index.mapNames.resolve(map.parent) : undefined,
       size: map.size,
+      credit: map.credit,
       images,
     };
   });
