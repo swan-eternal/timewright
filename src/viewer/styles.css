@@ -949,6 +949,24 @@ h3,
     grid-row: 7;
     grid-column: 1 / -1;
   }
+
+  /* The filters checklist floats over the map's right side. The panel
+     used to be an unplaced grid child: it landed in the active-filters
+     row while that bar was hidden, and in an implicit bottom row when it
+     was not — so the checklist jumped whenever the last shown trace was
+     cleared. Floating inside the map-wrap pins it for good. */
+  #filters-panel.open {
+    position: absolute;
+    top: 0.6rem;
+    right: max(0.75rem, env(safe-area-inset-right));
+    width: 15rem;
+    max-height: calc(100% - 1.2rem);
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.25);
+    z-index: 1100;
+  }
 }
 
 /* --- Phone Layout --- */

@@ -496,8 +496,13 @@ function setupFiltersPanel(tracesSection: HTMLElement): void {
     (node): node is HTMLElement => node !== null && node !== undefined,
   );
   const homes = movable.map((node) => node.parentElement);
+  const stepbar = document.querySelector<HTMLElement>("#stepbar");
+  const mapWrap = document.querySelector<HTMLElement>("#map-wrap");
   const place = (): void => {
     if (isPhoneView()) {
+      // The panel is a full-width strip under the topbar on the phone;
+      // it lives in its home slot there, not over the map.
+      stepbar?.parentElement?.insertBefore(filtersPanelElement, stepbar);
       for (const node of movable) {
         filtersPanelElement.insertBefore(node, tracesSection);
       }
@@ -508,6 +513,10 @@ function setupFiltersPanel(tracesSection: HTMLElement): void {
     for (const [index, node] of movable.entries()) {
       homes[index]?.appendChild(node);
     }
+    // Desktop: the checklist docks to the map's right side, floating
+    // over it — no grid auto-placement, no layout shift when filters
+    // come and go.
+    mapWrap?.appendChild(filtersPanelElement);
   };
   place();
   phoneMedia.addEventListener("change", place);
