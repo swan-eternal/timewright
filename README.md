@@ -321,3 +321,12 @@ Timewright provides a command-line interface for creating, editing, validating, 
 |`timewright pick`|Assign map coordinates to locations.|
 |`timewright edit`|Open the browser-based Studio editor.|
 |`timewright schema`|Print the JSON Schema for the world format.|
+
+Useful options:
+
+|Option|Description|
+|---|---|
+|`--json`|Output machine-readable validation results, for agents.|
+|`--strict`|Treat warnings as errors.|
+|`--base`|Accepted for older versions; the site URLs are relative now, so they serve from any path.|
+|`--single-file`|Also write one self-contained HTML file.|
