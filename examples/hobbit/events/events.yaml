@@ -9,6 +9,7 @@
 
 - title: The three trolls
   when: 2
+  where: { map: middle-earth, at: [1447, 627] }
   people: [bilbo, thorin, gandalf]
   card: |-
     Bilbo's first attempt at burglary ends with the whole company in sacks.
@@ -44,6 +45,7 @@
 
 - title: Out of the frying-pan
   when: 6
+  where: { map: middle-earth, at: [1678, 612] }
   people: [bilbo, thorin, gandalf]
   card: |-
     Goblins and wargs drive the company into the trees and set the wood
@@ -52,6 +54,7 @@
 
 - title: Queer lodgings
   when: 7
+  where: { map: middle-earth, at: [1816, 598] }
   people: [bilbo, thorin, gandalf]
   card: |-
     Beorn takes in the party a few at a time, in story instalments Gandalf
@@ -73,8 +76,8 @@
 - title: Spiders in the dark
   when: 8
   where: Mirkwood
-  order: 1
   people: [bilbo, thorin]
+  order: 1
   card: |-
     Off the path, out of food, out of arrows and luck: the company is
     taken by giant spiders while the wood-elves look quietly on. Bilbo,
@@ -83,8 +86,8 @@
 - title: Prisoners of the Elvenking
   when: 8
   where: Mirkwood
-  order: 2
   people: [bilbo, thorin, elvenking]
+  order: 2
   card: |-
     The wood-elves bag the starving dwarves not long after the spiders.
     Bilbo alone stays free — the Ring keeps him unseen — and follows them
@@ -175,8 +178,8 @@
 - title: Gandalf returns
   when: 17
   where: Erebor
-  order: 1
   people: [thorin, gandalf, dain]
+  order: 1
   card: |-
     Dáin's army comes down from the Iron Hills to find dwarves, men and
     elves drawn up for battle over gold. As the lines close, Gandalf
@@ -187,8 +190,8 @@
 - title: The battle of the five armies
   when: 17
   where: Erebor
-  order: 2
   people: [bilbo, thorin, gandalf, bard, elvenking, dain]
+  order: 2
   card: |-
     Elf, man and dwarf against goblin and warg, from the valley floor to
     the mountain's feet. The line bends all day; it breaks when Bilbo —
@@ -210,8 +213,8 @@
 - title: Homeward through Rivendell
   when: 19
   where: Rivendell
-  order: 1
   people: [bilbo, gandalf]
+  order: 1
   card: |-
     The long way round: Beorn's hospitality, the high pass, then Rivendell
     again, where the Last Homely House does its work one more time. At
@@ -222,10 +225,11 @@
 - title: There and back again
   when: 19
   where: Bag End
-  order: 2
   people: [bilbo]
+  order: 2
   card: |-
     Home, mid-auction: the neighbors, having given him up for dead, are
     selling his furniture. He buys most of it back at a premium, loses his
     respectability entirely, and settles in — one small magic ring, two
     chests of treasure, and a new appetite for songs about dragons.
+
