@@ -1,0 +1,235 @@
+- title: Bilbo joins the quest
+  when: 1
+  where: Bag End
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Thorin's company descends on Bag End uninvited and in instalments, and
+    eats the pantry. By the end of the evening Gandalf has his burglar —
+    talked into it mostly by wounded pride and a Tookish streak.
+
+- title: The three trolls
+  when: 2
+  where: { map: middle-earth, at: [1447, 627] }
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Bilbo's first attempt at burglary ends with the whole company in sacks.
+    Gandalf keeps the trolls arguing about how to cook them until the dawn
+    takes all three, and leaves them a small treasury in the bargain.
+
+- title: A rest at Rivendell
+  when: 3
+  where: Rivendell
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Elrond plays host and the Last Homely House works its spell. The
+    moon-letters on Thrór's map give up their secret: Durin's Day, and a
+    hidden door on the Mountain.
+
+- title: Taken by goblins
+  when: 4
+  where: Goblin Town
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    A cave in the High Pass turns out to be a goblin door. Gandalf's swords
+    win a moment of chaos in the Great Goblin's hall — and in the flight
+    through the dark, Bilbo is knocked from Dori's back and lost.
+
+- title: Riddles in the dark
+  when: 5
+  where: Goblin Town
+  people: [bilbo]
+  card: |-
+    Alone on the shore of an underground lake, Bilbo pockets a ring that
+    its owner will come to miss. He wins the riddle game — barely, and not
+    honestly at the last — and follows Gollum to the back door.
+
+- title: Out of the frying-pan
+  when: 6
+  where: { map: middle-earth, at: [1678, 612] }
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Goblins and wargs drive the company into the trees and set the wood
+    alight beneath them. The Eagles of the Misty Mountains come at sunrise
+    and carry them off — to the edge of more trouble.
+
+- title: Queer lodgings
+  when: 7
+  where: { map: middle-earth, at: [1816, 598] }
+  people: [bilbo, thorin, gandalf]
+  card: |-
+    Beorn takes in the party a few at a time, in story instalments Gandalf
+    is careful to stage. At the edge of Mirkwood the wizard peels off on
+    business of his own — the kind he does not explain — leaving them his
+    instructions and his warnings.
+
+- title: The White Council strikes at Dol Guldur
+  when: 7..17
+  where: Dol Guldur
+  people: [gandalf]
+  card: |-
+    Off-page, while the company works through the forest: Gandalf and the
+    White Council assault the Necromancer's fortress in southern Mirkwood
+    and drive him out. It is less a victory than it looks — he was ready to
+    leave. Gandalf rejoins the company as the clouds gather at the
+    Mountain.
+
+- title: Spiders in the dark
+  when: 8
+  where: Mirkwood
+  people: [bilbo, thorin]
+  order: 1
+  card: |-
+    Off the path, out of food, out of arrows and luck: the company is
+    taken by giant spiders while the wood-elves look quietly on. Bilbo,
+    unseen and resourceful, cuts them down with a knife he names Sting.
+
+- title: Prisoners of the Elvenking
+  when: 8
+  where: Mirkwood
+  people: [bilbo, thorin, elvenking]
+  order: 2
+  card: |-
+    The wood-elves bag the starving dwarves not long after the spiders.
+    Bilbo alone stays free — the Ring keeps him unseen — and follows them
+    down into the Elvenking's halls, invisible in the cracks of the place.
+
+- title: Barrels out of bond
+  when: 9
+  where: Mirkwood
+  people: [bilbo, thorin]
+  card: |-
+    Bilbo steals the keys, packs the dwarves into empty barrels bound for
+    Lake-Town, and rides one himself down the Forest River — cold, wet,
+    and gloriously free.
+
+- title: A warm welcome in Lake-Town
+  when: 10
+  where: Lake-Town
+  people: [bilbo, thorin]
+  card: |-
+    The barrels are towed in and the survivors fished out. Thorin
+    announces himself — the King under the Mountain, come back at last —
+    and the town goes half-mad with hope, old songs, and expectations.
+
+- title: The hidden door
+  when: 11
+  where: Erebor
+  people: [bilbo, thorin]
+  card: |-
+    The company climbs into the Mountain's desolation and waits by the
+    sealed door. On Durin's Day at last light — the thrush cracking snails
+    on the stone, the moon riding high — the keyhole appears at last, and
+    the door opens.
+
+- title: Bilbo meets Smaug
+  when: 12
+  where: Erebor
+  people: [bilbo, smaug]
+  card: |-
+    Sent down as official burglar, Bilbo steals a cup, wakes the owner of
+    the hoard, and trades riddling courtesies with a dragon who has never
+    once heard the word no. Flattery keeps him alive; the glimpse of a bare
+    patch amid the gemwork of Smaug's breast will matter more than he
+    knows. Reasoning out where the cups came from, Smaug bursts out for
+    Lake-Town.
+
+- title: Into the hoard
+  when: 13
+  where: Erebor
+  people: [bilbo, thorin]
+  card: |-
+    With the mountain quiet, the dwarves follow Bilbo down at last. Thorin
+    walks the great hall like an heirloom come home; Bilbo finds the
+    Arkenstone, the Heart of the Mountain, and quietly pockets it — his
+    share, he tells himself. They wait out the dragon's absence behind the
+    resealed door.
+
+- title: The fall of Smaug
+  when: 14
+  where: Lake-Town
+  people: [smaug, bard]
+  card: |-
+    Smaug comes by night and burns Esgaroth to the waterline. The thrush
+    finds Bard with his bow and repeats what the burglar learned: a bare
+    patch amid the gems. The last of the black arrows takes it, and the
+    dragon falls full-length on the ruin of the town.
+
+- title: Armies at the gate
+  when: 15
+  where: Erebor
+  people: [thorin, bard, elvenking]
+  card: |-
+    The dragon's death travels fast. The Elvenking marches his host east
+    and Bard brings the lake-men up from the wreckage — both to Dale, both
+    with claims on the hoard: shares for the town burned, and debts of
+    history. Thorin, barricaded behind the gate, answers with a raven to
+    the Iron Hills.
+
+- title: The Arkenstone changes hands
+  when: 16
+  where: Dale
+  people: [bilbo, bard, elvenking]
+  card: |-
+    Bilbo slips out by night to the camp in Dale and hands over the
+    Arkenstone — Thorin's heart's desire — to Bard and the Elvenking:
+    something to bargain with, or to end it with. He is quite sure what
+    Thorin will call it. Gandalf, watching from the dark, approves.
+
+- title: Gandalf returns
+  when: 17
+  where: Erebor
+  people: [thorin, gandalf, dain]
+  order: 1
+  card: |-
+    Dáin's army comes down from the Iron Hills to find dwarves, men and
+    elves drawn up for battle over gold. As the lines close, Gandalf
+    stands between them with news worth more than the hoard: the goblins
+    and wargs of the Misty Mountains are on the march, in numbers and fury
+    nobody living has seen.
+
+- title: The battle of the five armies
+  when: 17
+  where: Erebor
+  people: [bilbo, thorin, gandalf, bard, elvenking, dain]
+  order: 2
+  card: |-
+    Elf, man and dwarf against goblin and warg, from the valley floor to
+    the mountain's feet. The line bends all day; it breaks when Bilbo —
+    spotting the Eagles — cries out and takes a stone for it. Beorn himself
+    comes down on the goblins in the last hour, Bolg falls, and the field
+    is won. Thorin is mortally wounded.
+
+- title: Thorin's farewell
+  when: 18
+  where: Erebor
+  people: [bilbo, thorin, dain]
+  card: |-
+    Thorin makes his peace with Bilbo before the end — the gold forgiven,
+    the burglar valued above the hoard. Dáin is crowned King under the
+    Mountain and deals out shares with a fairness Thorin promised too
+    late. Bilbo takes his two small chests — silver and gold — and turns
+    west with Gandalf.
+
+- title: Homeward through Rivendell
+  when: 19
+  where: Rivendell
+  people: [bilbo, gandalf]
+  order: 1
+  card: |-
+    The long way round: Beorn's hospitality, the high pass, then Rivendell
+    again, where the Last Homely House does its work one more time. At
+    last Gandalf tells the tale behind his absences — the White Council's
+    stroke at Dol Guldur — and hints that the Necromancer's flight is not
+    the clean victory it seems.
+
+- title: There and back again
+  when: 19
+  where: Bag End
+  people: [bilbo]
+  order: 2
+  card: |-
+    Home, mid-auction: the neighbors, having given him up for dead, are
+    selling his furniture. He buys most of it back at a premium, loses his
+    respectability entirely, and settles in — one small magic ring, two
+    chests of treasure, and a new appetite for songs about dragons.
+

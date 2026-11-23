@@ -1,0 +1,10 @@
+- name: Bilbo Baggins
+  id: bilbo
+  aliases: [Bilbo, Master Baggins]
+  color: "#2e7d32"
+  tags: [shire, burglar]
+  bio: |-
+    A well-to-do hobbit of Bag End — a Baggins on one side, respectable to
+    the bone, and a Took on the other, which is where the trouble gets in.
+    Taken on as the company's burglar on no evidence whatsoever, he grows
+    into the job until the day he has to stand between two armies.

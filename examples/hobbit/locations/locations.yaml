@@ -1,0 +1,38 @@
+- name: Bag End
+  map: middle-earth
+  at: [818, 661]
+  tags: [shire, home]
+- name: Rivendell
+  aliases: [The Last Homely House]
+  map: middle-earth
+  at: [1550, 634]
+  tags: [elves, refuge]
+- name: Goblin Town
+  aliases: [Goblin-town]
+  map: middle-earth
+  at: [1621, 607]
+  tags: [goblins, misty-mountains]
+- name: Mirkwood
+  aliases: [Greenwood the Great]
+  map: middle-earth
+  at: [1998, 587]
+  tags: [forest]
+- name: Lake-Town
+  aliases: [Esgaroth]
+  map: middle-earth
+  at: [2130, 492]
+  tags: [men, trade]
+- name: Dale
+  map: middle-earth
+  at: [2141, 446]
+  tags: [ruins, men]
+- name: Erebor
+  aliases: [The Lonely Mountain, The Kingdom under the Mountain]
+  map: middle-earth
+  at: [2129, 399]
+  tags: [dwarf, dragon]
+- name: Dol Guldur
+  aliases: [The Hill of Sorcery]
+  map: middle-earth
+  at: [1877, 990]
+  tags: [necromancer, mirkwood]

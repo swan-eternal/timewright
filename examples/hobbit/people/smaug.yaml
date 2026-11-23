@@ -1,0 +1,12 @@
+- name: Smaug
+  id: smaug
+  aliases: [Smaug the Golden, The Dragon]
+  color: "#b8860b"
+  tags: [dragon, erebor]
+  died: 14
+  bio: |-
+    The great dragon of the Lonely Mountain. He came from the north, took
+    Erebor and burned Dale for its wealth, and has slept on the hoard for a
+    lifetime — grown old, clever, and certain nothing in the world can
+    threaten him. Waking him proves easier than anyone would have guessed;
+    surviving it, harder.

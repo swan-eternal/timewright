@@ -1,0 +1,10 @@
+- name: Dáin Ironfoot
+  id: dain
+  aliases: [Dáin, Lord of the Iron Hills]
+  color: "#8d5524"
+  tags: [dwarf, iron-hills]
+  bio: |-
+    Lord of the Iron Hills and Thorin's kinsman, still young when he won
+    his name at the East Gate of Moria. He answers the call to the Mountain
+    at the head of an army, ready to fight dwarves over gold — and finds a
+    better war waiting. Afterward, King under the Mountain.

@@ -1,0 +1,9 @@
+- name: The Elvenking
+  id: elvenking
+  aliases: [Thranduil]
+  color: "#00897b"
+  tags: [elf, mirkwood]
+  bio: |-
+    Ruler of the woodland realm of Mirkwood: old, wary, and no friend of
+    dwarves. He jails the company on general principle, marches for a share
+    of the dragon-hoard — and picks the right side when the goblins come.

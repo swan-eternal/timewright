@@ -1,0 +1,10 @@
+- name: Gandalf
+  id: gandalf
+  aliases: [Gandalf the Grey]
+  color: "#6d6d6d"
+  tags: [wizard, istari]
+  bio: |-
+    A wizard with more plans than he explains. Marks a door in Hobbiton,
+    hires a burglar nobody asked for, and spends half the quest away on
+    darker business at Dol Guldur — reappearing only when it is almost too
+    late.

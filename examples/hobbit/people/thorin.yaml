@@ -1,0 +1,11 @@
+- name: Thorin Oakenshield
+  id: thorin
+  aliases: [Thorin]
+  color: "#1a4f8a"
+  tags: [dwarf, erebor]
+  died: 17
+  bio: |-
+    Heir of Durin's line and claimant to the Kingdom under the Mountain, in
+    exile since the dragon came. Proud, honourable in his way, and harder to
+    move than the Mountain itself. The quest is his, and so is the bill for
+    it.
