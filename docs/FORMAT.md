@@ -160,7 +160,7 @@ An era's `start` is the absolute year of era year 0, so era year *n* is
 | `aliases` | list | other names for the map |
 | `file` | string | one image, for a map that never changes |
 | `images` | list | images, each with a date range |
-| `size` | [width, height] | the image's pixel size; read from the file when omitted |
+| `size` | [width, height] | the image's pixel size; read from the file when omitted — an SVG's own size, else its viewBox |
 | `parent` | string | the map this one sits inside, for the breadcrumb |
 | `tags` | list | free tags |
 | `notes` | string | never shown |
