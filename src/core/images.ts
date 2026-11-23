@@ -55,24 +55,38 @@ export function readImageSize(data: Uint8Array): ImageSize | undefined {
   return undefined;
 }
 
+/** How many CSS pixels one unit of SVG length is, at the usual 96dpi. */
+const SVG_UNITS: Record<string, number> = {
+  px: 1,
+  pt: 96 / 72,
+  pc: 16,
+  mm: 96 / 25.4,
+  cm: 960 / 25.4,
+  in: 96,
+};
+
 function readSvgSize(data: Uint8Array): ImageSize | undefined {
-  if (data[0] !== 0x3c) {
+  // Editors prefix the root element with a BOM or a long prolog; anything
+  // that does not start like markup is left to the binary sniffers.
+  const start = data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf ? 3 : 0;
+  const first = data[start];
+  if (first !== 0x3c && first !== 0x20 && first !== 0x09 && first !== 0x0a && first !== 0x0d) {
     return undefined;
   }
-  const head = new TextDecoder().decode(data.subarray(0, 2048));
-  if (!/<svg[\s>]/i.test(head)) {
+  const head = new TextDecoder().decode(data.subarray(start, start + 16384));
+  // Sizes come from the <svg> tag itself: matching width= anywhere in the
+  // head picks up shapes inside the drawing — a frame rect, even a
+  // stroke-width — instead of the canvas.
+  const tag = /<svg\b[^>]*>/i.exec(head);
+  if (tag === null) {
     return undefined;
   }
-  const width = /\bwidth="([\d.]+)"/i.exec(head);
-  const height = /\bheight="([\d.]+)"/i.exec(head);
-  if (width !== null && height !== null) {
-    return {
-      width: Math.round(Number(width[1])),
-      height: Math.round(Number(height[1])),
-      format: "svg",
-    };
+  const width = svgLength(tag[0], "width");
+  const height = svgLength(tag[0], "height");
+  if (width !== undefined && height !== undefined) {
+    return { width, height, format: "svg" };
   }
-  const viewBox = /\bviewBox="([^"]+)"/i.exec(head);
+  const viewBox = /\sviewBox\s*=\s*"([^"]+)"/i.exec(tag[0]);
   if (viewBox !== null) {
     const parts = viewBox[1].trim().split(/[\s,]+/).map(Number);
     if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
@@ -80,6 +94,28 @@ function readSvgSize(data: Uint8Array): ImageSize | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * A width/height attribute of the <svg> tag as CSS pixels. A percentage
+ * sizes the drawing against its container, not itself, and so leaves the
+ * answer to the viewBox.
+ */
+function svgLength(tag: string, name: string): number | undefined {
+  const attribute = new RegExp(`\\s${name}\\s*=\\s*"([^"]+)"`, "i").exec(tag);
+  if (attribute === null) {
+    return undefined;
+  }
+  const match = /^([\d.]+)\s*(px|pt|pc|mm|cm|in|%)?$/i.exec(attribute[1].trim());
+  if (match === null || match[2] === "%") {
+    return undefined;
+  }
+  const factor = match[2] === undefined ? 1 : SVG_UNITS[match[2].toLowerCase()];
+  if (factor === undefined) {
+    return undefined;
+  }
+  const value = Number(match[1]) * factor;
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
 }
 
 function hasPrefix(data: Uint8Array, prefix: number[]): boolean {
