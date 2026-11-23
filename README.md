@@ -1,17 +1,78 @@
 # Timewright
 
-Build interactive timeline maps of real history or fiction from plain YAML files.
+**Create interactive timeline maps of real or fictional worlds.**
 
-A world is a folder of YAML — maps, locations, people, events. Timewright
-validates it, resolves the names, and builds a site you can step through:
-click a date, follow a person across the map, read their card.
+Timewright turns YAML files into interactive maps and timelines. Define maps, locations, people, and events, then explore how they relate across time.
 
-On Windows and macOS the quick start is double-click shaped: download the
-portable ZIP for your computer, extract it, open the launcher inside, and
-your browser opens the Timewright home page — create a world, click Edit,
-and you're writing. From a checkout:
+You can:
 
-```bash
+- Build maps of historical periods, fictional worlds, or other settings.
+    
+- Place locations and events on maps.
+    
+- Follow characters, armies, ships, and other mobile entities as they move through the world.
+    
+- Attach notes, descriptions, and biographies to people, places, and events.
+    
+- Explore the world at different points in time using an interactive timeline.
+    
+
+Worlds are stored as plain YAML files. Timewright validates the files and builds a self-contained website that can be viewed locally or published to any static web host.
+
+## Getting Started
+
+### Quick start: Portable release
+
+The easiest way to use Timewright is to download a portable release. No programming experience or separate Node.js installation is required.
+
+1. Visit the [GitHub Releases page](https://github.com/swan-eternal/timewright/releases).
+    
+2. Download the ZIP for your operating system.
+    
+3. Extract the ZIP to a folder of your choice.
+    
+4. Launch Timewright:
+    
+    - **Windows:** Double-click `Start Timewright.bat`.
+        
+    - **macOS:** Double-click `Start Timewright.command`. The first time, you may need to right-click the file, select **Open**, and confirm the security prompt.
+        
+5. Your browser will open the Timewright home page.
+    
+6. Enter a name, click **Create world**, and then click **Edit** to start building your world.
+    
+
+On macOS, choose the correct download for your processor:
+
+- `mac-arm64`: Apple Silicon (M1, M2, M3, and newer).
+    
+- `mac-x64`: Intel Macs.
+    
+
+Timewright runs locally on your computer. Keep the terminal window open while using it, and close it when you are finished. Nothing is installed elsewhere on your system; deleting the extracted folder removes the application.
+
+### Alternative: Windows installation from GitHub
+
+You can also download the repository directly and use its Windows installer.
+
+1. On the [GitHub repository page](https://github.com/swan-eternal/timewright), click **Code → Download ZIP**.
+    
+2. Extract the downloaded ZIP.
+    
+3. Open the extracted folder and double-click `install.bat`.
+    
+4. If Node.js is not installed, the installer will open the Node.js download page. Install Node.js and run `install.bat`again.
+    
+5. When installation finishes, your browser will open the Timewright home page.
+    
+
+To start Timewright again, double-click `start.bat` in the extracted folder. Keep the command window open while using the application.
+
+### Installation from source
+
+For developers who want to work with the source code:
+
+```
 git clone https://github.com/swan-eternal/timewright
 cd timewright
 npm install
@@ -19,80 +80,41 @@ npm run build
 node dist/cli/index.js home
 ```
 
-No database, no server, no build toolchain to learn. The output is a folder of
-static files that any web host can serve.
+Requires Node.js 22 or newer.
 
-## Install
+**Note:** Installing directly from GitHub using `npm install -g github:...` is not currently supported. The build process requires tools that are not available when npm installs directly from a repository. Clone the repository and build it locally instead.
 
-### No install at all — the portable build
+## Creating a World
 
-The [releases page][releases] carries portable ZIPs for Windows and macOS
-with the engine built in: extract the ZIP, double-click the launcher inside
-(**Start Timewright.bat** on Windows, **Start Timewright.command** on a
-Mac), and your browser opens the home page. Nothing is installed, nothing
-else is downloaded, and deleting the folder removes it. Rebuild them from a
-checkout with `node scripts/make-portable.mjs --platform all` (or one of
-`win64`, `mac-arm64`, `mac-x64`).
+A Timewright world is a folder containing YAML files, map images, and other resources.
 
-[releases]: https://github.com/swan-eternal/timewright/releases
-
-### Easiest way on Windows — no commands to type
-
-1. On the GitHub page, click the green **Code** button, then **Download ZIP**.
-2. Right-click the downloaded file and choose **Extract All**.
-3. Open the extracted folder and double-click **install.bat**. If Node.js is
-   missing, the installer opens its download page for you — install it, then
-   run install.bat again.
-4. When it finishes, your browser opens the Timewright home page. Type a name,
-   click **Create world**, then **Edit**.
-5. From then on, double-click **start.bat** in that folder to reopen the home
-   page. Keep the black window open while you work; close it when you're done.
-
-### Easiest way on a Mac — no commands to type
-
-1. On the [releases page][releases], pick the Mac ZIP for your Mac:
-   `mac-arm64` for Apple Silicon (M1/M2/M3 — most Macs since 2020),
-   `mac-x64` for Intel. The Apple menu → **About This Mac** says which.
-2. Double-click the ZIP — Finder extracts it.
-3. The first time only, right-click **Start Timewright.command**, choose
-   **Open**, then click **Open** in the panel macOS shows. (macOS checks
-   software it doesn't recognize; that's all this is, and it won't ask
-   again.)
-4. Your browser opens the Timewright home page. Type a name, click
-   **Create world**, then **Edit**.
-5. From then on, double-click **Start Timewright.command** to reopen the
-   home page. Keep the Terminal window open while you work; close it when
-   you're done.
-
-### From the command line (developers)
-
-```bash
-git clone https://github.com/swan-eternal/timewright
-cd timewright
-npm install
-npm run build
-node dist/cli/index.js home     # then: init / edit / validate / pick / build
-```
-
-> Installing with `npm install -g github:...` is currently broken — the build
-> step cannot find its tools when npm installs straight from a repository.
-> Clone and build instead until the package reaches npm.
-
-## What a world looks like
+For example:
 
 ```
 my-world/
-  world.yaml            title, calendar, which map to open on
-  maps/
-    europe.yaml         map definitions
-    europe-1800.jpg     map images (png, jpg, webp, gif, bmp or svg)
-  people/
-    napoleon.yaml       one file per person, or one list per file
-  locations/
-  events/
+├── world.yaml
+├── maps/
+│   ├── europe.yaml
+│   └── europe-1800.jpg
+├── people/
+│   └── napoleon.yaml
+├── locations/
+└── events/
 ```
 
-```yaml
+The files define the contents of the world:
+
+|File or folder|Contents|
+|---|---|
+|`world.yaml`|World title, calendar, and default map|
+|`maps/`|Map definitions and map images|
+|`people/`|Character and person records|
+|`locations/`|Locations and their map coordinates|
+|`events/`|Historical or fictional events|
+
+A simple event might look like this:
+
+```
 - title: Battle of Waterloo
   when: 1815-06-18
   where: Waterloo
@@ -101,173 +123,201 @@ my-world/
     The last battle of the Napoleonic Wars.
 ```
 
-Dates are flexible on purpose: `1815`, `1815-06`, `~1200`, `1805..1807`,
-`<2300`, and custom calendars with named months and eras. A date that reads
-as impossible warns; it does not fail. A world with no dates at all can
-order its events by chapter instead.
+Dates can be as simple or as detailed as your world requires. Timewright supports:
 
-**The format:** [docs/FORMAT.md](docs/FORMAT.md) is the reference.
-[docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) is the short version, written for
-an agent — point your agent at it and let it write the YAML for you.
+- Years: `1815`
+    
+- Months: `1815-06`
+    
+- Approximate dates: `~1200`
+    
+- Date ranges: `1805..1807`
+    
+- Open-ended dates: `<2300`
+    
+- Custom calendars with named months and eras.
+    
 
-## The commands
+If a date appears to be invalid, Timewright issues a warning rather than rejecting the world. Worlds without dates can also use chapter-based ordering for their events.
 
-| Command | What it does |
-|---|---|
-| `timewright init [folder]` | Make a starter world |
-| `timewright validate` | Check a world folder and explain what to fix |
-| `timewright build` | Build a world into a static site |
-| `timewright dev` | Run the viewer locally, reloading when the world changes |
-| `timewright pick` | Pick coordinates on a map, and place locations |
-| `timewright edit` | Edit the world in the browser |
-| `timewright schema` | Print the JSON Schema for the world format |
+For the complete YAML reference, see [docs/FORMAT.md](docs/FORMAT.md).
 
-Useful flags: `--json` (machine-readable validation, for agents), `--strict`
-(warnings become errors), `--base` (accepted for older versions; the
-site's URLs are relative now, so it serves from any path),
-`--single-file` (also write one self-contained HTML file).
+If you want to use an AI coding agent to help create a world, see [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md). It provides a concise guide to the world format and is designed to be used as a reference when generating YAML files.
 
-## Publishing on GitHub Pages
+## Editing a World
 
-1. Make the world its own repository, with the workflow from
-   [templates/github-pages](templates/github-pages/.github/workflows/pages.yml).
-2. Put the world files at the root of the repository.
-3. Push. The workflow builds the site and publishes it.
+Timewright includes a browser-based editor called **Studio**. It lets you create and modify a world without editing YAML files directly.
 
-The workflow installs the tool from GitHub, so nothing has to be published to
-npm first.
+To open the editor, run:
 
-The site's URLs are relative, so it works under `/repository-name/`
-without any configuration. The template workflow still passes `--base`,
-because older versions of the tool needed it.
-
-To publish somewhere else, build it and upload the folder:
-
-```bash
-timewright build --world . --out dist
+```
+timewright edit --world ~/my-world
 ```
 
-To send one file instead of a site — by email, on a memory stick, anywhere:
+You can also use the included launcher scripts:
 
-```bash
-timewright build --world . --out dist --single-file
+```
+./start-studio.sh                 # Use the world in this folder, or the example
+./start-studio.sh ~/my-world      # Open a specific world
 ```
 
-`dist/world.html` then holds the world, the viewer and the map images all
-together.
+On Windows, use `start-studio.cmd`.
 
-## Placing locations
+The launcher builds Timewright if necessary, starts the editor, and opens it in your browser.
 
-Agents know names, not pixels, so you do not write coordinates:
+### Studio features
 
-```yaml
+The editor provides a map-based workspace with tabs for Maps, People, Locations, Events, and World.
+
+You can:
+
+- Click the map to create a location or event.
+    
+- Drag existing markers to change their positions.
+    
+- Edit names, dates, tags, descriptions, and other properties.
+    
+- Upload replacement map images.
+    
+- Delete records.
+    
+- Rename records while automatically updating references to them.
+    
+
+The editor writes changes directly to the world's YAML files, preserving existing comments. YAML remains the source of truth, so files can still be edited by hand or modified by external tools.
+
+Records created by Studio receive permanent IDs. These IDs allow Timewright to maintain references when records are renamed.
+
+### Working with the timeline
+
+Studio displays the world at a selected point in time. A timeline beneath the map lets you navigate between dates and events.
+
+You can:
+
+- Enter a date directly.
+    
+- Step through events using Previous and Next.
+    
+- Drag the timeline playhead.
+    
+- Select individual events from the timeline.
+    
+- Switch between **At Date** and **All Time** views.
+    
+
+The editor also accounts for changes in the world over time:
+
+- Maps change automatically when different maps are defined for different periods.
+    
+- Mobile locations, such as ships and armies, appear at their recorded positions on the selected date.
+    
+- People aboard mobile locations appear at those locations as well.
+    
+- Locations that have not yet existed at the selected date are dimmed.
+    
+- Saving an event automatically moves the editor's timeline to that event's date.
+    
+
+When creating a location or event, Studio uses the currently selected map, map position, and date to prepopulate the new record.
+
+Events also provide selectable character references, avoiding misspelled names. Location records show how many events are associated with them and provide access to those events.
+
+## Placing Locations on Maps
+
+Locations need map coordinates to appear in the viewer. You can define a location without coordinates initially:
+
+```
 - name: Waterloo
   map: europe
 ```
 
-`timewright validate` says "needs placing", and `timewright pick` opens a
-local page where you click the map and the coordinates are written into the
-YAML — comments and all. It binds to 127.0.0.1 and is never deployed.
+Run:
 
-## Editing a world
-
-`timewright edit` opens the world in the browser: the map with everything on
-it, a list of locations, people and events, and a form for whichever one you
-click.
-
-### Starting it
-
-Double-click `start-studio.sh` — or `start-studio.cmd` on Windows. It builds
-the tool if it needs building, starts the editor and opens it in your
-browser:
-
-```bash
-./start-studio.sh                 # a world in this folder, or the example
-./start-studio.sh ~/my-world      # a world folder
+```
+timewright validate
 ```
 
-The same thing from an installed package, without the script:
+Timewright will report locations that still need to be placed.
 
-```bash
-npx timewright edit --world ~/my-world
+Then run:
+
+```
+timewright pick
 ```
 
-### What you can do in it
+This opens a local map-placement tool. Select a location and click its position on the map to assign coordinates. The tool writes the coordinates back into the YAML file while preserving comments and other existing content.
 
-- Click the map to make a location or an event there.
-- Drag a marker to move it.
-- Edit names, dates, tags and cards in the form.
-- Upload a new map image.
-- Delete a record you no longer want.
+The placement tool runs locally and is not included in the published website.
 
-Rename a record and the references that pointed at it follow it: the events
-at the place, the stays of the people who were there, the maps that sit
-inside a renamed map.
+## Viewing and Publishing a World
 
-Everything is written into the same YAML files, in place, comments and all.
-The files stay the source of truth, so an agent can keep working on a world
-you have been editing by hand. Every record the Studio writes gets a
-permanent `id:`, so a rename never breaks a reference.
+Timewright builds worlds into static websites. The generated files can be hosted on GitHub Pages or any other static web host. No database or application server is required.
 
-### The Studio keeps a clock
+### Previewing a world
 
-The Studio draws the world *at a moment*, not all at once. A bar under the
-canvas holds the current date: type one, step through the events with
-‹ Prev / Next ›, drag the playhead, or click a tick. Switch between **At
-Date** and **All Time**.
+Use the development viewer to run a world locally:
 
-- The map image follows the date — a world with a different map for each era
-  shows the right one.
-- A ship or an army (a mobile place) appears wherever it was that day, and
-  the people aboard it are found there too.
-- A place that did not exist yet is dimmed until it does.
-- Saving an event moves the Studio's own clock to that event's date.
-
-### The tabs run in the order you work
-
-**Maps → People → Locations → Events → World**, each carrying a count.
-
-- Making a place or an event opens a form of its own, filled in with what you
-  already know — the map, the spot you clicked, the day on the clock.
-- An event's characters are pills you click, so a name cannot be misspelled.
-- A location carries the count of the events that happened there, and its form
-  lists them.
-
-## Checking on a phone
-
-The viewer is built for a phone first. When you publish, look at it on one:
-
-- [ ] The map fills the screen; the card slides up from the bottom.
-- [ ] The step bar and the timeline strip are reachable with a thumb, and
-      their buttons are big enough to hit.
-- [ ] Dragging the map does not scroll the page.
-- [ ] The overview bar above the strip can be dragged with one finger.
-- [ ] A card with a long biography scrolls without moving the map.
-- [ ] The map image is not blurry when zoomed in.
-- [ ] Rotating the phone does not leave the layout half-broken.
-
-## Examples
-
-Two worlds ship with the source, and both are built by the same commands:
-
-- `examples/napoleon` — small, hand-drawn SVG maps, the Gregorian path.
-- `examples/revelation-space` — 11 maps, 46 locations, 14 people and 16
-  events, converted from the Revelation Space map project. Multi-level maps,
-  vessels that carry people, dates a century out.
-
-## Development
-
-```bash
-npm install
-npm run typecheck
-npm test
-npm run build
+```
+timewright dev
 ```
 
-Requires Node 22 or newer. CI runs the build on Windows, macOS and Ubuntu.
-`npm run build` compiles the CLI and builds the viewer into `dist-viewer`,
-which every site is assembled from.
+The development viewer reloads when the world files change.
 
-## Licence
+### Building a static website
 
-MIT.
+To build a world:
+
+```
+timewright build --world . --out dist
+```
+
+The output folder contains the complete website. Upload its contents to your web host to publish the world.
+
+### Creating a single-file version
+
+You can also package a world into one self-contained HTML file:
+
+```
+timewright build --world . --out dist --single-file
+```
+
+This produces:
+
+```
+dist/world.html
+```
+
+The file includes the world data, viewer, and map images. It can be shared by email, copied to removable media, or opened without hosting a website.
+
+### Publishing with GitHub Pages
+
+A template workflow is available in `templates/github-pages`.
+
+To publish a world:
+
+1. Create a separate GitHub repository for your world.
+    
+2. Place the world files in the root of the repository.
+    
+3. Add the GitHub Pages workflow from `templates/github-pages`.
+    
+4. Push your changes.
+    
+
+The workflow builds the website and publishes it to GitHub Pages. It installs Timewright directly from GitHub, so there is no need to publish the package to npm.
+
+Timewright uses relative URLs, so published sites work under GitHub Pages repository paths such as `/my-world/`without additional configuration.
+
+## Command Reference
+
+Timewright provides a command-line interface for creating, editing, validating, and building worlds.
+
+|Command|Description|
+|---|---|
+|`timewright init [folder]`|Create a starter world.|
+|`timewright validate`|Check a world for errors and warnings.|
+|`timewright build`|Build a world into a static website.|
+|`timewright dev`|Run the local viewer with automatic reloading.|
+|`timewright pick`|Assign map coordinates to locations.|
+|`timewright edit`|Open the browser-based Studio editor.|
+|`timewright schema`|Print the JSON Schema for the world format.|
