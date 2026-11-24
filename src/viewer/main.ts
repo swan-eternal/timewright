@@ -849,7 +849,7 @@ async function boot(): Promise<void> {
         openCard && step.eventId !== undefined ? { kind: "event", id: step.eventId } : state.selection,
     });
     if (step.mapId === (step.mapId ?? state.mapId) && step.at !== undefined) {
-      mapView.focusPixel(step.at[0], step.at[1], cardFocusOffset());
+      mapView.focusPixel(step.at[0], step.at[1]);
     }
   };
 
@@ -879,7 +879,7 @@ async function boot(): Promise<void> {
         selection: { kind: "event", id: eventId },
       });
       if (place?.at !== undefined) {
-        mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
+        mapView.focusPixel(place.at[0], place.at[1]);
       }
     },
   });
@@ -1133,7 +1133,7 @@ async function boot(): Promise<void> {
           selection: { kind: "event", id },
         });
         if (place?.at !== undefined) {
-          mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
+          mapView.focusPixel(place.at[0], place.at[1]);
         }
       }
       return;
@@ -1287,15 +1287,6 @@ function setupEmbedLink(): void {
   link.className = "embed-link";
   link.textContent = "Open full screen";
   topbar.appendChild(link);
-}
-
-/** How far event focus should shift up: the open card's height, so the
- *  point centers in the visible area rather than under the card. */
-function cardFocusOffset(): number {
-  if (cardElement === null || cardElement.hidden || !isPhoneView()) {
-    return 0;
-  }
-  return cardElement.offsetHeight;
 }
 
 /** The span a trace opens on: the traced person's first-to-last step. */
