@@ -113,6 +113,10 @@ export function resolveWorld(data: WorldData): ResolvedWorld {
       id: record.id,
       title: event.title,
       when: parse(event.when) ?? { raw: String(event.when), approx: false, kind: "exact", warnings: [] },
+      until:
+        event.until !== undefined
+          ? parse(event.until) ?? { raw: String(event.until), approx: false, kind: "exact", warnings: [] }
+          : undefined,
       where,
       people: resolveAll((reference) => index.peopleNames.resolve(reference), event.people),
       locations: resolveAll((reference) => index.locationNames.resolve(reference), event.locations),
