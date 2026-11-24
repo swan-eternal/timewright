@@ -366,6 +366,20 @@
         return [Math.round(latlng.lng), Math.round(S.imgH - latlng.lat)];
       }
 
+      // The center of the map window the creator is looking at, in image
+      // pixels, clamped to the map itself. New drafts drop their pin here,
+      // so placement starts as a drag from where the eye already is.
+      function viewCenterPixel() {
+        if (!S.map) return null;
+        const size = S.map.getSize();
+        const center = S.map.containerPointToLatLng([size.x / 2, size.y / 2]);
+        const [x, y] = latLngToPixel(center);
+        return [
+          Math.max(0, Math.min(S.imgW, Math.round(x))),
+          Math.max(0, Math.min(S.imgH, Math.round(y))),
+        ];
+      }
+
       function initLeaflet() {
         if (S.map) return;
         S.map = L.map("map", {
@@ -433,6 +447,17 @@
         renderSidebar();
       }
 
+      // Dragging a draft pin keeps the form's coordinate fields honest
+      // without rebuilding the form — nothing typed so far is lost.
+      function syncDraftCoordInputs(coords) {
+        const form = el("form-wrap").querySelector("#draft-form");
+        if (!form) return;
+        for (const [name, value] of Object.entries(coords)) {
+          const input = form.querySelector('[name="' + name + '"]');
+          if (input) input.value = Math.round(value);
+        }
+      }
+
       // The day the Studio is looking at, as a date the creator can type.
       function currentDate() {
         return S.data?.activeDate || S.date || S.data?.world?.start || "";
@@ -480,6 +505,7 @@
               <label class="field">Map
                 <select name="map">${mapOptions(d.map || S.mapId, true, "— Unplaced —")}</select>
               </label>
+              <p class="hint" style="margin:0.15rem 0 0.45rem">The pin is already on the map — drag it to place, or refine the numbers.</p>
               <div class="row">
                 <label class="field">X (px)
                   <input name="atX" type="number" value="${esc(d.at?.[0] ?? "")}" />
@@ -514,7 +540,7 @@
               <label class="field">Where It Happens
                 <select name="whereMode" id="draft-where-mode">
                   <option value="location"${mode === "location" ? " selected" : ""}>At a named Location</option>
-                  <option value="point"${mode === "point" ? " selected" : ""}>At exact Map Coordinates</option>
+                  <option value="point"${mode === "point" ? " selected" : ""}>Point on map (drag the pin)</option>
                   <option value="general"${mode === "general" ? " selected" : ""}>General Timeline Event</option>
                 </select>
               </label>
@@ -524,6 +550,7 @@
                 </label>
               </div>
               <div id="draft-pt-box" ${mode !== "point" ? "hidden" : ""}>
+                <p class="hint" style="margin:0.15rem 0 0.45rem">The pin is already on the map — drag it to place, or refine the numbers.</p>
                 <div class="row">
                   <label class="field">Map
                     <select name="whereMap">${mapOptions(d.whereMap || S.mapId, false)}</select>
@@ -567,8 +594,34 @@
             const m = e.target.value;
             form.querySelector("#draft-loc-box").hidden = m !== "location";
             form.querySelector("#draft-pt-box").hidden = m !== "point";
+            // Switching to point mode wants coordinates to exist: a fresh
+            // draft gets the center of the window, and the pin follows.
+            if (m === "point" && !Array.isArray(S.draft?.whereAt)) {
+              const at = viewCenterPixel() ?? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)];
+              if (S.draft) S.draft.whereAt = at;
+              syncDraftCoordInputs({ whereX: at[0], whereY: at[1] });
+            }
+            if (S.draft) S.draft.whereMode = m;
+            drawPins();
           };
         }
+        // The draft pin tracks whichever map the form points it at.
+        const draftEventMap = form.querySelector('[name="whereMap"]');
+        if (draftEventMap)
+          draftEventMap.onchange = () => {
+            if (S.draft) {
+              S.draft.whereMap = draftEventMap.value;
+              drawPins();
+            }
+          };
+        const draftLocMap = form.querySelector('[name="map"]');
+        if (draftLocMap)
+          draftLocMap.onchange = () => {
+            if (S.draft) {
+              S.draft.map = draftLocMap.value;
+              drawPins();
+            }
+          };
         const pillsRow = form.querySelector("#ev-people-pills");
         if (pillsRow) {
           pillsRow.addEventListener("click", (e) => {
@@ -783,18 +836,50 @@
         }
 
         // A place being written waits on the map as a hollow pin, so the
-        // creator can see where they are putting it.
+        // creator can see where they are putting it — and drags it to put
+        // it somewhere better. Nothing is written until the form is.
         if (S.draft && S.draft.kind === "location" && Array.isArray(S.draft.at)) {
           const at = S.draft.at;
           const draftMap = S.draft.map || mapId;
           if (draftMap === mapId) {
             const icon = L.divIcon({
               className: "ed-icon",
-              html: `<div class="ed-pin draft"><span class="ed-dot"></span></div>`,
+              html: `<div class="ed-pin draft"><span class="ed-dot"></span><span class="ed-lbl">New location</span></div>`,
               iconSize: [22, 22],
               iconAnchor: [11, 11],
             });
-            const m = L.marker(pixelToLatLng(at[0], at[1]), { icon });
+            const m = L.marker(pixelToLatLng(at[0], at[1]), { icon, draggable: true, zIndexOffset: 300 });
+            m.bindTooltip("Drag to place — name it in the form", { direction: "top", offset: [0, -8] });
+            m.on("drag", () => {
+              const [x, y] = latLngToPixel(m.getLatLng());
+              if (S.draft) S.draft.at = [x, y];
+              syncDraftCoordInputs({ atX: x, atY: y });
+            });
+            m.addTo(S.pinLayer);
+            S.pins.push(m);
+          }
+        }
+
+        // An event being written at a point gets the same live pin: it
+        // appears the moment the draft is point-mode, and dragging it is
+        // how placement is meant to be done.
+        if (S.draft && S.draft.kind === "event" && S.draft.whereMode === "point") {
+          const at = S.draft.whereAt;
+          const draftMap = S.draft.whereMap || mapId;
+          if (Array.isArray(at) && draftMap === mapId) {
+            const icon = L.divIcon({
+              className: "ed-icon",
+              html: `<div class="ed-pin event draft"><span class="ed-dot"></span><span class="ed-lbl">New event</span></div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
+            });
+            const m = L.marker(pixelToLatLng(at[0], at[1]), { icon, draggable: true, zIndexOffset: 300 });
+            m.bindTooltip("Drag to place — name it in the form", { direction: "top", offset: [0, -8] });
+            m.on("drag", () => {
+              const [x, y] = latLngToPixel(m.getLatLng());
+              if (S.draft) S.draft.whereAt = [x, y];
+              syncDraftCoordInputs({ whereX: x, whereY: y });
+            });
             m.addTo(S.pinLayer);
             S.pins.push(m);
           }
@@ -2173,7 +2258,7 @@
               <label class="field" style="margin-bottom:0.4rem">Placement Mode
                 <select name="whereMode" id="ev-where-mode">
                   <option value="location"${mode === "location" ? " selected" : ""}>At a named Location</option>
-                  <option value="point"${mode === "point" ? " selected" : ""}>At exact Map Coordinates [x, y]</option>
+                  <option value="point"${mode === "point" ? " selected" : ""}>Point on map (drag the pin)</option>
                   <option value="general"${mode === "general" ? " selected" : ""}>General Timeline Event (no map pin)</option>
                 </select>
               </label>
@@ -2289,12 +2374,24 @@
           const mapObj = currentMap();
           return startDraft("location", {
             map: mapObj?.id,
-            at: mapObj ? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)] : undefined,
+            at: mapObj
+              ? (viewCenterPixel() ?? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)])
+              : undefined,
           });
         }
         if (S.tab === "people") return startDraft("person", {});
         if (S.tab === "events") {
-          return startDraft("event", { whereMode: "general", when: currentDate() });
+          const mapObj = currentMap();
+          if (!mapObj) return startDraft("event", { whereMode: "general", when: currentDate() });
+          // A map is up: the new event starts as a draggable pin at the
+          // center of the window. Drag to place, name it in the form, and
+          // switch modes only if it is not a point after all.
+          return startDraft("event", {
+            whereMode: "point",
+            whereMap: mapObj.id,
+            whereAt: viewCenterPixel() ?? [Math.round(S.imgW / 2), Math.round(S.imgH / 2)],
+            when: currentDate(),
+          });
         }
       }
 
@@ -2309,7 +2406,18 @@
         el("settings-close").onclick = () => closeSettings();
         el("settings-scrim").onclick = () => closeSettings();
         document.addEventListener("keydown", (e) => {
-          if (e.key === "Escape" && !el("settings-panel").hidden) closeSettings();
+          if (e.key !== "Escape") return;
+          if (!el("settings-panel").hidden) {
+            closeSettings();
+            return;
+          }
+          // The placing banner already promises "Esc to cancel"; the draft
+          // form gets the same promise.
+          if (S.placing) {
+            setPlacing(null);
+            return;
+          }
+          if (S.draft) cancelDraft();
         });
         el("place-loc-btn").onclick = () => setPlacing("location");
         el("place-evt-btn").onclick = () => setPlacing("event");

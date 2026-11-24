@@ -63,6 +63,40 @@ describe("the Studio's shape", () => {
   it("draws a place being written as a pin on the map", () => {
     assert.ok(editorHtml.includes("ed-pin draft"), "a draft location should wait on the map");
   });
+
+  it("places by gesture: +New starts a point draft with a live draggable pin", () => {
+    assert.ok(
+      editorHtml.includes('whereMode: "point"'),
+      "+New should start events in point mode when a map is up",
+    );
+    assert.ok(
+      editorHtml.includes("viewCenterPixel"),
+      "the pin should drop at the center of the current view",
+    );
+    assert.ok(
+      editorHtml.includes("ed-pin event draft"),
+      "an event being written should wait on the map too",
+    );
+  });
+
+  it("names the gesture, not the numbers", () => {
+    assert.ok(
+      editorHtml.includes("Point on map (drag the pin)"),
+      "the placement mode should say the pin is draggable",
+    );
+    assert.ok(
+      !editorHtml.includes("At exact Map Coordinates"),
+      "the numbers-first label should be gone",
+    );
+    assert.ok(
+      editorHtml.includes("syncDraftCoordInputs"),
+      "dragging a draft pin keeps the form fields honest",
+    );
+    assert.ok(
+      editorHtml.includes("if (S.draft) cancelDraft();"),
+      "Esc should cancel an open draft",
+    );
+  });
 });
 
 describe("the Studio's map images", () => {
