@@ -1073,18 +1073,18 @@
       // through the same resolver the build uses - the panel never
       // decides a colour or a font on its own.
       const THEME = { shelf: null, draft: null, timer: null };
-      const ALL_COLOR_KEYS = ["bg", "panel", "card", "soft", "soft2", "ink", "muted", "line", "accent", "accentInk", "accentSoft", "event", "portal", "mapBg"];
+      const ALL_COLOR_KEYS = ["bg", "panel", "card", "soft", "soft2", "ink", "muted", "line", "accent", "accentInk", "accentSoft", "event", "portal", "mapBg", "labelBg"];
       const COLOR_GROUPS = [
         ["Surfaces", ["bg", "panel", "card", "soft", "soft2"]],
         ["Text", ["ink", "muted", "line"]],
         ["Accents", ["accent", "accentInk", "accentSoft", "event", "portal"]],
-        ["Map", ["mapBg"]],
+        ["Map", ["mapBg", "labelBg"]],
       ];
       const COLOR_LABELS = {
         bg: "Page background", panel: "Panels", card: "Cards & inputs", soft: "Soft wash", soft2: "Soft wash 2",
         ink: "Primary text", muted: "Quiet text", line: "Hairlines",
         accent: "Accent", accentInk: "Text on accent", accentSoft: "Accent wash", event: "Event markers", portal: "Portal markers",
-        mapBg: "Behind the map",
+        mapBg: "Behind the map", labelBg: "Map label bubbles",
       };
 
       function openSettings() {

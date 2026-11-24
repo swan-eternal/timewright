@@ -114,7 +114,7 @@ describe("the settings API", () => {
     const shelf = json();
     assert.equal(shelf.presets.length, 5);
     assert.equal(shelf.fonts.length, 9);
-    assert.equal(Object.keys(shelf.defaultColors).length, 14);
+    assert.equal(Object.keys(shelf.defaultColors).length, 15);
     assert.ok(shelf.fonts.some((f: { id: string; bodyOk: boolean }) => f.id === "orbitron" && f.bodyOk === false));
   });
 

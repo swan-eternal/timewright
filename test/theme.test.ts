@@ -21,6 +21,7 @@ describe("theme resolution", () => {
     assert.equal(theme.fonts.body.family, "system-ui");
     assert.equal(theme.colors.bg, "#f7f4ee");
     assert.equal(theme.colors.accent, "#1f4fa0");
+    assert.equal(theme.colors.labelBg, "#fffdf8");
     assert.deepEqual(themeFontFiles(theme), []);
   });
 
@@ -31,6 +32,7 @@ describe("theme resolution", () => {
     assert.equal(theme.fonts.body.family, "Space Grotesk");
     assert.equal(theme.colors.accent, "#4cc2ff");
     assert.equal(theme.colors.mapBg, "#0b0e14");
+    assert.equal(theme.colors.labelBg, "#212a36");
     assert.deepEqual(themeFontFiles(theme), ["orbitron.woff2", "space-grotesk.woff2"]);
   });
 
@@ -57,9 +59,10 @@ describe("theme resolution", () => {
   it("lets colors override a preset, and rejects bad hex", () => {
     const { theme, warnings } = resolveTheme({
       preset: "fantasy",
-      colors: { accent: "#123456", bg: "parchment" },
+      colors: { accent: "#123456", labelBg: "#112233", bg: "parchment" },
     });
     assert.equal(theme.colors.accent, "#123456");
+    assert.equal(theme.colors.labelBg, "#112233");
     assert.equal(theme.colors.bg, "#efe6d0");
     assert.equal(warnings.length, 1);
   });
@@ -72,6 +75,7 @@ describe("theme resolution", () => {
     assert.ok(css.includes("--font-heading:Orbitron, Verdana, sans-serif"));
     assert.ok(css.includes("--accent:#4cc2ff"));
     assert.ok(css.includes("--map-bg:#0b0e14"));
+    assert.ok(css.includes("--label-bg:#212a36"));
   });
 });
 
