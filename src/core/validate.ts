@@ -13,7 +13,7 @@ import {
   type WorldIndex,
 } from "./building.js";
 import { carriesCalendarDate } from "./chapters.js";
-import { compareDates, dateValue, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
+import { compareBounds, compareDates, dateValue, tryParseDate, type ParseOptions, type ParsedDate } from "./dates.js";
 import { levenshtein, type NameIndex } from "./resolve.js";
 import {
   EventSchema,
@@ -186,6 +186,7 @@ function checkChapterWorlds(
   }
   for (const source of data.events) {
     reportDate(source.data.when, source.file, source.data.title, "when");
+    reportDate(source.data.until, source.file, source.data.title, "until");
     if (source.data.chapter !== undefined) {
       issues.push({
         severity: "warning",
@@ -842,11 +843,26 @@ function checkEvents(issues: Issue[], index: WorldIndex, parseOptions: ParseOpti
   for (const record of index.events) {
     const event = record.data;
 
-    parseOrIssue(issues, event.when, parseOptions, {
+    const when = parseOrIssue(issues, event.when, parseOptions, {
       file: record.file,
       record: record.name,
       field: "when",
     });
+    const until = parseOrIssue(issues, event.until, parseOptions, {
+      file: record.file,
+      record: record.name,
+      field: "until",
+    });
+    if (until !== undefined && when !== undefined && compareBounds(until, when) < 0) {
+      issues.push({
+        severity: "error",
+        code: "until-before-when",
+        message: "a period cannot end before it starts — until is before when",
+        file: record.file,
+        record: record.name,
+        field: "until",
+      });
+    }
 
     if (typeof event.where === "string") {
       if (!index.locationNames.has(event.where)) {

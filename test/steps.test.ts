@@ -25,6 +25,63 @@ async function world() {
   return resolveWorld(loaded.data);
 }
 
+async function layersWorld() {
+  const loaded = await loadWorld(fixture("layers-world"));
+  return resolveWorld(loaded.data);
+}
+
+describe("character layers", () => {
+  const span = { from: parseDate("1800"), to: parseDate("1830") };
+
+  it("hides a hidden character's events and keeps shared and world events", async () => {
+    const resolved = await layersWorld();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span,
+      layers: { hiddenPeople: ["ana"], worldEvents: true },
+    });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Ana and Bol", "Nobody's event"],
+    );
+  });
+
+  it("hides the events with no characters when world events are off", async () => {
+    const resolved = await layersWorld();
+    const steps = viewSteps(resolved, {
+      mode: "span",
+      span,
+      layers: { hiddenPeople: [], worldEvents: false },
+    });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Ana alone", "Ana and Bol"],
+    );
+  });
+
+  it("shows everything when no layers are set", async () => {
+    const resolved = await layersWorld();
+    const steps = viewSteps(resolved, { mode: "span", span });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Ana alone", "Ana and Bol", "Nobody's event"],
+    );
+  });
+
+  it("walks the traced person whatever the layers say", async () => {
+    const resolved = await layersWorld();
+    const steps = viewSteps(resolved, {
+      mode: "trace",
+      traceId: "ana",
+      layers: { hiddenPeople: ["ana"], worldEvents: false },
+    });
+    assert.deepEqual(
+      steps.map((step) => step.label),
+      ["Ana alone", "Ana and Bol"],
+    );
+  });
+});
+
 describe("trace start", () => {
   it("is the first point of the path, wherever the path begins", async () => {
     const resolved = await world();

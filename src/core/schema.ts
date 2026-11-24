@@ -119,6 +119,9 @@ export const EventSchema = z.looseObject({
   id: z.string().min(1).optional(),
   title: z.string().min(1),
   when: DateLike,
+  /** The end of a period event, when set — the war that lasts years, the
+   *  reign that lasts decades. Inclusive, and never before `when`. */
+  until: DateLike.optional(),
   /** A location name, or a raw point on a map. */
   where: WhereSchema.optional(),
   people: z.array(z.string().min(1)).optional(),

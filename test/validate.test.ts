@@ -59,6 +59,36 @@ describe("validateWorld", () => {
     assert.equal(issue.severity, "warning");
   });
 
+  it("accepts a period event whose until follows its when", () => {
+    const issues = validateWorld(
+      world({
+        events: [
+          {
+            data: { title: "The Peninsular War", when: "1807", until: "1814" } as EventRecord,
+            file: "events/events.yaml",
+          },
+        ],
+      }),
+    );
+    assert.equal(issues.find((entry) => entry.field === "until"), undefined);
+  });
+
+  it("refuses a period that ends before it starts", () => {
+    const issues = validateWorld(
+      world({
+        events: [
+          {
+            data: { title: "Reversed", when: "1815", until: "1812" } as EventRecord,
+            file: "events/events.yaml",
+          },
+        ],
+      }),
+    );
+    const issue = issues.find((entry) => entry.code === "until-before-when");
+    assert.ok(issue !== undefined);
+    assert.equal(issue.severity, "error");
+  });
+
   it("catches an event pointing at a map instead of a location", () => {
     const issues = validateWorld(
       world({

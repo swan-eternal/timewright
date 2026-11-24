@@ -9,6 +9,7 @@ import { chapterBadge, chapterLabel, displayDate, isChapterWorld } from "../core
 import { dateFraction, eventDomain, fractionDate } from "../core/scale.js";
 import {
   eventHasPosition,
+  eventLayerVisible,
   eventPlace,
   eventsAtPlace,
   mapChain,
@@ -31,7 +32,7 @@ import { debugOn, installDebug } from "./debug.js";
 import { readLink, writeLink } from "./link.js";
 import { assetUrl, MapView } from "./map.js";
 import { StepBar } from "./stepbar.js";
-import { Store, type AppState, type Changed } from "./state.js";
+import { Store, type AppState, type Changed, type LayerState } from "./state.js";
 import { Timeline } from "./timeline.js";
 
 const statusElement = document.querySelector<HTMLElement>("#status");
@@ -161,7 +162,7 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
     .join(", ");
   return [
     `<h2>${escapeHtml(event.title)}</h2>`,
-    `<p class="meta">${escapeHtml(displayDate(world, event.when))}${chapterNote(world, event)} · ${whereHtml}</p>`,
+    `<p class="meta">${escapeHtml(displayEventRange(world, event))}${chapterNote(world, event)} · ${whereHtml}</p>`,
     people !== "" ? `<p class="people"><strong>People:</strong> ${people}</p>` : "",
     tagChips(event.tags),
     renderMarkdown(event.card),
@@ -172,6 +173,7 @@ function locationCard(
   state: AppState,
   location: ResolvedLocation,
   visibleEventIds: Set<string>,
+  hiddenEventIds: Set<string>,
 ): string {
   const world = state.world;
   const people = world.people
@@ -203,14 +205,16 @@ function locationCard(
       (event) => event.id,
     ),
   );
-  const eventsHere = sortedEvents(world).filter((event) => hereIds.has(event.id));
+  const eventsHere = sortedEvents(world).filter(
+    (event) => hereIds.has(event.id) && !hiddenEventIds.has(event.id),
+  );
   const eventsHtml =
     eventsHere.length === 0
       ? ""
       : `<div class="events-here"><h3>Events here</h3><ul>${eventsHere
           .map(
             (event) =>
-              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(displayDate(world, event.when))}</span></li>`,
+              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(displayEventRange(world, event))}</span></li>`,
           )
           .join("")}</ul></div>`;
   return [
@@ -223,6 +227,13 @@ function locationCard(
     tagChips(location.tags),
     renderMarkdown(location.card ?? location.bio),
   ].join("\n");
+}
+
+/** A period event reads as a range; a moment reads as its date. */
+function displayEventRange(world: ResolvedWorld, event: ResolvedEvent): string {
+  return event.until === undefined
+    ? displayDate(world, event.when)
+    : `${displayDate(world, event.when)} – ${displayDate(world, event.until)}`;
 }
 
 function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
@@ -249,7 +260,11 @@ function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
   ].join("\n");
 }
 
-function renderCard(state: AppState, visibleEventIds: Set<string>): void {
+function renderCard(
+  state: AppState,
+  visibleEventIds: Set<string>,
+  hiddenEventIds: Set<string>,
+): void {
   if (cardElement === null) {
     return;
   }
@@ -274,10 +289,11 @@ function renderCard(state: AppState, visibleEventIds: Set<string>): void {
     const event = state.world.events.find((entry) => entry.id === selection.id);
     html = event !== undefined ? eventCard(state.world, event) : "";
     peekTitle = event?.title ?? "";
-    peekDate = event !== undefined ? displayDate(state.world, event.when) : "";
+    peekDate = event !== undefined ? displayEventRange(state.world, event) : "";
   } else if (selection.kind === "location") {
     const location = state.world.locations.find((entry) => entry.id === selection.id);
-    html = location !== undefined ? locationCard(state, location, visibleEventIds) : "";
+    html =
+      location !== undefined ? locationCard(state, location, visibleEventIds, hiddenEventIds) : "";
     peekTitle = location?.name ?? "";
   } else {
     const person = state.world.people.find((entry) => entry.id === selection.id);
@@ -422,75 +438,113 @@ function jumpToStart(
   return { date: start, stepKey: undefined };
 }
 
-/** The "Show traces" checklist: several traces at once, each in its own
- *  color, independent of the Follow dropdown's single-life walk. */
-function buildTracesSection(world: ResolvedWorld, store: Store): HTMLElement {
+/** The Characters section: one layer per character, the world-events
+ *  bucket, and a single switch that draws every visible character's
+ *  trace at once. Hiding a layer hides that character's events; the
+ *  Follow dropdown's single-life walk stays its own thing. */
+function buildCharactersSection(world: ResolvedWorld, store: Store): HTMLElement {
   const section = document.createElement("div");
   section.className = "traces-section";
   const head = document.createElement("div");
   head.className = "traces-head";
   const label = document.createElement("span");
   label.className = "filter-label";
-  label.textContent = "Show traces";
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.className = "mini-link";
-  clear.id = "clear-shown-traces";
-  clear.textContent = "Clear all";
-  clear.hidden = true;
-  clear.addEventListener("click", () => {
-    store.set({ shownTraces: [] });
-  });
-  head.append(label, clear);
+  label.textContent = "Characters";
   const list = document.createElement("div");
   list.className = "traces-list";
-  list.id = "traces-list";
-  for (const entry of traceable(world)) {
+  list.id = "layers-list";
+  for (const person of world.people) {
     const row = document.createElement("label");
     row.className = "trace-check";
     const box = document.createElement("input");
     box.type = "checkbox";
-    box.dataset.traceId = entry.id;
+    box.checked = true;
+    box.dataset.layerPerson = person.id;
     const dot = document.createElement("span");
     dot.className = "trace-dot";
-    dot.style.background = shownTraceColor(world, entry.id);
+    dot.style.background = shownTraceColor(world, person.id);
     const name = document.createElement("span");
-    name.textContent = entry.name;
+    name.textContent = person.name;
     row.append(box, dot, name);
     list.appendChild(row);
   }
-  section.append(head, list);
-  section.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement) || target.dataset.traceId === undefined) {
-      return;
-    }
-    const id = target.dataset.traceId;
-    const current = new Set(store.get().shownTraces ?? []);
-    if (target.checked) {
-      current.add(id);
-    } else {
-      current.delete(id);
-    }
+  const worldRow = document.createElement("label");
+  worldRow.className = "trace-check bucket";
+  const worldBox = document.createElement("input");
+  worldBox.type = "checkbox";
+  worldBox.checked = true;
+  worldBox.dataset.layerWorld = "";
+  const worldDot = document.createElement("span");
+  worldDot.className = "trace-dot world";
+  const worldName = document.createElement("span");
+  worldName.textContent = "World events";
+  worldRow.append(worldBox, worldDot, worldName);
+  list.appendChild(worldRow);
+  const tracesRow = document.createElement("label");
+  tracesRow.className = "trace-check bucket";
+  const tracesBox = document.createElement("input");
+  tracesBox.type = "checkbox";
+  tracesBox.dataset.layerTraces = "";
+  const tracesDot = document.createElement("span");
+  tracesDot.className = "trace-dot path";
+  const tracesName = document.createElement("span");
+  tracesName.textContent = "Traces";
+  tracesRow.append(tracesBox, tracesDot, tracesName);
+  list.appendChild(tracesRow);
+  const readLayers = (): LayerState => {
+    const hiddenPeople = [...list.querySelectorAll<HTMLInputElement>("input[data-layer-person]")]
+      .filter((box) => !box.checked)
+      .map((box) => box.dataset.layerPerson ?? "")
+      .filter((id) => id !== "");
+    return {
+      hiddenPeople,
+      worldEvents: list.querySelector<HTMLInputElement>("input[data-layer-world]")?.checked ?? true,
+      traces: list.querySelector<HTMLInputElement>("input[data-layer-traces]")?.checked ?? false,
+    };
+  };
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "mini-link";
+  all.textContent = "All";
+  all.addEventListener("click", () => {
+    const current = store.get().layers;
     store.set({
-      shownTraces: [...current],
-      ...(target.checked ? jumpToStart(world, id, store.get().date) : {}),
+      layers: { hiddenPeople: [], worldEvents: true, traces: current?.traces ?? false },
     });
+  });
+  const none = document.createElement("button");
+  none.type = "button";
+  none.className = "mini-link";
+  none.textContent = "None";
+  none.addEventListener("click", () => {
+    const current = store.get().layers;
+    store.set({
+      layers: {
+        hiddenPeople: world.people.map((person) => person.id),
+        worldEvents: false,
+        traces: current?.traces ?? false,
+      },
+    });
+  });
+  head.append(label, all, none);
+  section.append(head, list);
+  section.addEventListener("change", () => {
+    store.set({ layers: readLayers() });
   });
   return section;
 }
 
 /** The filters panel: date jump, search and the trace select fold behind
- *  one topbar button on the phone; the traces checklist lives in it on
- *  every screen, so the toggle works on desktop too. */
-function setupFiltersPanel(tracesSection: HTMLElement): void {
+ *  one topbar button on the phone; the characters section lives in it on
+ *  every screen, so the layer toggles work on desktop too. */
+function setupFiltersPanel(charactersSection: HTMLElement): void {
   if (filtersToggleElement === null || filtersPanelElement === null) {
     return;
   }
-  // The checklist lives at the bottom of the panel on every screen; the
-  // controls folded in on the phone land above it. It must be attached
-  // before place() uses it as an insertion reference.
-  filtersPanelElement.appendChild(tracesSection);
+  // The characters section lives at the bottom of the panel on every
+  // screen; the controls folded in on the phone land above it. It must be
+  // attached before place() uses it as an insertion reference.
+  filtersPanelElement.appendChild(charactersSection);
   const traceRow = document.querySelector<HTMLElement>(".trace-controls");
   const movable = [dateForm, searchInput, traceRow].filter(
     (node): node is HTMLElement => node !== null && node !== undefined,
@@ -504,7 +558,7 @@ function setupFiltersPanel(tracesSection: HTMLElement): void {
       // it lives in its home slot there, not over the map.
       stepbar?.parentElement?.insertBefore(filtersPanelElement, stepbar);
       for (const node of movable) {
-        filtersPanelElement.insertBefore(node, tracesSection);
+        filtersPanelElement.insertBefore(node, charactersSection);
       }
       return;
     }
@@ -513,9 +567,9 @@ function setupFiltersPanel(tracesSection: HTMLElement): void {
     for (const [index, node] of movable.entries()) {
       homes[index]?.appendChild(node);
     }
-    // Desktop: the checklist docks to the map's right side, floating
-    // over it — no grid auto-placement, no layout shift when filters
-    // come and go.
+    // Desktop: the characters section docks to the map's right side,
+    // floating over it — no grid auto-placement, no layout shift when
+    // filters come and go.
     mapWrap?.appendChild(filtersPanelElement);
   };
   place();
@@ -547,8 +601,9 @@ function renderActiveFilters(state: AppState): void {
   }
   const tags = state.tags ?? [];
   const query = (state.query ?? "").trim();
-  const shown = state.shownTraces ?? [];
-  if (tags.length === 0 && query === "" && shown.length === 0) {
+  const hidden = state.layers?.hiddenPeople ?? [];
+  const worldEventsOff = state.layers?.worldEvents === false;
+  if (tags.length === 0 && query === "" && hidden.length === 0 && !worldEventsOff) {
     activeFiltersElement.hidden = true;
     activeFiltersElement.innerHTML = "";
     return;
@@ -564,10 +619,15 @@ function renderActiveFilters(state: AppState): void {
       `<button type="button" class="filter-chip" id="clear-query-chip">Search: "${escapeHtml(query)}" ✕</button>`,
     );
   }
-  for (const id of shown) {
-    const entry = traceable(state.world).find((candidate) => candidate.id === id);
+  for (const id of hidden) {
+    const person = state.world.people.find((entry) => entry.id === id);
     chips.push(
-      `<button type="button" class="filter-chip" data-trace-clear="${escapeHtml(id)}"><span class="chip-dot" style="background:${escapeHtml(shownTraceColor(state.world, id))}"></span>${escapeHtml(entry?.name ?? id)} ✕</button>`,
+      `<button type="button" class="filter-chip" data-layer-show="${escapeHtml(id)}"><span class="chip-dot" style="background:${escapeHtml(shownTraceColor(state.world, id))}"></span>${escapeHtml(person?.name ?? id)} ✕</button>`,
+    );
+  }
+  if (worldEventsOff) {
+    chips.push(
+      `<button type="button" class="filter-chip" data-layer-show-world="on">World events ✕</button>`,
     );
   }
   activeFiltersElement.innerHTML = `<span class="filter-label">Active filters:</span> ${chips.join(" ")}`;
@@ -600,6 +660,9 @@ function renderResults(state: AppState): void {
   }
   const matches: { kind: string; id: string; label: string }[] = [];
   for (const event of state.world.events) {
+    if (!eventLayerVisible(event, state.layers)) {
+      continue;
+    }
     if (event.title.toLowerCase().includes(query)) {
       matches.push({ kind: "event", id: event.id, label: event.title });
     }
@@ -732,9 +795,6 @@ async function boot(): Promise<void> {
     span: initialSpan,
     mode: link.trace !== undefined ? "trace" : "span",
     traceId: link.trace,
-    shownTraces: (link.traces ?? "")
-      .split(",")
-      .filter((id) => traceable(world).some((entry) => entry.id === id)),
     selection: link.event !== undefined ? { kind: "event", id: link.event } : undefined,
     query: link.query,
   });
@@ -775,6 +835,7 @@ async function boot(): Promise<void> {
       span,
       query: state.query,
       tags: state.tags,
+      layers: state.layers,
     });
     const step = steps[index];
     if (step === undefined) {
@@ -788,7 +849,7 @@ async function boot(): Promise<void> {
         openCard && step.eventId !== undefined ? { kind: "event", id: step.eventId } : state.selection,
     });
     if (step.mapId === (step.mapId ?? state.mapId) && step.at !== undefined) {
-      mapView.focusPixel(step.at[0], step.at[1], cardFocusOffset());
+      mapView.focusPixel(step.at[0], step.at[1]);
     }
   };
 
@@ -818,7 +879,7 @@ async function boot(): Promise<void> {
         selection: { kind: "event", id: eventId },
       });
       if (place?.at !== undefined) {
-        mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
+        mapView.focusPixel(place.at[0], place.at[1]);
       }
     },
   });
@@ -832,7 +893,7 @@ async function boot(): Promise<void> {
   traceSelect.value = store.get().traceId ?? "";
 
   setupCardSheet(store);
-  setupFiltersPanel(buildTracesSection(world, store));
+  setupFiltersPanel(buildCharactersSection(world, store));
 
   const renderState = (state: AppState, changed: Changed): void => {
     // An empty changed set means "nothing in particular" - render it all.
@@ -860,6 +921,7 @@ async function boot(): Promise<void> {
       span,
       query: state.query,
       tags: state.tags,
+      layers: state.layers,
     });
     // The arrows move through the steps, so the position is remembered
     // rather than worked out from the date: two steps can share a date,
@@ -875,9 +937,19 @@ async function boot(): Promise<void> {
         tickIds.add(step.eventId);
       }
     }
+    // The events no layer shows leave every view at once: the strip's
+    // pips, the events-here lists, the search results — one filter state.
+    const hiddenEventIds = new Set<string>();
+    if (state.layers !== undefined) {
+      for (const event of state.world.events) {
+        if (!eventLayerVisible(event, state.layers)) {
+          hiddenEventIds.add(event.id);
+        }
+      }
+    }
     const activeEventId =
       state.selection?.kind === "event" ? state.selection.id : focused?.eventId;
-    timeline.render(state.world, currentDomain, span, state.date, tickIds, activeEventId);
+    timeline.render(state.world, currentDomain, span, state.date, tickIds, activeEventId, hiddenEventIds);
     stepBar.render(
       steps.map((step) => ({ label: step.label, date: displayDate(state.world, step.date) })),
       index,
@@ -886,15 +958,23 @@ async function boot(): Promise<void> {
     if (traceSelect.value !== (state.traceId ?? "")) {
       traceSelect.value = state.traceId ?? "";
     }
-    const shownNow = new Set(state.shownTraces ?? []);
+    const layers = state.layers;
     for (const box of document.querySelectorAll<HTMLInputElement>(
-      "#traces-list input[type=checkbox]",
+      "#layers-list input[data-layer-person]",
     )) {
-      box.checked = shownNow.has(box.dataset.traceId ?? "");
+      box.checked = !(layers?.hiddenPeople ?? []).includes(box.dataset.layerPerson ?? "");
     }
-    const clearShownTraces = document.querySelector<HTMLButtonElement>("#clear-shown-traces");
-    if (clearShownTraces !== null) {
-      clearShownTraces.hidden = shownNow.size === 0;
+    const worldEventsBox = document.querySelector<HTMLInputElement>(
+      "#layers-list input[data-layer-world]",
+    );
+    if (worldEventsBox !== null) {
+      worldEventsBox.checked = layers?.worldEvents ?? true;
+    }
+    const tracesToggle = document.querySelector<HTMLInputElement>(
+      "#layers-list input[data-layer-traces]",
+    );
+    if (tracesToggle !== null) {
+      tracesToggle.checked = layers?.traces ?? false;
     }
     if (clearTraceButton !== null) {
       clearTraceButton.hidden = state.mode !== "trace";
@@ -943,7 +1023,7 @@ async function boot(): Promise<void> {
           ? state.world.events.find((e) => e.id === activeEventId)
           : undefined;
       if (activeEvent !== undefined && !eventHasPosition(state.world, activeEvent, state.date)) {
-        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(displayDate(state.world, activeEvent.when))}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
+        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(displayEventRange(state.world, activeEvent))}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
         generalBannerElement.hidden = false;
       } else {
         generalBannerElement.hidden = true;
@@ -974,14 +1054,17 @@ async function boot(): Promise<void> {
         color: tracedPerson?.color,
       });
     }
-    for (const id of state.shownTraces ?? []) {
-      if (id === followId) {
-        continue;
+    if ((state.layers?.traces ?? false)) {
+      const hiddenPeople = new Set(state.layers?.hiddenPeople ?? []);
+      for (const entry of traceable(state.world)) {
+        if (entry.id === followId || (entry.kind === "person" && hiddenPeople.has(entry.id))) {
+          continue;
+        }
+        paths.push({
+          points: tracePath(state.world, entry.id, state.date),
+          color: shownTraceColor(state.world, entry.id),
+        });
       }
-      paths.push({
-        points: tracePath(state.world, id, state.date),
-        color: shownTraceColor(state.world, id),
-      });
     }
     mapView.setPaths(paths);
 
@@ -989,7 +1072,7 @@ async function boot(): Promise<void> {
       renderBreadcrumb(state);
     }
     renderActiveFilters(state);
-    renderCard(state, tickIds);
+    renderCard(state, tickIds, hiddenEventIds);
     renderResults(state);
     updateLink(state);
   };
@@ -1050,17 +1133,34 @@ async function boot(): Promise<void> {
           selection: { kind: "event", id },
         });
         if (place?.at !== undefined) {
-          mapView.focusPixel(place.at[0], place.at[1], cardFocusOffset());
+          mapView.focusPixel(place.at[0], place.at[1]);
         }
       }
       return;
     }
-    const traceClear = target.closest<HTMLElement>("[data-trace-clear]");
-    if (traceClear !== null && traceClear.dataset.traceClear !== undefined) {
+    const layerShow = target.closest<HTMLElement>("[data-layer-show]");
+    if (layerShow !== null && layerShow.dataset.layerShow !== undefined) {
       event.preventDefault();
-      const id = traceClear.dataset.traceClear;
+      const id = layerShow.dataset.layerShow;
+      const current = store.get().layers;
       store.set({
-        shownTraces: (store.get().shownTraces ?? []).filter((entry) => entry !== id),
+        layers: {
+          hiddenPeople: (current?.hiddenPeople ?? []).filter((entry) => entry !== id),
+          worldEvents: current?.worldEvents ?? true,
+          traces: current?.traces ?? false,
+        },
+      });
+      return;
+    }
+    if (target.closest("[data-layer-show-world]") !== null) {
+      event.preventDefault();
+      const current = store.get().layers;
+      store.set({
+        layers: {
+          hiddenPeople: current?.hiddenPeople ?? [],
+          worldEvents: true,
+          traces: current?.traces ?? false,
+        },
       });
       return;
     }
@@ -1189,15 +1289,6 @@ function setupEmbedLink(): void {
   topbar.appendChild(link);
 }
 
-/** How far event focus should shift up: the open card's height, so the
- *  point centers in the visible area rather than under the card. */
-function cardFocusOffset(): number {
-  if (cardElement === null || cardElement.hidden || !isPhoneView()) {
-    return 0;
-  }
-  return cardElement.offsetHeight;
-}
-
 /** The span a trace opens on: the traced person's first-to-last step. */
 function traceSpanOf(world: ResolvedWorld, traceId: string): Span | undefined {
   const steps = traceSteps(world, traceId);
@@ -1213,7 +1304,6 @@ function updateLink(state: AppState): void {
     date: state.date?.raw,
     span: state.span !== undefined ? `${state.span.from.raw}..${state.span.to.raw}` : undefined,
     trace: state.traceId,
-    traces: (state.shownTraces ?? []).length > 0 ? state.shownTraces?.join(",") : undefined,
     event: state.selection?.kind === "event" ? state.selection.id : undefined,
     query: state.query !== undefined && state.query !== "" ? state.query : undefined,
   });

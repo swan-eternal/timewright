@@ -674,6 +674,23 @@ select {
   opacity: 0.75;
 }
 
+/* A period event spans the strip as a bar; its width arrives inline. */
+.tick.span {
+  top: 0.46rem;
+  height: 0.3rem;
+  margin-left: 0;
+  min-width: 0.72rem;
+  border-radius: 999px;
+  background: var(--event);
+  opacity: 0.55;
+}
+
+.tick.span:hover,
+.tick.span.active {
+  opacity: 1;
+  transform: none;
+}
+
 .playhead {
   position: absolute;
   top: 0.25rem;
@@ -1134,6 +1151,25 @@ h3,
   gap: 0.45rem;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+/* The bucket rows — World events and the Traces switch — are not
+ * characters, so they sit below a rule with hollow dots. */
+.trace-check.bucket {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.trace-dot.world,
+.trace-dot.path {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid currentColor;
+}
+
+.trace-dot.path {
+  border-style: dashed;
 }
 
 .trace-dot,
