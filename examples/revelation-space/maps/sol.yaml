@@ -1,9 +1,0 @@
-id: sol
-name: Sol
-parent: region
-size:
-  - 800
-  - 600
-images:
-  - file: sol.svg
-    caption: Sol, schematically.

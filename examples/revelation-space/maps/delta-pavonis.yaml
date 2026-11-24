@@ -1,9 +1,0 @@
-id: delta-pavonis
-name: Delta Pavonis
-parent: region
-size:
-  - 800
-  - 600
-images:
-  - file: delta-pavonis.svg
-    caption: Delta Pavonis, schematically.

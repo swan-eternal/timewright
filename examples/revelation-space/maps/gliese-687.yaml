@@ -1,9 +1,0 @@
-id: gliese-687
-name: Gliese 687
-parent: region
-size:
-  - 800
-  - 600
-images:
-  - file: gliese-687.svg
-    caption: Gliese 687, schematically.

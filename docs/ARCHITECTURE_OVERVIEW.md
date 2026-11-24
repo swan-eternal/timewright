@@ -67,7 +67,7 @@ timewright/
 │
 ├── scripts/copy-assets.mjs    # Copies `editor.html` and `picker.html` into `dist/cli/` during build
 ├── docs/                      # FORMAT.md, AGENT_GUIDE.md, and this ARCHITECTURE_OVERVIEW.md
-├── examples/                  # `napoleon/` and `revelation-space/` reference worlds
+├── examples/                  # `napoleon/` and `hobbit/` reference worlds
 └── test/                      # Node `--test` suite covering core logic, YAML edits, security, and exports
 ```
 

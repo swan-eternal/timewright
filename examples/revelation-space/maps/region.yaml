@@ -1,8 +1,0 @@
-id: region
-name: The Local Neighbourhood
-size:
-  - 900
-  - 900
-images:
-  - file: region.svg
-    caption: The local neighbourhood, true scale.

@@ -1,9 +1,0 @@
-id: ross-248
-name: Ross 248
-parent: region
-size:
-  - 800
-  - 600
-images:
-  - file: ross-248.svg
-    caption: Ross 248, schematically.

@@ -1,9 +1,0 @@
-id: tau-ceti
-name: Tau Ceti
-parent: region
-size:
-  - 800
-  - 600
-images:
-  - file: tau-ceti.svg
-    caption: Tau Ceti, schematically.

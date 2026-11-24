@@ -17,7 +17,7 @@ function example(name: string): string {
  * is a world the viewer can read.
  */
 describe("the examples", () => {
-  for (const name of ["napoleon", "revelation-space"]) {
+  for (const name of ["napoleon", "hobbit"]) {
     it(`${name} validates without a single error`, async () => {
       const loaded = await loadWorld(example(name));
       const issues = [...loaded.issues, ...validateWorld(loaded.data)];
@@ -29,19 +29,10 @@ describe("the examples", () => {
     });
   }
 
-  it("revelation-space keeps everything the dataset had", async () => {
-    const loaded = await loadWorld(example("revelation-space"));
-    assert.equal(loaded.data.maps.length, 11);
-    assert.equal(loaded.data.events.length, 16);
-    // 61 nodes: 11 star systems, 33 places, 2 vessels and 15 people.
-    assert.equal(loaded.data.locations.length, 46);
-    assert.equal(loaded.data.people.length, 14);
-  });
-
   it("gives every step its own identity", async () => {
     // Two steps sharing a key cannot be told apart, and the reader would
     // not be able to step back into the earlier of them.
-    for (const name of ["napoleon", "revelation-space"]) {
+    for (const name of ["napoleon", "hobbit"]) {
       const loaded = await loadWorld(example(name));
       const world = resolveWorld(loaded.data);
       const domain = eventDomain(world);
