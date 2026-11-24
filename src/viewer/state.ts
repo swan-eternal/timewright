@@ -12,6 +12,16 @@ export interface Selection {
 /** "span" walks the events in the visible span; "trace" walks one person. */
 export type Mode = "span" | "trace";
 
+/** Character layers: which events show, and whether traces draw. */
+export interface LayerState {
+  /** Person ids whose events are hidden. */
+  hiddenPeople: string[];
+  /** Whether events with no characters attached show. */
+  worldEvents: boolean;
+  /** Whether traces draw for every visible character at once. */
+  traces: boolean;
+}
+
 export interface AppState {
   world: ResolvedWorld;
   /** The map on screen. */
@@ -29,8 +39,8 @@ export interface AppState {
   mode: Mode;
   /** The person or vessel being traced. */
   traceId?: string | undefined;
-  /** Extra traces drawn on the map at once, independent of following one. */
-  shownTraces?: string[] | undefined;
+  /** Character layers: which events show, and whether traces draw. */
+  layers?: LayerState | undefined;
   /** What is open in the card. */
   selection?: Selection | undefined;
   /** Text filter over events, people and locations. */

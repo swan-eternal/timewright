@@ -33,6 +33,7 @@ export class Timeline {
   private domain?: TimeDomain | undefined;
   private span?: Span | undefined;
   private date?: DateBound | undefined;
+  private hiddenEventIds?: Set<string> | undefined;
   private drag?: DragState;
 
   constructor(options: TimelineOptions) {
@@ -47,10 +48,12 @@ export class Timeline {
     date: DateBound | undefined,
     tickEventIds?: Set<string>,
     activeEventId?: string,
+    hiddenEventIds?: Set<string>,
   ): void {
     this.domain = domain;
     this.span = span;
     this.date = date;
+    this.hiddenEventIds = hiddenEventIds;
     this.renderContext(world);
     this.renderStrip(world, tickEventIds, activeEventId);
   }
@@ -70,6 +73,7 @@ export class Timeline {
 
     // Mini density pips inside the overview bar
     const pips = world.events
+      .filter((ev) => !(this.hiddenEventIds?.has(ev.id) ?? false))
       .map((ev) => {
         const f = dateFraction(ev.when, domain) * 100;
         return `<span class="context-pip" style="left:${f.toFixed(2)}%"></span>`;
