@@ -83,8 +83,12 @@ theme:
     body: space-grotesk  # readable faces only
   colors:
     accent: "#4cc2ff"    # any of: bg panel card soft soft2 ink muted line
-    mapBg: "#0b0e14"     #        accent accentInk accentSoft event portal mapBg
+    mapBg: "#0b0e14"     #        accent accentInk accentSoft event portal mapBg labelBg
 ```
+
+`labelBg` is the bubble behind the floating map labels — the pin names
+and the timeline banner. Dark themes want it dark, so their light `ink`
+stays readable over the map.
 
 Fonts ship with the tool as small open-license WOFF2 files, so sites stay
 self-contained and offline. Ids: `default`, `eb-garamond`, `cinzel`,

@@ -51,6 +51,8 @@ export interface ThemeColors {
   portal: string;
   /** What shows behind the map image. */
   mapBg: string;
+  /** The floating map labels: pin name bubbles and the timeline banner. */
+  labelBg: string;
 }
 
 export interface ResolvedTheme {
@@ -139,6 +141,7 @@ const DEFAULT_COLORS: ThemeColors = {
   event: "#b3541e",
   portal: "#6a3fb5",
   mapBg: "#ded7c9",
+  labelBg: "#fffdf8",
 };
 
 type Partial2<T> = { [K in keyof T]?: T[K] | undefined };
@@ -167,6 +170,7 @@ export const THEME_PRESETS: Record<string, Preset> = {
       event: "#9a3b1e",
       portal: "#5d4a7e",
       mapBg: "#e4dcc9",
+      labelBg: "#fdfbf4",
     },
   },
   fantasy: {
@@ -186,6 +190,7 @@ export const THEME_PRESETS: Record<string, Preset> = {
       event: "#a34d17",
       portal: "#6b4fa0",
       mapBg: "#e0d3b4",
+      labelBg: "#f8f1de",
     },
   },
   scifi: {
@@ -205,6 +210,7 @@ export const THEME_PRESETS: Record<string, Preset> = {
       event: "#ff9e3d",
       portal: "#a98aff",
       mapBg: "#0b0e14",
+      labelBg: "#212a36",
     },
   },
   manuscript: {
@@ -224,6 +230,7 @@ export const THEME_PRESETS: Record<string, Preset> = {
       event: "#9c4415",
       portal: "#6f5a94",
       mapBg: "#e6dabf",
+      labelBg: "#faf4e4",
     },
   },
   "case-file": {
@@ -243,6 +250,7 @@ export const THEME_PRESETS: Record<string, Preset> = {
       event: "#7a3517",
       portal: "#4f5a6b",
       mapBg: "#ded5bc",
+      labelBg: "#f6f1e3",
     },
   },
 };
@@ -372,7 +380,7 @@ export function themeCss(theme: ResolvedTheme): string {
   const vars: string[] = [
     `--font-heading:${stack(theme.fonts.heading)}`,
     `--font-body:${stack(theme.fonts.body)}`,
-    ...COLOR_KEYS.map((key) => `--${key === "mapBg" ? "map-bg" : key === "soft2" ? "soft-2" : key === "accentInk" ? "accent-ink" : key === "accentSoft" ? "accent-soft" : key}:${theme.colors[key]}`),
+    ...COLOR_KEYS.map((key) => `--${key === "labelBg" ? "label-bg" : key === "mapBg" ? "map-bg" : key === "soft2" ? "soft-2" : key === "accentInk" ? "accent-ink" : key === "accentSoft" ? "accent-soft" : key}:${theme.colors[key]}`),
   ];
   parts.push(`:root{${vars.join(";")}}`);
   return parts.join("");
