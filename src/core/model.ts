@@ -79,6 +79,8 @@ export interface ResolvedEvent {
   id: string;
   title: string;
   when: ParsedDate;
+  /** The end of a period event. Inclusive; never before `when`. */
+  until?: ParsedDate | undefined;
   /** Either a location on the map, or a raw point. */
   where?: { location?: string | undefined; map?: string | undefined; at?: [number, number] | undefined } | undefined;
   /** Person ids. */

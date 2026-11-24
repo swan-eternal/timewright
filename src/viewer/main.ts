@@ -161,7 +161,7 @@ function eventCard(world: ResolvedWorld, event: ResolvedEvent): string {
     .join(", ");
   return [
     `<h2>${escapeHtml(event.title)}</h2>`,
-    `<p class="meta">${escapeHtml(displayDate(world, event.when))}${chapterNote(world, event)} · ${whereHtml}</p>`,
+    `<p class="meta">${escapeHtml(displayEventRange(world, event))}${chapterNote(world, event)} · ${whereHtml}</p>`,
     people !== "" ? `<p class="people"><strong>People:</strong> ${people}</p>` : "",
     tagChips(event.tags),
     renderMarkdown(event.card),
@@ -210,7 +210,7 @@ function locationCard(
       : `<div class="events-here"><h3>Events here</h3><ul>${eventsHere
           .map(
             (event) =>
-              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(displayDate(world, event.when))}</span></li>`,
+              `<li class="${visibleEventIds.has(event.id) ? "is-visible" : ""}"><a href="#" data-kind="event" data-jump="event" data-id="${escapeHtml(event.id)}">${escapeHtml(event.title)}</a><span class="when">${escapeHtml(displayEventRange(world, event))}</span></li>`,
           )
           .join("")}</ul></div>`;
   return [
@@ -223,6 +223,13 @@ function locationCard(
     tagChips(location.tags),
     renderMarkdown(location.card ?? location.bio),
   ].join("\n");
+}
+
+/** A period event reads as a range; a moment reads as its date. */
+function displayEventRange(world: ResolvedWorld, event: ResolvedEvent): string {
+  return event.until === undefined
+    ? displayDate(world, event.when)
+    : `${displayDate(world, event.when)} – ${displayDate(world, event.until)}`;
 }
 
 function personCard(world: ResolvedWorld, person: ResolvedPerson): string {
@@ -274,7 +281,7 @@ function renderCard(state: AppState, visibleEventIds: Set<string>): void {
     const event = state.world.events.find((entry) => entry.id === selection.id);
     html = event !== undefined ? eventCard(state.world, event) : "";
     peekTitle = event?.title ?? "";
-    peekDate = event !== undefined ? displayDate(state.world, event.when) : "";
+    peekDate = event !== undefined ? displayEventRange(state.world, event) : "";
   } else if (selection.kind === "location") {
     const location = state.world.locations.find((entry) => entry.id === selection.id);
     html = location !== undefined ? locationCard(state, location, visibleEventIds) : "";
@@ -943,7 +950,7 @@ async function boot(): Promise<void> {
           ? state.world.events.find((e) => e.id === activeEventId)
           : undefined;
       if (activeEvent !== undefined && !eventHasPosition(state.world, activeEvent, state.date)) {
-        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(displayDate(state.world, activeEvent.when))}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
+        generalBannerElement.innerHTML = `<span class="banner-pill">Timeline event</span> <strong>${escapeHtml(displayEventRange(state.world, activeEvent))}</strong> — <button type="button" class="banner-link" data-kind="event" data-id="${escapeHtml(activeEvent.id)}">${escapeHtml(activeEvent.title)}</button>`;
         generalBannerElement.hidden = false;
       } else {
         generalBannerElement.hidden = true;

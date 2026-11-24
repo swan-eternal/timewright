@@ -123,6 +123,32 @@ describe("the Studio, end to end", () => {
     assert.equal(dated.activeDate, "1815");
     assert.equal(dated.timeline.events.find((e: { title: string }) => e.title === "The battle").current, true);
 
+    // A period event: created with an until, kept end to end, and marked
+    // current while the Studio's clock is inside the span.
+    const war = (
+      await ask(root, "/api/create", {
+        kind: "event",
+        record: { title: "The Peninsular War", when: "1807", until: "1814" },
+      })
+    ).json();
+    assert.equal(war.ok, true, war.message);
+
+    const withWar = (await ask(root, "/api/editor")).json();
+    const savedWar = withWar.events.find((e: { title: string }) => e.title === "The Peninsular War");
+    assert.equal(savedWar.until, "1814");
+
+    const midWar = (
+      await ask(root, "/api/editor", undefined, new URLSearchParams("date=1810"))
+    ).json();
+    assert.equal(
+      midWar.timeline.events.find((e: { title: string }) => e.title === "The Peninsular War").current,
+      true,
+    );
+    assert.equal(
+      midWar.timeline.events.find((e: { title: string }) => e.title === "The battle").current,
+      false,
+    );
+
     // Renaming the place: the file moves with it, and its comments stay.
     const renameTarget = after.locations.find((l: { id: string }) => l.id === place.id);
     const renamed = (

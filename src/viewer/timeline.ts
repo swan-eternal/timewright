@@ -101,6 +101,24 @@ export class Timeline {
     const buckets = new Map<number, number>();
     const ticks = events
       .map((event) => {
+        // A period event spans the strip as a bar, not a spot.
+        if (event.until !== undefined) {
+          const from = Math.min(Math.max(dateFraction(event.when, span), 0), 1);
+          const to = Math.min(Math.max(dateFraction(event.until, span), 0), 1);
+          const left = Math.min(from, to) * 100;
+          const width = Math.max(Math.abs(to - from), 0.01) * 100;
+          const isGeneral = !eventHasPosition(world, event);
+          const classes = [
+            "tick",
+            "span",
+            isGeneral ? "general" : "",
+            activeEventId === event.id ? "active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          const range = `${displayDate(world, event.when)} – ${displayDate(world, event.until)}`;
+          return `<button type="button" class="${classes}" data-event="${escapeHtml(event.id)}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(range)} — ${escapeHtml(event.title)}"></button>`;
+        }
         const raw = dateFraction(event.when, span);
         const pinned = raw < 0 || raw > 1;
         const fraction = Math.min(Math.max(raw, 0), 1);

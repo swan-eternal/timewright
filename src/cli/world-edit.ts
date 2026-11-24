@@ -64,7 +64,7 @@ const EDITABLE_FIELDS: Record<
       { key: "title", label: "a title" },
       { key: "when", label: "a date" },
     ],
-    optional: ["where", "card", "notes"],
+    optional: ["where", "until", "card", "notes"],
     lists: ["people", "locations", "tags"],
   },
 };

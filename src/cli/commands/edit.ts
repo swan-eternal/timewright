@@ -643,6 +643,7 @@ export async function describe(
       id: record.id,
       title: event.title,
       when: String(event.when),
+      until: event.until !== undefined ? String(event.until) : "",
       whereMode,
       where: typeof rawWhere === "string" ? rawWhere : "",
       whereIsPoint: isPoint,
@@ -820,13 +821,18 @@ function buildTimeline(
         id: event.id,
         title: event.title,
         when: event.when.raw,
+        until: event.until?.raw ?? "",
         value: dateValue(event.when),
         fraction: domain !== undefined ? dateFraction(event.when, domain) : 0,
         whereMode,
         map: place?.mapId ?? "",
         locationId: place?.location?.id ?? "",
         current:
-          atDate !== undefined && domain !== undefined && compareBounds(atDate, event.when) === 0,
+          atDate !== undefined &&
+          domain !== undefined &&
+          (event.until !== undefined
+            ? compareBounds(atDate, event.when) >= 0 && compareBounds(atDate, event.until) <= 0
+            : compareBounds(atDate, event.when) === 0),
       };
     })
     .sort((a, b) => a.value - b.value);

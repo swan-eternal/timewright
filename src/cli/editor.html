@@ -507,6 +507,9 @@
               </label>`
                 : `<label class="field">Date (e.g. 1815, 1815-06-18, ~1200)
                 <input name="when" required value="${esc(d.when || currentDate())}" />
+              </label>
+              <label class="field">Until — end of a period, optional (e.g. 1815)
+                <input name="until" value="${esc(d.until || "")}" placeholder="Leave empty for a single moment" />
               </label>`}
               <label class="field">Where It Happens
                 <select name="whereMode" id="draft-where-mode">
@@ -593,6 +596,7 @@
             record = {
               title: String(values.title || "").trim(),
               when,
+              until: String(values.until || "").trim() || undefined,
               where:
                 mode === "location"
                   ? String(values.whereLocation || "").trim()
@@ -926,7 +930,7 @@
           const label = it.name || it.title;
           let sub = "";
           if (S.tab === "locations") sub = it.kind === "mobile" ? "mobile" : (it.map || "unplaced") + (it.opens ? " ↘" : "");
-          else if (S.tab === "events") sub = `${fmtWhen(it.when)}${it.whereMode === "general" ? " · timeline" : it.where ? ` · ${it.where}` : it.whereMap ? ` · ${it.whereMap}` : ""}`;
+          else if (S.tab === "events") sub = `${fmtWhen(it.when)}${it.until ? ` – ${fmtWhen(it.until)}` : ""}${it.whereMode === "general" ? " · timeline" : it.where ? ` · ${it.where}` : it.whereMap ? ` · ${it.whereMap}` : ""}`;
           else if (S.tab === "people") sub = [it.born, it.died].filter(Boolean).join("–");
           else if (S.tab === "maps") sub = it.parent ? `in ${it.parent}` : "main map";
           const active = it.id === S.selectedId ? " active" : "";
@@ -2128,6 +2132,9 @@
               </label>`
                 : `<label class="field">Date / When
                 <input name="when" required placeholder="e.g. 1815-06-18 or ~1200" value="${esc(ev.when)}" />
+              </label>
+              <label class="field">Until — end of a period, optional
+                <input name="until" placeholder="e.g. 1815 — the period's end" value="${esc(ev.until || "")}" />
               </label>`}
               <label class="field" style="max-width:6rem">Order (tie-break)
                 <input name="order" type="number" value="${esc(ev.order)}" placeholder="0" />
