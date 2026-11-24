@@ -149,6 +149,42 @@ describe("the Studio, end to end", () => {
       false,
     );
 
+    // Character layers: the people association survives the Studio end
+    // to end. The characters exist first — the build refuses an event
+    // that names people who are not there.
+    for (const name of ["Napoleon", "Wellington"]) {
+      const person = (await ask(root, "/api/create", { kind: "person", record: { name } })).json();
+      assert.equal(person.ok, true, person.message);
+    }
+    const created = (
+      await ask(root, "/api/create", {
+        kind: "event",
+        record: { title: "The council", when: "1805", people: ["Napoleon", "Wellington"] },
+      })
+    ).json();
+    assert.equal(created.ok, true, created.message);
+
+    const listed = (await ask(root, "/api/editor")).json();
+    const council = listed.events.find((e: { title: string }) => e.title === "The council");
+    assert.ok(council !== undefined);
+    assert.deepEqual(council.people, ["Napoleon", "Wellington"]);
+
+    const edited = (
+      await ask(root, "/api/record", {
+        kind: "event",
+        file: council.file,
+        index: council.index,
+        values: { people: "Napoleon" },
+      })
+    ).json();
+    assert.equal(edited.ok, true, edited.message);
+
+    const relisted = (await ask(root, "/api/editor")).json();
+    assert.deepEqual(
+      relisted.events.find((e: { title: string }) => e.title === "The council").people,
+      ["Napoleon"],
+    );
+
     // Renaming the place: the file moves with it, and its comments stay.
     const renameTarget = after.locations.find((l: { id: string }) => l.id === place.id);
     const renamed = (

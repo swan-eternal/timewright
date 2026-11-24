@@ -1153,6 +1153,25 @@ h3,
   cursor: pointer;
 }
 
+/* The bucket rows — World events and the Traces switch — are not
+ * characters, so they sit below a rule with hollow dots. */
+.trace-check.bucket {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.trace-dot.world,
+.trace-dot.path {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid currentColor;
+}
+
+.trace-dot.path {
+  border-style: dashed;
+}
+
 .trace-dot,
 .chip-dot {
   display: inline-block;

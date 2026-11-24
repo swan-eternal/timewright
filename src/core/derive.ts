@@ -232,6 +232,26 @@ export function mapChain(world: ResolvedWorld, mapId: string): ResolvedMap[] {
   return chain;
 }
 
+/** Character layers: which events the viewer shows. */
+export interface LayerFilter {
+  /** Person ids whose events are hidden. */
+  hiddenPeople: string[];
+  /** Whether events with no characters attached show. */
+  worldEvents: boolean;
+}
+
+/** An event shows while any attached character's layer is on; an event
+ *  with no characters attached follows the world-events layer. */
+export function eventLayerVisible(event: ResolvedEvent, layers: LayerFilter | undefined): boolean {
+  if (layers === undefined) {
+    return true;
+  }
+  if (event.people.length === 0) {
+    return layers.worldEvents;
+  }
+  return event.people.some((id) => !layers.hiddenPeople.includes(id));
+}
+
 /** Events in date order, with `order` and then the id breaking ties. */
 export function sortedEvents(world: ResolvedWorld): ResolvedEvent[] {
   return [...world.events].sort((a, b) => {

@@ -1,0 +1,10 @@
+- title: Ana alone
+  when: 1801
+  people: [Ana]
+
+- title: Ana and Bol
+  when: 1802
+  people: [Ana, Bol]
+
+- title: Nobody's event
+  when: 1803

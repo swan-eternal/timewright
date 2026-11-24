@@ -8,7 +8,14 @@
  */
 
 import { compareBounds, compareDateBounds, compareDates, compareOrder, type DateBound } from "./dates.js";
-import { eventHasPosition, eventPlace, resolveLocationAt, sortedEvents } from "./derive.js";
+import {
+  eventHasPosition,
+  eventLayerVisible,
+  eventPlace,
+  resolveLocationAt,
+  sortedEvents,
+  type LayerFilter,
+} from "./derive.js";
 import type { ResolvedEvent, ResolvedLocation, ResolvedPerson, ResolvedWorld } from "./model.js";
 
 export interface Span {
@@ -314,6 +321,9 @@ export interface StepOptions {
   query?: string | undefined;
   /** Tags the steps must all carry. */
   tags?: string[] | undefined;
+  /** Character layers: which events show. A traced person ignores them —
+   *  following someone is an explicit choice to see their events. */
+  layers?: LayerFilter | undefined;
 }
 
 /**
@@ -343,7 +353,9 @@ export function viewSteps(world: ResolvedWorld, options: StepOptions): ViewStep[
     const inside = spanSteps(world, options.span);
     const seen = new Set(inside.map((event) => event.id));
     const unplaced = unplacedEvents(world).filter((event) => !seen.has(event.id));
-    const combined = [...inside, ...unplaced].sort((a, b) => {
+    const combined = [...inside, ...unplaced]
+      .filter((event) => eventLayerVisible(event, options.layers))
+      .sort((a, b) => {
       const byDate = compareDates(a.when, b.when);
       if (byDate !== 0) {
         return byDate;
