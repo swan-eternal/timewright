@@ -1272,7 +1272,8 @@ async function boot(): Promise<void> {
 /**
  * When the viewer is embedded in a page, offer a way out of it.
  *
- * The link carries the current view, so it lands where the reader is.
+ * The link carries the current view, so it lands where the reader is, and
+ * opens a new tab so the embedding page stays where the reader left it.
  */
 function setupEmbedLink(): void {
   if (window.self === window.top) {
@@ -1284,6 +1285,8 @@ function setupEmbedLink(): void {
   }
   const link = document.createElement("a");
   link.href = window.location.href;
+  link.target = "_blank";
+  link.rel = "noopener";
   link.className = "embed-link";
   link.textContent = "Open full screen";
   topbar.appendChild(link);
